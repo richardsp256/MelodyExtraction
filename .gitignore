@@ -40,3 +40,6 @@
 # Ignore libraries
 fftw*/*
 libsndfile*/*
+
+#Ignore compiled code
+extract
