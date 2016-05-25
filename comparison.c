@@ -17,48 +17,67 @@ void PrintAudioMetadata(SF_INFO * file)
     printf("Seekable: \t%d\n", file->seekable);
 }
 
-int ReadAudioFile(char* filename, int blocksize, double*** dft_data, unsigned int* samplerate, unsigned int* frames)
+int ExtractMelody(char* filename)
+{ 
+	int sampleSize = 2048;
+
+	//reads in .wav
+	SF_INFO info;
+	SNDFILE * f = sf_open(filename, SFM_READ, &info);
+	if( !f ){
+		printf("ERROR: could not open %s for processing\n", filename );
+		return 0;
+	}
+	if(info.channels != 1){
+		printf("ERROR: .wav file must be Mono. Code can't currently handle multi-channel audio.\n");
+		sf_close( f );
+		return 0;
+	}
+	PrintAudioMetadata(&info);
+
+	//run STFT on input
+	double** AudioData = NULL;
+	int size = STFT(f, info, sampleSize, &AudioData);
+	if( !size ) {
+		printf("ERROR: ReadAudioFile failed for %s\n", filename);
+	}
+	
+	printf("size is %d\n", size);
+
+	//free data
+	int i;
+	for(i = 0; i < size; i++){
+		free(AudioData[i]);
+	}
+	free(AudioData);
+
+	return size;
+}
+
+int STFT(SNDFILE * f, SF_INFO info, int blocksize, double*** dft_data)
 {
 	//reads in .wav, returns FFT by reference through dft_data, returns size of dft_data
 	sf_count_t i;
 	sf_count_t j;
-	
-	SF_INFO info;
-    SNDFILE * f = sf_open(filename, SFM_READ, &info);
-    if( !f ){
-    	printf("error: could not open %s for processing\n", filename );
-    	return 0;
-    }
 
-    PrintAudioMetadata(&info);
-    
-    if(info.channels != 1){
-    	printf("error: .wav file must be Mono. Code can't currently handle multi-channel audio.\n");
-    	sf_close( f );
-    	return 0;
-    }
-
-    (*samplerate) = (unsigned int)info.samplerate;
-    (*frames) = (unsigned int)(int)info.frames;
-
-    double* fftw_in = fftw_malloc( sizeof(double) * blocksize * info.channels );
-    if ( !fftw_in ) {
-		printf("error: fftw_malloc 1 failed\n");
+	double* fftw_in = fftw_malloc( sizeof(double) * blocksize * info.channels );
+	if ( !fftw_in ) {
+		printf("ERROR: fftw_malloc 1 failed\n");
 		sf_close( f );
 		return 0;
 	}
 
 	fftw_complex* fftw_out = fftw_malloc( sizeof(fftw_complex) * blocksize );
-    if ( !fftw_out ) {
-		printf("error: fftw_malloc 2 failed\n");
+	if ( !fftw_out ) {
+		printf("ERROR: fftw_malloc 2 failed\n");
 		fftw_free( fftw_in );
 		sf_close( f );
 		return 0;
-    }
+	}
 
 	fftw_plan plan = fftw_plan_dft_r2c_1d( blocksize, fftw_in, fftw_out, FFTW_MEASURE );
 	if ( !plan ) {
-		printf("error: Could not create plan\n");
+		printf("ERROR: Could not create plan\n");
 		fftw_free( fftw_in );
 		fftw_free( fftw_out );
 		sf_close( f );
@@ -71,7 +90,7 @@ int ReadAudioFile(char* filename, int blocksize, double*** dft_data, unsigned in
 	for(i = 0; i < (numBlocks * blocksize / 2.0); i++){
 		(*dft_data)[i] = malloc(sizeof(double) * 2);
 	}
-    //printf("transform splits file into %d slices\n", numBlocks);
+	//printf("transform splits file into %d slices\n", numBlocks);
 
 	sf_count_t numRead;
 	for(i = 0; i < numBlocks; i++){
