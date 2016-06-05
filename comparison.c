@@ -17,6 +17,17 @@ void PrintAudioMetadata(SF_INFO * file)
     printf("Seekable: \t%d\n", file->seekable);
 }
 
+float* WindowFunction(int size)
+{
+	//uses Hamming Window
+	//size = blocksize+1
+	float* buffer = malloc(sizeof(float) * size);
+	for(int i = 0; i < size; ++i) {
+		buffer[i] =(float) (0.54-(0.46*cos(2*M_PI*i/(size-1.0))));
+	}
+	return buffer;
+}
+
 int ExtractMelody(char* filename)
 { 
 	int sampleSize = 2048;
@@ -71,6 +82,8 @@ int STFT(double** input, SF_INFO info, int blocksize, double*** dft_data) {
     fftw_complex* fftw_out = fftw_malloc( sizeof( fftw_complex ) * blocksize );
 
     fftw_plan plan  = fftw_plan_dft_r2c_1d( blocksize, fftw_in, fftw_out, FFTW_MEASURE );
+
+    float* window = WindowFunction(blocksize+1);
  
     //malloc space for dft_data
 	int numBlocks = (int)(ceil(info.frames / (double)blocksize));
@@ -88,7 +101,7 @@ int STFT(double** input, SF_INFO info, int blocksize, double*** dft_data) {
 		for(j = 0; j < blocksize; j++) {
 
 			if(blockoffset + j < info.frames) {
-				fftw_in[j] = (*input)[blockoffset + j];
+				fftw_in[j] = (*input)[blockoffset + j] * window[j]; 
 			} else {
 				//reached end of input
 				//Pad with 0 so fft is same size as other blocks
