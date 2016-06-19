@@ -31,6 +31,7 @@ float* WindowFunction(int size)
 int ExtractMelody(char* filename)
 { 
 	int sampleSize = 2048;
+	int interval = 50;
 
 	//reads in .wav
 	SF_INFO info;
@@ -57,10 +58,10 @@ int ExtractMelody(char* filename)
 	sf_close( f );
 
 	double** AudioData = NULL;
-	int size = STFT(&input, info, sampleSize, &AudioData);
+	int size = STFT(&input, info, sampleSize, interval, &AudioData);
 	fftw_free( input );
 
-	//printf("data: %f %f %f %f\n", AudioData[0][0], AudioData[0][1], AudioData[1][0], AudioData[1][1]);
+	printf("numblcks: %d\nlast val: %f %f\n", size/(sampleSize/2 + 1), AudioData[size-1][0], AudioData[size-1][1]);
 
 
 	//free data
@@ -74,7 +75,7 @@ int ExtractMelody(char* filename)
 }
 
 //reads in .wav, returns FFT by reference through dft_data, returns size of dft_data
-int STFT(double** input, SF_INFO info, int blocksize, double*** dft_data) {
+int STFT(double** input, SF_INFO info, int blocksize, int interval, double*** dft_data) {
     int i;
     int j;
 
@@ -86,18 +87,21 @@ int STFT(double** input, SF_INFO info, int blocksize, double*** dft_data) {
     float* window = WindowFunction(blocksize+1);
  
     //malloc space for dft_data
-	int numBlocks = (int)(ceil(info.frames / (double)blocksize));
+	int numBlocks = (int)(ceil(((info.frames - (double)blocksize) / (double)interval) + 1));
+	if(numBlocks < 1){
+		numBlocks = 1;
+	}
     (*dft_data) = malloc( sizeof(double*) * numBlocks * (blocksize/2 + 1) );
 	for(i = 0; i < (numBlocks * (blocksize/2 + 1)); i++){
 		(*dft_data)[i] = malloc(sizeof(double) * 2);
 	}
  
 	int blockoffset;
-    // Process each chunk of the input
+    //run fft on each block
     for(i = 0; i < numBlocks; i++){
 
 		// Copy the chunk into our buffer
-		blockoffset = i*blocksize;
+		blockoffset = i*interval;
 		for(j = 0; j < blocksize; j++) {
 
 			if(blockoffset + j < info.frames) {
