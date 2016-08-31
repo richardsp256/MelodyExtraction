@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <float.h>
+#include <limits.h>
 #include "sndfile.h"
 #include "fftw3.h"
 #include "comparison.h"
@@ -20,7 +21,7 @@ void PrintAudioMetadata(SF_INFO * file)
 float* WindowFunction(int size)
 {
 	//uses Hamming Window
-	//size = blocksize+1
+	//note: size = blocksize+1
 	float* buffer = malloc(sizeof(float) * size);
 	for(int i = 0; i < size; ++i) {
 		buffer[i] =(float) (0.54-(0.46*cos(2*M_PI*i/(size-1.0))));
@@ -31,7 +32,7 @@ float* WindowFunction(int size)
 int ExtractMelody(char* filename)
 { 
 	int sampleSize = 2048;
-	int interval = 50;
+	int interval = 1;
 
 	//reads in .wav
 	SF_INFO info;
@@ -54,17 +55,22 @@ int ExtractMelody(char* filename)
 		printf("ERROR: input received incorrect amount of data\n");
 		return -1;
 	}
-
 	sf_close( f );
 
 	double** AudioData = NULL;
 	int size = STFT(&input, info, sampleSize, interval, &AudioData);
-	fftw_free( input );
+	printf("numblcks: %d\n", size/(sampleSize/2 + 1));
 
-	printf("numblcks: %d\nlast val: %f %f\n", size/(sampleSize/2 + 1), AudioData[size-1][0], AudioData[size-1][1]);
+	double* output = NULL;
+	size = STFTinverse(&AudioData, info, sampleSize, interval, &output);
 
+	char* fname3 = "Undertale_2.wav";
+	SaveAsWav(output, info, fname3);
 
 	//free data
+	fftw_free( input );
+	fftw_free( output );
+	
 	int i;
 	for(i = 0; i < size; i++){
 		free(AudioData[i]);
@@ -126,4 +132,114 @@ int STFT(double** input, SF_INFO info, int blocksize, int interval, double*** df
 	fftw_free( fftw_out );
 
 	return numBlocks * (blocksize/2 + 1);
+}
+
+int STFTinverse(double*** input, SF_INFO info, int blocksize, int interval, double** output) {
+	//length of input is numBlocks * (blocksize/2 + 1)
+    int i;
+    int j;
+	int inputoffset;
+	int outputoffset;
+
+    fftw_complex* fftw_in = fftw_malloc( sizeof( fftw_complex ) * blocksize );
+	double* fftw_out = fftw_malloc( sizeof( double ) * blocksize * info.channels );
+
+    fftw_plan plan  = fftw_plan_dft_c2r_1d( blocksize, fftw_in, fftw_out, FFTW_MEASURE );
+
+    //float* window = WindowFunction(blocksize+1);
+ 
+    //malloc space for output
+    (*output) = fftw_malloc( sizeof(double) * info.frames );
+
+	int numBlocks = (int)(ceil(((info.frames - (double)blocksize) / (double)interval) + 1));
+	if(numBlocks < 1){
+		numBlocks = 1;
+	}
+
+    //run fft on each block
+    for(i = 0; i < numBlocks; i++){
+
+		// Copy the chunk into our buffer
+		inputoffset = i*(blocksize/2 + 1);
+		for(j = 0; j < blocksize/2 + 1; j++) {
+			fftw_in[j][0] = (*input)[inputoffset + j][0]; 
+			fftw_in[j][1] = (*input)[inputoffset + j][1]; 
+		}
+
+		fftw_execute( plan );
+
+		outputoffset = i*interval;
+
+		for (j = 0; j < blocksize; j++) {
+			if(outputoffset + j < info.frames) {
+				(*output)[outputoffset + j] += (fftw_out[j] / (double)((blocksize*blocksize)/interval));
+			}
+		}	
+	}
+
+	fftw_destroy_plan( plan );
+	fftw_free( fftw_in );
+	fftw_free( fftw_out );
+
+	return info.frames;
+}
+
+void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
+	FILE* file = fopen(path, "wb");
+	
+	//Encode samples to 16 bit
+	short* samples = (short*)malloc(info.frames* sizeof(short));
+	unsigned int i;
+	short max = -10000;
+	int maxloc = 0;
+	short min = 10000;
+	int minloc = 0;
+	for (i = 0; i < info.frames; ++i) {
+		samples[i] = htole16(fmin(fmax(audio[i], -1), 1) * SHRT_MAX);
+		if(samples[i] > max){
+			max = samples[i];
+			maxloc = i;
+		}
+		if(samples[i] < min){
+			min = samples[i];
+			minloc = i;
+		}
+	}
+
+	printf("\tmax: %d at %d\tmin: %d at %d\n", max, maxloc, min, minloc);
+	
+	//Heaader chunk
+	fprintf(file, "RIFF");
+	unsigned int chunksize = htole32((info.frames * sizeof(short)) + 36);
+	fwrite(&chunksize, sizeof(chunksize), 1, file);
+	fprintf(file, "WAVE");
+	
+	//Format chunk
+	fprintf(file, "fmt ");
+	unsigned int fmtchunksize = htole32(16);
+	fwrite(&fmtchunksize, sizeof(fmtchunksize), 1, file);
+	unsigned short audioformat = htole16(1);
+	fwrite(&audioformat, sizeof(audioformat), 1, file);
+	unsigned short numchannels = htole16(1);
+	fwrite(&numchannels, sizeof(numchannels), 1, file);
+	unsigned int samplerate = htole32(info.samplerate);
+	fwrite(&samplerate, sizeof(samplerate), 1, file);
+	unsigned int byterate = htole32(samplerate * numchannels * sizeof(short));
+	fwrite(&byterate, sizeof(byterate), 1, file);
+	unsigned short blockalign = htole16(numchannels * sizeof(short));
+	fwrite(&blockalign, sizeof(blockalign), 1, file);
+	unsigned short bitspersample = htole16(sizeof(short) * CHAR_BIT);
+	fwrite(&bitspersample, sizeof(bitspersample), 1, file);
+	
+	//Data chunk
+	fprintf(file, "data");
+	unsigned int datachunksize = htole32(info.frames * sizeof(short));
+	fwrite(&datachunksize, sizeof(datachunksize), 1, file);
+	fwrite(samples, sizeof(short), info.frames, file);
+	
+	//Free encoded samples
+	free(samples);
+	
+	//Close the file
+	fclose(file);
 }
