@@ -31,16 +31,16 @@ float* WindowFunction(int size)
 	return buffer;
 }
 
-int ExtractMelody(char* filename)
+int ExtractMelody(char* inFile, char* outFile)
 { 
 	int sampleSize = 2048;
 	int interval = 1;
 
 	//reads in .wav
 	SF_INFO info;
-	SNDFILE * f = sf_open(filename, SFM_READ, &info);
+	SNDFILE * f = sf_open(inFile, SFM_READ, &info);
 	if( !f ){
-		printf("ERROR: could not open %s for processing\n", filename );
+		printf("ERROR: could not open %s for processing\n", inFile );
 		return -1;
 	}
 	if(info.channels != 1){
@@ -68,8 +68,7 @@ int ExtractMelody(char* filename)
 	double* output = NULL;
 	size = STFTinverse(&AudioData, info, sampleSize, interval, &output);
 
-	char* fname3 = "Undertale_2.wav";
-	SaveAsWav(output, info, fname3);
+	SaveAsWav(output, info, outFile);
 
 	//free data
 	fftw_free( input );
