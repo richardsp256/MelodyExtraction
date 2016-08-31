@@ -7,6 +7,8 @@
 #include "fftw3.h"
 #include "comparison.h"
 
+int HPS_INTERVALS = 2;
+
 void PrintAudioMetadata(SF_INFO * file)
 {
 	//this is only for printing information for debugging purposes
@@ -60,6 +62,8 @@ int ExtractMelody(char* filename)
 	double** AudioData = NULL;
 	int size = STFT(&input, info, sampleSize, interval, &AudioData);
 	printf("numblcks: %d\n", size/(sampleSize/2 + 1));
+
+	HarmonicProductSpectrum(&AudioData, size, (sampleSize/2) + 1);
 
 	double* output = NULL;
 	size = STFTinverse(&AudioData, info, sampleSize, interval, &output);
@@ -182,6 +186,31 @@ int STFTinverse(double*** input, SF_INFO info, int blocksize, int interval, doub
 	fftw_free( fftw_out );
 
 	return info.frames;
+}
+
+void HarmonicProductSpectrum(double*** AudioData, int size, int dftBlocksize){
+	//create a copy of AudioData
+	double** AudioDataCopy = malloc( sizeof(double*) * size );
+	for(int i = 0; i < size; i++){
+		AudioDataCopy[i] = malloc(sizeof(double) * 2);
+		AudioDataCopy[i][0] = (*AudioData)[i][0];
+		AudioDataCopy[i][1] = (*AudioData)[i][1];
+	}
+
+	//do each block at a time.
+	//note: HPS_INTERVALS = 5
+	for(int blockstart = 0; blockstart < size; blockstart += dftBlocksize){
+		for(int i = 2; i <= HPS_INTERVALS; i++){
+			for(int j = 0; j < dftBlocksize; j++){
+				if(j*i < dftBlocksize){
+					(*AudioData)[blockstart + j][0] *= AudioDataCopy[blockstart + j*i][0];
+					(*AudioData)[blockstart + j][1] *= AudioDataCopy[blockstart + j*i][1];
+				}
+			}
+		}
+	}
+
+	//todo: try removing all but the largest band in HSPData from AudioData at every block
 }
 
 void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
