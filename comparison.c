@@ -9,12 +9,17 @@
 
 int HPS_INTERVALS = 2;
 
+char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
+char* ERR_FILE_NOT_MONO = "Input file must be Mono."
+                          " Multi-channel audio currently not supported.\n";
+
+
 void PrintAudioMetadata(SF_INFO * file)
 {
 	//this is only for printing information for debugging purposes
     printf("Frames:\t%ld\n", file->frames); 
     printf("Sample rate:\t%d\n", file->samplerate);
-    printf("Channels: \t%d\n", file->channels); //comparison wont be accurate if channels is not 0! 
+    printf("Channels: \t%d\n", file->channels);
     printf("Format: \t%d\n", file->format);
     printf("Sections: \t%d\n", file->sections);
     printf("Seekable: \t%d\n", file->seekable);
@@ -40,11 +45,11 @@ int ExtractMelody(char* inFile, char* outFile)
 	SF_INFO info;
 	SNDFILE * f = sf_open(inFile, SFM_READ, &info);
 	if( !f ){
-		printf("ERROR: could not open %s for processing\n", inFile );
+		printf("%s", ERR_INVALID_FILE);
 		return -1;
 	}
 	if(info.channels != 1){
-		printf("ERROR: .wav file must be Mono. Code can't currently handle multi-channel audio.\n");
+		printf("%s", ERR_FILE_NOT_MONO);
 		sf_close( f );
 		return -1;
 	}
@@ -52,11 +57,7 @@ int ExtractMelody(char* inFile, char* outFile)
 	PrintAudioMetadata(&info);
 
 	double* input = fftw_malloc( sizeof(double) * info.frames);
-	sf_count_t numRead = sf_readf_double( f, input, info.frames );
-	if ( numRead != info.frames ) {
-		printf("ERROR: input received incorrect amount of data\n");
-		return -1;
-	}
+	sf_readf_double( f, input, info.frames );
 	sf_close( f );
 
 	double** AudioData = NULL;
