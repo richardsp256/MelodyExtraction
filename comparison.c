@@ -40,6 +40,7 @@ int ExtractMelody(char* inFile, char* outFile)
 { 
 	int sampleSize = 2048;
 	int interval = 1;
+	int i;
 
 	//reads in .wav
 	SF_INFO info;
@@ -56,7 +57,7 @@ int ExtractMelody(char* inFile, char* outFile)
 	
 	PrintAudioMetadata(&info);
 
-	double* input = fftw_malloc( sizeof(double) * info.frames);
+	double* input = malloc( sizeof(double) * info.frames);
 	sf_readf_double( f, input, info.frames );
 	sf_close( f );
 
@@ -67,21 +68,21 @@ int ExtractMelody(char* inFile, char* outFile)
 	HarmonicProductSpectrum(&AudioData, size, (sampleSize/2) + 1);
 
 	double* output = NULL;
-	size = STFTinverse(&AudioData, info, sampleSize, interval, &output);
-
-	SaveAsWav(output, info, outFile);
-
-	//free data
-	fftw_free( input );
-	fftw_free( output );
-	
-	int i;
+	STFTinverse(&AudioData, info, sampleSize, interval, &output);
 	for(i = 0; i < size; i++){
 		free(AudioData[i]);
 	}
 	free(AudioData);
 
-	return size;
+	SaveAsWav(output, info, outFile);
+
+	/*
+	 * if input is free before STFTinverse is called, result changes...
+	 */
+	free( input );
+	free( output );
+
+	return info.frames;
 }
 
 //reads in .wav, returns FFT by reference through dft_data, returns size of dft_data
@@ -97,7 +98,7 @@ int STFT(double** input, SF_INFO info, int blocksize, int interval, double*** df
     float* window = WindowFunction(blocksize+1);
  
     //malloc space for dft_data
-	int numBlocks = (int)(ceil(((info.frames - (double)blocksize) / (double)interval) + 1));
+	int numBlocks = (int)ceil((info.frames - blocksize) / (double)interval) + 1;
 	if(numBlocks < 1){
 		numBlocks = 1;
 	}
@@ -153,9 +154,9 @@ int STFTinverse(double*** input, SF_INFO info, int blocksize, int interval, doub
     //float* window = WindowFunction(blocksize+1);
  
     //malloc space for output
-    (*output) = fftw_malloc( sizeof(double) * info.frames );
+    (*output) = malloc( sizeof(double) * info.frames );
 
-	int numBlocks = (int)(ceil(((info.frames - (double)blocksize) / (double)interval) + 1));
+	int numBlocks = (int)ceil((info.frames - blocksize) / (double)interval) + 1;
 	if(numBlocks < 1){
 		numBlocks = 1;
 	}
@@ -176,7 +177,7 @@ int STFTinverse(double*** input, SF_INFO info, int blocksize, int interval, doub
 
 		for (j = 0; j < blocksize; j++) {
 			if(outputoffset + j < info.frames) {
-				(*output)[outputoffset + j] += (fftw_out[j] / (double)((blocksize*blocksize)/interval));
+				(*output)[outputoffset + j] += fftw_out[j] / (double)((blocksize*blocksize)/interval);
 			}
 		}	
 	}
@@ -189,9 +190,11 @@ int STFTinverse(double*** input, SF_INFO info, int blocksize, int interval, doub
 }
 
 void HarmonicProductSpectrum(double*** AudioData, int size, int dftBlocksize){
+	int i,j;
+
 	//create a copy of AudioData
 	double** AudioDataCopy = malloc( sizeof(double*) * size );
-	for(int i = 0; i < size; i++){
+	for(i = 0; i < size; i++){
 		AudioDataCopy[i] = malloc(sizeof(double) * 2);
 		AudioDataCopy[i][0] = (*AudioData)[i][0];
 		AudioDataCopy[i][1] = (*AudioData)[i][1];
@@ -200,17 +203,22 @@ void HarmonicProductSpectrum(double*** AudioData, int size, int dftBlocksize){
 	//do each block at a time.
 	//note: HPS_INTERVALS = 5
 	for(int blockstart = 0; blockstart < size; blockstart += dftBlocksize){
-		for(int i = 2; i <= HPS_INTERVALS; i++){
-			for(int j = 0; j < dftBlocksize; j++){
-				if(j*i < dftBlocksize){
-					(*AudioData)[blockstart + j][0] *= AudioDataCopy[blockstart + j*i][0];
-					(*AudioData)[blockstart + j][1] *= AudioDataCopy[blockstart + j*i][1];
-				}
+		for(i = 2; i <= HPS_INTERVALS; i++){
+			j = 0;
+			while(j*i < dftBlocksize){
+				(*AudioData)[blockstart + j][0] *= AudioDataCopy[blockstart + j*i][0];
+				(*AudioData)[blockstart + j][1] *= AudioDataCopy[blockstart + j*i][1];
+				j++;
 			}
 		}
 	}
 
-	//todo: try removing all but the largest band in HSPData from AudioData at every block
+	for(i = 0; i < size; i++){
+		free(AudioDataCopy[i]);
+	}
+	free(AudioDataCopy);
+
+	//todo: try removing all but the largest band from AudioData at every block
 }
 
 void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
