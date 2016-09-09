@@ -7,12 +7,9 @@
 #include "fftw3.h"
 #include "comparison.h"
 
-int HPS_INTERVALS = 2;
-
 char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
 char* ERR_FILE_NOT_MONO = "Input file must be Mono."
                           " Multi-channel audio currently not supported.\n";
-
 
 void PrintAudioMetadata(SF_INFO * file)
 {
@@ -36,10 +33,8 @@ float* WindowFunction(int size)
 	return buffer;
 }
 
-int ExtractMelody(char* inFile, char* outFile)
+int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose)
 { 
-	int sampleSize = 2048;
-	int interval = 1;
 	int i;
 
 	//reads in .wav
@@ -55,20 +50,30 @@ int ExtractMelody(char* inFile, char* outFile)
 		return -1;
 	}
 	
-	PrintAudioMetadata(&info);
+	if(verbose){
+		PrintAudioMetadata(&info);
+	}
 
 	double* input = malloc( sizeof(double) * info.frames);
 	sf_readf_double( f, input, info.frames );
 	sf_close( f );
 
 	double** AudioData = NULL;
-	int size = STFT(&input, info, sampleSize, interval, &AudioData);
-	printf("numblcks: %d\n", size/(sampleSize/2 + 1));
+	int size = STFT(&input, info, winSize, winInt, &AudioData);
+	if(verbose){
+		printf("numblcks of STFT: %d\n", size/(winSize/2 + 1));
+	}
 
-	HarmonicProductSpectrum(&AudioData, size, (sampleSize/2) + 1);
+	HarmonicProductSpectrum(&AudioData, size, (winSize/2) + 1, hpsOvr);
+	if(verbose){
+		printf("HPS complete\n");
+	}
 
 	double* output = NULL;
-	STFTinverse(&AudioData, info, sampleSize, interval, &output);
+	STFTinverse(&AudioData, info, winSize, winInt, &output);
+	if(verbose){
+		printf("STFTInverse complete\n");
+	}
 	for(i = 0; i < size; i++){
 		free(AudioData[i]);
 	}
@@ -86,24 +91,25 @@ int ExtractMelody(char* inFile, char* outFile)
 }
 
 //reads in .wav, returns FFT by reference through dft_data, returns size of dft_data
-int STFT(double** input, SF_INFO info, int blocksize, int interval, double*** dft_data) {
+int STFT(double** input, SF_INFO info, int winSize, int interval, double*** dft_data)
+{
     int i;
     int j;
 
-    double* fftw_in = fftw_malloc( sizeof( double ) * blocksize * info.channels );
-    fftw_complex* fftw_out = fftw_malloc( sizeof( fftw_complex ) * blocksize );
+    double* fftw_in = fftw_malloc( sizeof( double ) * winSize * info.channels );
+    fftw_complex* fftw_out = fftw_malloc( sizeof( fftw_complex ) * winSize );
 
-    fftw_plan plan  = fftw_plan_dft_r2c_1d( blocksize, fftw_in, fftw_out, FFTW_MEASURE );
+    fftw_plan plan  = fftw_plan_dft_r2c_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
 
-    float* window = WindowFunction(blocksize+1);
+    float* window = WindowFunction(winSize+1);
  
     //malloc space for dft_data
-	int numBlocks = (int)ceil((info.frames - blocksize) / (double)interval) + 1;
+	int numBlocks = (int)ceil((info.frames - winSize) / (double)interval) + 1;
 	if(numBlocks < 1){
 		numBlocks = 1;
 	}
-    (*dft_data) = malloc( sizeof(double*) * numBlocks * (blocksize/2 + 1) );
-	for(i = 0; i < (numBlocks * (blocksize/2 + 1)); i++){
+    (*dft_data) = malloc( sizeof(double*) * numBlocks * (winSize/2 + 1) );
+	for(i = 0; i < (numBlocks * (winSize/2 + 1)); i++){
 		(*dft_data)[i] = malloc(sizeof(double) * 2);
 	}
  
@@ -113,7 +119,7 @@ int STFT(double** input, SF_INFO info, int blocksize, int interval, double*** df
 
 		// Copy the chunk into our buffer
 		blockoffset = i*interval;
-		for(j = 0; j < blocksize; j++) {
+		for(j = 0; j < winSize; j++) {
 
 			if(blockoffset + j < info.frames) {
 				fftw_in[j] = (*input)[blockoffset + j] * window[j]; 
@@ -126,9 +132,9 @@ int STFT(double** input, SF_INFO info, int blocksize, int interval, double*** df
 
 		fftw_execute( plan );
 
-		for (j = 0; j < blocksize/2 + 1; j++) {
-			(*dft_data)[i*(blocksize/2 + 1) + j][0] = fftw_out[j][0];
-			(*dft_data)[i*(blocksize/2 + 1) + j][1] = fftw_out[j][1];
+		for (j = 0; j < winSize/2 + 1; j++) {
+			(*dft_data)[i*(winSize/2 + 1) + j][0] = fftw_out[j][0];
+			(*dft_data)[i*(winSize/2 + 1) + j][1] = fftw_out[j][1];
 		}	
 	}
 
@@ -136,27 +142,29 @@ int STFT(double** input, SF_INFO info, int blocksize, int interval, double*** df
 	fftw_free( fftw_in );
 	fftw_free( fftw_out );
 
-	return numBlocks * (blocksize/2 + 1);
+	return numBlocks * (winSize/2 + 1);
 }
 
-int STFTinverse(double*** input, SF_INFO info, int blocksize, int interval, double** output) {
-	//length of input is numBlocks * (blocksize/2 + 1)
+int STFTinverse(double*** input, SF_INFO info, int winSize, int interval, double** output)
+{
+	//length of input is numBlocks * (winSize/2 + 1)
     int i;
     int j;
 	int inputoffset;
 	int outputoffset;
 
-    fftw_complex* fftw_in = fftw_malloc( sizeof( fftw_complex ) * blocksize );
-	double* fftw_out = fftw_malloc( sizeof( double ) * blocksize * info.channels );
+    fftw_complex* fftw_in = fftw_malloc( sizeof( fftw_complex ) * winSize );
+	double* fftw_out = fftw_malloc( sizeof( double ) * winSize * info.channels );
 
-    fftw_plan plan  = fftw_plan_dft_c2r_1d( blocksize, fftw_in, fftw_out, FFTW_MEASURE );
+    fftw_plan plan  = fftw_plan_dft_c2r_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
 
-    //float* window = WindowFunction(blocksize+1);
- 
-    //malloc space for output
-    (*output) = malloc( sizeof(double) * info.frames );
+    //float* window = WindowFunction(winSize+1);
 
-	int numBlocks = (int)ceil((info.frames - blocksize) / (double)interval) + 1;
+ 	//malloc space for output
+    (*output) = calloc( info.frames, sizeof(double));
+
+
+	int numBlocks = (int)ceil((info.frames - winSize) / (double)interval) + 1;
 	if(numBlocks < 1){
 		numBlocks = 1;
 	}
@@ -165,8 +173,8 @@ int STFTinverse(double*** input, SF_INFO info, int blocksize, int interval, doub
     for(i = 0; i < numBlocks; i++){
 
 		// Copy the chunk into our buffer
-		inputoffset = i*(blocksize/2 + 1);
-		for(j = 0; j < blocksize/2 + 1; j++) {
+		inputoffset = i*(winSize/2 + 1);
+		for(j = 0; j < winSize/2 + 1; j++) {
 			fftw_in[j][0] = (*input)[inputoffset + j][0]; 
 			fftw_in[j][1] = (*input)[inputoffset + j][1]; 
 		}
@@ -175,9 +183,9 @@ int STFTinverse(double*** input, SF_INFO info, int blocksize, int interval, doub
 
 		outputoffset = i*interval;
 
-		for (j = 0; j < blocksize; j++) {
+		for (j = 0; j < winSize; j++) {
 			if(outputoffset + j < info.frames) {
-				(*output)[outputoffset + j] += fftw_out[j] / (double)((blocksize*blocksize)/interval);
+				(*output)[outputoffset + j] += fftw_out[j] / (double)((winSize*winSize)/interval);
 			}
 		}	
 	}
@@ -189,7 +197,8 @@ int STFTinverse(double*** input, SF_INFO info, int blocksize, int interval, doub
 	return info.frames;
 }
 
-void HarmonicProductSpectrum(double*** AudioData, int size, int dftBlocksize){
+void HarmonicProductSpectrum(double*** AudioData, int size, int dftBlocksize, int hpsOvr)
+{
 	int i,j;
 
 	//create a copy of AudioData
@@ -201,9 +210,8 @@ void HarmonicProductSpectrum(double*** AudioData, int size, int dftBlocksize){
 	}
 
 	//do each block at a time.
-	//note: HPS_INTERVALS = 5
 	for(int blockstart = 0; blockstart < size; blockstart += dftBlocksize){
-		for(i = 2; i <= HPS_INTERVALS; i++){
+		for(i = 2; i <= hpsOvr; i++){
 			j = 0;
 			while(j*i < dftBlocksize){
 				(*AudioData)[blockstart + j][0] *= AudioDataCopy[blockstart + j*i][0];
