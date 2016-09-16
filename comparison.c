@@ -35,8 +35,6 @@ float* WindowFunction(int size)
 
 int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose)
 { 
-	int i;
-
 	//reads in .wav
 	SF_INFO info;
 	SNDFILE * f = sf_open(inFile, SFM_READ, &info);
@@ -58,7 +56,7 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 	sf_readf_double( f, input, info.frames );
 	sf_close( f );
 
-	double** AudioData = NULL;
+	fftw_complex* AudioData = NULL;
 	int size = STFT(&input, info, winSize, winInt, &AudioData);
 	if(verbose){
 		printf("numblcks of STFT: %d\n", size/(winSize/2 + 1));
@@ -74,9 +72,6 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 	if(verbose){
 		printf("STFTInverse complete\n");
 	}
-	for(i = 0; i < size; i++){
-		free(AudioData[i]);
-	}
 	free(AudioData);
 
 	SaveAsWav(output, info, outFile);
@@ -91,7 +86,7 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 }
 
 //reads in .wav, returns FFT by reference through dft_data, returns size of dft_data
-int STFT(double** input, SF_INFO info, int winSize, int interval, double*** dft_data)
+int STFT(double** input, SF_INFO info, int winSize, int interval, fftw_complex** dft_data)
 {
     int i;
     int j;
@@ -108,10 +103,7 @@ int STFT(double** input, SF_INFO info, int winSize, int interval, double*** dft_
 	if(numBlocks < 1){
 		numBlocks = 1;
 	}
-    (*dft_data) = malloc( sizeof(double*) * numBlocks * (winSize/2 + 1) );
-	for(i = 0; i < (numBlocks * (winSize/2 + 1)); i++){
-		(*dft_data)[i] = malloc(sizeof(double) * 2);
-	}
+    (*dft_data) = malloc( sizeof(fftw_complex) * numBlocks * (winSize/2 + 1) );
  
 	int blockoffset;
     //run fft on each block
@@ -145,7 +137,7 @@ int STFT(double** input, SF_INFO info, int winSize, int interval, double*** dft_
 	return numBlocks * (winSize/2 + 1);
 }
 
-int STFTinverse(double*** input, SF_INFO info, int winSize, int interval, double** output)
+int STFTinverse(fftw_complex** input, SF_INFO info, int winSize, int interval, double** output)
 {
 	//length of input is numBlocks * (winSize/2 + 1)
     int i;
@@ -197,14 +189,13 @@ int STFTinverse(double*** input, SF_INFO info, int winSize, int interval, double
 	return info.frames;
 }
 
-void HarmonicProductSpectrum(double*** AudioData, int size, int dftBlocksize, int hpsOvr)
+void HarmonicProductSpectrum(fftw_complex** AudioData, int size, int dftBlocksize, int hpsOvr)
 {
-	int i,j;
+	int i,j,limit;
 
 	//create a copy of AudioData
-	double** AudioDataCopy = malloc( sizeof(double*) * size );
+	fftw_complex* AudioDataCopy = fftw_malloc( sizeof(fftw_complex) * size );
 	for(i = 0; i < size; i++){
-		AudioDataCopy[i] = malloc(sizeof(double) * 2);
 		AudioDataCopy[i][0] = (*AudioData)[i][0];
 		AudioDataCopy[i][1] = (*AudioData)[i][1];
 	}
@@ -212,21 +203,17 @@ void HarmonicProductSpectrum(double*** AudioData, int size, int dftBlocksize, in
 	//do each block at a time.
 	for(int blockstart = 0; blockstart < size; blockstart += dftBlocksize){
 		for(i = 2; i <= hpsOvr; i++){
-			j = 0;
-			while(j*i < dftBlocksize){
+			limit = dftBlocksize/i;
+			for(j = 0; j <= limit; j++){
 				(*AudioData)[blockstart + j][0] *= AudioDataCopy[blockstart + j*i][0];
 				(*AudioData)[blockstart + j][1] *= AudioDataCopy[blockstart + j*i][1];
-				j++;
 			}
 		}
 	}
 
-	for(i = 0; i < size; i++){
-		free(AudioDataCopy[i]);
-	}
-	free(AudioDataCopy);
+	fftw_free(AudioDataCopy);
 
-	//todo: try removing all but the largest band from AudioData at every block
+	//todo: try removing all but the largest band from AudioData at every blocklimit
 }
 
 void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
