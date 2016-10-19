@@ -3,12 +3,14 @@
 #include <math.h>
 #include <float.h>
 #include <limits.h>
+#include <assert.h>
 #include "sndfile.h"
 #include "fftw3.h"
 #include "comparison.h"
+#include "midi.h"
 
-char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
-char* ERR_FILE_NOT_MONO = "Input file must be Mono."
+const char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
+const char* ERR_FILE_NOT_MONO = "Input file must be Mono."
                           " Multi-channel audio currently not supported.\n";
 
 void PrintAudioMetadata(SF_INFO * file)
@@ -56,31 +58,61 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 	sf_readf_double( f, input, info.frames );
 	sf_close( f );
 
-	fftw_complex* AudioData = NULL;
-	int size = STFT(&input, info, winSize, winInt, &AudioData);
+	fftw_complex* fftData = NULL;
+	int size = STFT(&input, info, winSize, winInt, &fftData);
+	int numBlocks = size/(winSize/2);
 	if(verbose){
-		printf("numblcks of STFT: %d\n", size/(winSize/2 + 1));
+		printf("numblcks of STFT: %d\n", numBlocks);
+		fflush(NULL);
 	}
 
-	HarmonicProductSpectrum(&AudioData, size, (winSize/2) + 1, hpsOvr);
+	double* spectrum = Magnitude(fftData, size);
+	if(verbose){
+		printf("Magnitude complete\n");
+		fflush(NULL);
+	}
+
+	int* melodyIndices = HarmonicProductSpectrum(&spectrum, size, winSize/2, hpsOvr);
 	if(verbose){
 		printf("HPS complete\n");
+		fflush(NULL);
 	}
 
-	double* output = NULL;
-	STFTinverse(&AudioData, info, winSize, winInt, &output);
-	if(verbose){
-		printf("STFTInverse complete\n");
+	int* melodyMidi = malloc(sizeof(float) * numBlocks);
+	
+	for(int i = 0; i < numBlocks; ++i){
+		float freq = BinToFreq(melodyIndices[i], winSize, info.samplerate);
+		melodyMidi[i] = FrequencyToNote(freq);
+		char* noteName = malloc(sizeof(char) * 3);
+		printf("ddd");
+		fflush(NULL);
+		NoteToName(melodyMidi[i], &noteName);
+		printf("bin:%d  freq:%f  midi:%d  name:%s \n", melodyIndices[i], freq, melodyMidi[i], noteName);
+		fflush(NULL);
+		free(noteName);
 	}
-	free(AudioData);
 
-	SaveAsWav(output, info, outFile);
+	printf("printout complete\n");
+	fflush(NULL);
+
+	free(melodyIndices);
+	free(melodyMidi);
+
+
+	//double* output = NULL;
+	//STFTinverse(&fftData, info, winSize, winInt, &output);
+	//if(verbose){
+	//	printf("STFTInverse complete\n");
+	//}
+	free(fftData);
+
+	//SaveAsWav(output, info, outFile);
 
 	/*
 	 * if input is free before STFTinverse is called, result changes...
 	 */
 	free( input );
-	free( output );
+	//free( output );
 
 	return info.frames;
 }
@@ -103,7 +135,10 @@ int STFT(double** input, SF_INFO info, int winSize, int interval, fftw_complex**
 	if(numBlocks < 1){
 		numBlocks = 1;
 	}
-    (*dft_data) = malloc( sizeof(fftw_complex) * numBlocks * (winSize/2 + 1) );
+	//allocate winsize/2 for each block, taking the real component 
+	//and dropping the complex component and nyquist frequency.
+	int realWinSize = winSize/2;
+    (*dft_data) = malloc( sizeof(fftw_complex) * numBlocks * realWinSize );
  
 	int blockoffset;
     //run fft on each block
@@ -124,9 +159,9 @@ int STFT(double** input, SF_INFO info, int winSize, int interval, fftw_complex**
 
 		fftw_execute( plan );
 
-		for (j = 0; j < winSize/2 + 1; j++) {
-			(*dft_data)[i*(winSize/2 + 1) + j][0] = fftw_out[j][0];
-			(*dft_data)[i*(winSize/2 + 1) + j][1] = fftw_out[j][1];
+		for (j = 0; j < realWinSize; j++) {
+			(*dft_data)[i*realWinSize + j][0] = fftw_out[j][0];
+			(*dft_data)[i*realWinSize + j][1] = fftw_out[j][1];
 		}	
 	}
 
@@ -134,7 +169,7 @@ int STFT(double** input, SF_INFO info, int winSize, int interval, fftw_complex**
 	fftw_free( fftw_in );
 	fftw_free( fftw_out );
 
-	return numBlocks * (winSize/2 + 1);
+	return numBlocks * realWinSize;
 }
 
 int STFTinverse(fftw_complex** input, SF_INFO info, int winSize, int interval, double** output)
@@ -189,31 +224,60 @@ int STFTinverse(fftw_complex** input, SF_INFO info, int winSize, int interval, d
 	return info.frames;
 }
 
-void HarmonicProductSpectrum(fftw_complex** AudioData, int size, int dftBlocksize, int hpsOvr)
+double* Magnitude(fftw_complex* arr, int size)
 {
-	int i,j,limit;
+	int i;
+	double* magArr = malloc( sizeof(double) * size);
+	for(i = 0; i < size; i++){
+		magArr[i] = (arr[i][0] * arr[i][0]) + (arr[i][1] * arr[i][1]);
+	}
+	return magArr;
+}
+
+int* HarmonicProductSpectrum(double** AudioData, int size, int dftBlocksize, int hpsOvr)
+{
+	//for now, doesn't attempt to distinguish if a note is or isnt playing.
+	//if no note is playing, the dominant tone will just be from the noise.
+
+	int i,j,limit, numBlocks;
+	double loudestOfBlock;
+	assert(size % dftBlocksize == 0);
+	numBlocks = size / dftBlocksize;
+
+	int* loudestIndices = malloc( sizeof(int) * numBlocks );
 
 	//create a copy of AudioData
-	fftw_complex* AudioDataCopy = fftw_malloc( sizeof(fftw_complex) * size );
-	for(i = 0; i < size; i++){
-		AudioDataCopy[i][0] = (*AudioData)[i][0];
-		AudioDataCopy[i][1] = (*AudioData)[i][1];
-	}
+	double* AudioDataCopy = malloc( sizeof(double) * dftBlocksize );
+	printf("size: %d\n", size);
+	printf("dftblocksize: %d\n", dftBlocksize);
 
 	//do each block at a time.
-	for(int blockstart = 0; blockstart < size; blockstart += dftBlocksize){
+	for(int blockstart = 0; blockstart < (size - dftBlocksize); blockstart += dftBlocksize){
+
+		//copy the block
+		for(i = 0; i < dftBlocksize; ++i){
+			AudioDataCopy[i] = (*AudioData)[blockstart + i];
+		}
+
 		for(i = 2; i <= hpsOvr; i++){
 			limit = dftBlocksize/i;
 			for(j = 0; j <= limit; j++){
-				(*AudioData)[blockstart + j][0] *= AudioDataCopy[blockstart + j*i][0];
-				(*AudioData)[blockstart + j][1] *= AudioDataCopy[blockstart + j*i][1];
+				(*AudioData)[blockstart + j] *= AudioDataCopy[j*i];
+			}
+		}
+
+		loudestOfBlock = 0.0;
+		for(i = 0; i < dftBlocksize; ++i){
+			if((*AudioData)[blockstart + i] > loudestOfBlock){
+				loudestOfBlock = (*AudioData)[blockstart + i];
+				loudestIndices[blockstart/dftBlocksize] = i;
 			}
 		}
 	}
 
-	fftw_free(AudioDataCopy);
+	free(AudioDataCopy);
 
-	//todo: try removing all but the largest band from AudioData at every blocklimit
+	return loudestIndices;
 }
 
 void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
@@ -275,3 +339,7 @@ void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
 	//Close the file
 	fclose(file);
 }
+
+float BinToFreq(int bin, int fftSize, int samplerate){
+	return bin * (float)samplerate / fftSize;
+} 
