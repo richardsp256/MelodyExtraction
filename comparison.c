@@ -96,6 +96,9 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 	fflush(NULL);
 
 	free(melodyIndices);
+
+	SaveMIDI(melodyMidi, numBlocks);
+
 	free(melodyMidi);
 
 

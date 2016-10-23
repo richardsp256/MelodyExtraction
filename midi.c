@@ -40,110 +40,128 @@ double log2(double x){
 	return log(x)/log(2);
 }
 
-void SaveMIDI(){
+void SaveMIDI(int* noteArr, int size){
 	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	int deltaTime = 40;
-	int vel = 60; //default velocity, given to all notes.
-	int testNote = 41;
 	FILE* f = fopen(outFile, "wb+");
 
-	unsigned char* headerBuf = calloc(14, sizeof(char));
-	int headerInd = 0;
-
-	strncat(headerBuf, "MThd", 4);
-	headerInd += 4;
-
-	unsigned char* tmp = "";
-
-	AppendInt(&tmp, 6);
-	int p = (int)tmp[3];
-	printf("head size:%d\n", p);
-	memcpy( &headerBuf[headerInd], &tmp[0], 4 * sizeof(char) ); //note: maybe can just memcpy the int directly instead of converting to char* first...
-	headerInd += 4;
-	free(tmp);
-
-	AppendShort(&tmp, 0);
-	memcpy( &headerBuf[headerInd], &tmp[0], 2 * sizeof(char) );
-	headerInd += 2;
-	free(tmp);
-
-	AppendShort(&tmp, 1);
-	memcpy( &headerBuf[headerInd], &tmp[0], 2 * sizeof(char) );
-	headerInd += 2;
-	free(tmp);
-
-	AppendShort(&tmp, 24);
-	memcpy( &headerBuf[headerInd], &tmp[0], 2 * sizeof(char) );
-	headerInd += 2;
-	free(tmp);
-
-	fwrite(headerBuf, sizeof(char), 14, f);
+	AddHeader(&f, 0, 1, 24); //first 
 
 	printf("header added!\n");
-	fflush(NULL);
 
-	unsigned char* trackBuf;
-	unsigned char trackDataBuf[1000] = ""; //change so you can expand buffer size
-	int trackDataSize = 0; 
+	unsigned char* trackData;
+	int tracklength = MakeTrack(&trackData, noteArr, size);
+	AddTrack(&f, trackData, tracklength);
+
+	printf("track added!\n");
+
+	fclose(f);
+}
+
+void AddHeader(FILE** f, short format, short tracks, short division){
+	unsigned char* headerBuf = calloc(14, sizeof(char));
+
+	char* descriptor = "MThd";
+	memcpy( &headerBuf[0], &descriptor[0], 4 * sizeof(char) );
+
+	unsigned char* tmp;
+
+	AppendInt(&tmp, 6);
+	memcpy( &headerBuf[4], &tmp[0], 4 * sizeof(char) );
+	free(tmp);
+
+	AppendShort(&tmp, format);
+	memcpy( &headerBuf[8], &tmp[0], 2 * sizeof(char) );
+	free(tmp);
+
+	AppendShort(&tmp, tracks);
+	memcpy( &headerBuf[10], &tmp[0], 2 * sizeof(char) );
+	free(tmp);
+
+	AppendShort(&tmp, division);
+	memcpy( &headerBuf[12], &tmp[0], 2 * sizeof(char) );
+	free(tmp);
+
+	fwrite(headerBuf, sizeof(char), 14, (*f));
+	free(headerBuf);
+}
+
+void AddTrack(FILE** f, unsigned char* track, int len){
+	unsigned char* buf = calloc(len + 8, sizeof(char));
+
+	char* descriptor = "MTrk";
+	memcpy( &buf[0], &descriptor[0], 4 * sizeof(char) );
+
+	unsigned char* tmp;
+	AppendInt(&tmp, len);
+	memcpy( &buf[4], &tmp[0], 4 * sizeof(char) );
+	free(tmp);
+
+	memcpy( &buf[8], &track[0], len * sizeof(char));
+
+	fwrite(buf, sizeof(unsigned char), len + 8, (*f));
+}
+
+int MakeTrack(unsigned char** track, int* noteArr, int size){
+	int dt = 2; //time between events.
+	int timeSinceLast = 0;
+
+	int vel = 80; //default velocity, given to all notes.
+	int last = -1; //the last note that was played
+	const unsigned char endTrack[3] = {(unsigned char) 255, (unsigned char) 47, (unsigned char) 0};
+
 	unsigned char* timer;
 	int timerSize = 0;
 	unsigned char* message;
 
-	timerSize = IntToVLQ(deltaTime, &timer);
-	printf("timer1 bytes: %d\n", timerSize);
-	memcpy( &trackDataBuf[trackDataSize], &timer[0], timerSize * sizeof(char));
-	trackDataSize += timerSize;
-	message = MessageNoteOn(testNote, vel);
-	memcpy( &trackDataBuf[trackDataSize], &message[0], 3 * sizeof(char));
-	trackDataSize += 3;
+	(*track) = malloc(sizeof(char) * 1000); //experiment with size or more dynamic allocation
+	int trackLen = 0; 
 
+
+	for(int i = 0; i < size; ++i){
+		timeSinceLast += dt;
+		if(last == noteArr[i]){
+			continue;
+		}
+
+		timerSize = IntToVLQ(timeSinceLast, &timer);
+		memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
+		trackLen += timerSize;
+		free(timer);
+
+		if(last != -1){
+			message = MessageNoteOff(last, vel);
+			memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
+			trackLen += 3;
+			free(message);
+
+			timerSize = IntToVLQ(0, &timer);
+			memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
+			trackLen += timerSize;
+			free(timer);
+		}
+
+		message = MessageNoteOn(noteArr[i], vel);
+		memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
+		trackLen += 3;
+		free(message);
+		last = noteArr[i];
+		timeSinceLast = 0;
+	}
+
+	timeSinceLast += dt;
+
+	timerSize = IntToVLQ(timeSinceLast, &timer);
+	memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
+	trackLen += timerSize;
 	free(timer);
-	free(message);
 
+	memcpy( &(*track)[trackLen], &endTrack[0], 3 * sizeof(char));
+	trackLen += 3;
 
-
-	timerSize = IntToVLQ(deltaTime, &timer);
-	printf("timer2 bytes: %d\n", timerSize);
-	memcpy( &trackDataBuf[trackDataSize], &timer[0], timerSize * sizeof(char));
-	trackDataSize += timerSize;
-	message = MessageNoteOff(testNote, vel);
-	memcpy( &trackDataBuf[trackDataSize], &message[0], 3 * sizeof(char));
-	trackDataSize += 3;
-	
-	free(timer);
-	free(message);
-
-
-
-	timerSize = IntToVLQ(deltaTime, &timer);
-	printf("timer3 bytes: %d\n", timerSize);
-	memcpy( &trackDataBuf[trackDataSize], &timer[0], timerSize * sizeof(char));
-	trackDataSize += timerSize;
-	unsigned char endTrack[3] = {(unsigned char) 255, (unsigned char) 47, (unsigned char) 0};
-	memcpy( &trackDataBuf[trackDataSize], &endTrack[0], 3 * sizeof(char));
-	trackDataSize += 3;
-	free(timer);
-
-
-
-	printf("tracksize: %d\n", trackDataSize);
-
-	trackBuf = calloc(trackDataSize + 8, sizeof(char));
-	strncat(trackBuf, "MTrk", 4);
-
-	AppendInt(&tmp, trackDataSize);
-	memcpy( &trackBuf[4], &tmp[0], 4 * sizeof(char) );
-	free(tmp);
-
-	memcpy( &trackBuf[8], &trackDataBuf[0], trackDataSize * sizeof(char));
-
-	fwrite(trackBuf, sizeof(unsigned char), trackDataSize + 8, f);
-	
-	printf("track added!\n");
-	fflush(NULL);
-
-	fclose(f);
+	return trackLen;
 }
+
+//todo: make single templated swapbytes function
 
 void AppendInt(unsigned char** c, int num){
 	//first convert to char[] so thats its Big-Endian
@@ -151,7 +169,7 @@ void AppendInt(unsigned char** c, int num){
 	(*c)[0] = (num >> 24) & 0xFF;
 	(*c)[1] = (num >> 16) & 0xFF;
 	(*c)[2] = (num >> 8) & 0xFF;
-	(*c)[3] = num & 0xFF;	
+	(*c)[3] = num & 0xFF;
 }
 
 void AppendShort(unsigned char** c, short num){
@@ -160,6 +178,7 @@ void AppendShort(unsigned char** c, short num){
 	(*c)[0] = (num >> 8) & 0xFF;
 	(*c)[1] = num & 0xFF;
 }
+
 
 //convert an integer to a VLQ (variable-length quantity)
 int IntToVLQ(unsigned int num, unsigned char** VLQ){
