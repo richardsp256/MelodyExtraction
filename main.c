@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
+#include "midi.h"
 #include "comparison.h"
 
 /* Usage is as follows:\n"
@@ -80,6 +81,8 @@ int main(int argc, char ** argv)
 	if(!badargs){
 		ExtractMelody(inFile, outFile, windowsize, spacing, hpsOvertones, verbose);
 	}
+
+	SaveMIDI();
 
 	return 0;
 }

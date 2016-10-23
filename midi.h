@@ -1,3 +1,10 @@
 void NoteToName(int n, char** name);
 int FrequencyToNote(double freq);
 double log2(double x);
+void SaveMIDI();
+void AddHeader(FILE** f, short format, short tracks, short division);
+void AppendInt(unsigned char** c, int num);
+void AppendShort(unsigned char** c, short num);
+int IntToVLQ(unsigned int num, unsigned char** VLQ);
+unsigned char* MessageNoteOn(int pitch, int velocity);
+unsigned char* MessageNoteOff(int pitch, int velocity);
