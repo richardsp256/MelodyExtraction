@@ -9,9 +9,13 @@ const int tuning = 440;
 
 // converts from MIDI note number to string
 // example: NoteToName(12)='C 1'
+int isMidiNote(int x){
+	return (x >= 0 && x <= 127);
+}
+
 void NoteToName(int n, char** name){
-	if(n < 0 || n > 119){
-		strcpy((*name), "---");
+	if(!isMidiNote(n)){
+		strcpy((*name), "----");
 		return;
 	}
 	strcpy((*name), notes[n%12]);
@@ -112,7 +116,7 @@ int MakeTrack(unsigned char** track, int* noteArr, int size){
 
 	for(int i = 0; i < size; ++i){
 		timeSinceLast += dt;
-		if(last == noteArr[i]){
+		if(last == noteArr[i]  || !isMidiNote(noteArr[i])){
 			continue;
 		}
 
