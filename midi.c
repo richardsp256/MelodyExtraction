@@ -6,7 +6,6 @@
 
 char* notes[] = {"C ","C#","D ","D#","E ","F ","F#","G ","G#","A ","A#","B "};
 const int tuning = 440;
-char* outFile = "output.mid";
 
 // converts from MIDI note number to string
 // example: NoteToName(12)='C 1'
@@ -16,16 +15,10 @@ void NoteToName(int n, char** name){
 		return;
 	}
 	strcpy((*name), notes[n%12]);
-	printf("wwW");
-	fflush(NULL);
 
 	char* octave = malloc(sizeof(char)*2);
 	sprintf(octave, "%d", n/12);
-	printf("rrr");
-	fflush(NULL);
 	strcat((*name), octave); /* add the extension */
-	printf("qqq");
-	fflush(NULL);
 	free(octave);
 	return;
 }
@@ -40,9 +33,9 @@ double log2(double x){
 	return log(x)/log(2);
 }
 
-void SaveMIDI(int* noteArr, int size){
+void SaveMIDI(int* noteArr, int size, char* path){
 	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	FILE* f = fopen(outFile, "wb+");
+	FILE* f = fopen(path, "wb+");
 
 	AddHeader(&f, 0, 1, 24); //first 
 
