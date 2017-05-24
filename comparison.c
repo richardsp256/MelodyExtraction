@@ -4,6 +4,7 @@
 #include <float.h>
 #include <limits.h>
 #include <assert.h>
+#include <string.h>
 #include "sndfile.h"
 #include "fftw3.h"
 #include "comparison.h"
@@ -35,7 +36,7 @@ float* WindowFunction(int size)
 	return buffer;
 }
 
-int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose)
+int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose, char* prefix)
 { 
 	//reads in .wav
 	SF_INFO info;
@@ -72,6 +73,15 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 		fflush(NULL);
 	}
 
+	if (prefix !=NULL){
+		// Here we save the original spectra
+		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
+		strcpy(spectraFile,prefix);
+		strcat(spectraFile,"_original.txt");
+		SaveWeightsTxt(spectraFile, &spectrum, size, winSize/2, info.samplerate, winSize);
+		free(spectraFile);
+	}
+	
 	int* melodyIndices = HarmonicProductSpectrum(&spectrum, size, winSize/2, hpsOvr);
 	if(verbose){
 		printf("HPS complete\n");
@@ -79,6 +89,15 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 	}
 
 	int* melodyMidi = malloc(sizeof(float) * numBlocks);
+
+	if (prefix !=NULL){
+		// Here we save the processed spectra
+		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
+		strcpy(spectraFile,prefix);
+		strcat(spectraFile,"_weighted.txt");
+		SaveWeightsTxt(spectraFile, &spectrum, size, winSize/2, info.samplerate, winSize);
+		free(spectraFile);
+	}
 	
 	for(int i = 0; i < numBlocks; ++i){
 		float freq = BinToFreq(melodyIndices[i], winSize, info.samplerate);
@@ -343,3 +362,22 @@ void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
 float BinToFreq(int bin, int fftSize, int samplerate){
 	return bin * (float)samplerate / fftSize;
 } 
+
+void SaveWeightsTxt(char* fileName, double** AudioData, int size, int dftBlocksize, int samplerate, int winSize){
+        // Saves the weights of each frequency bin to a text file
+        FILE *fp;
+	int blockstart, i;
+	fp = fopen(fileName,"w");
+
+	fprintf(fp, "#Window Size:\t%d\n", winSize);
+	fprintf(fp, "#Sample Rate:\t%d\n", samplerate);
+	// outer loop iterates over blocks
+	for(blockstart = 0; blockstart < (size - dftBlocksize); blockstart += dftBlocksize){
+		//iterate over elements of a block
+		for(i = 0; i < dftBlocksize; ++i){
+			fprintf(fp, "%e\t", (*AudioData)[blockstart + i]);
+		}
+		fprintf(fp, "\n");
+	}
+	fclose(fp);
+}
