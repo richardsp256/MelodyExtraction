@@ -52,12 +52,12 @@ void SaveMIDI(int* noteArr, int size, char* path, int verbose){
 	int tracklength = MakeTrack(&trackData, noteArr, size);
 	if(verbose){
 		printf("track generated\n");
-		ffluh(NULL);
+		fflush(NULL);
 	}
 	AddTrack(&f, trackData, tracklength);
 	if(verbose){
 		printf("track added\n");
-		fflush(NULL)''
+		fflush(NULL);
 	}
 
 	fclose(f);
@@ -119,7 +119,7 @@ int MakeTrack(unsigned char** track, int* noteArr, int size){
 	int timerSize = 0;
 	unsigned char* message;
 
-	(*track) = malloc(sizeof(char) * 1000); //experiment with size or more dynamic allocation
+	(*track) = malloc(sizeof(char) * 10000); //experiment with size or more dynamic allocation
 	int trackLen = 0; 
 
 
