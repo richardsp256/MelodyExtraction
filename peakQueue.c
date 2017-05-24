@@ -27,15 +27,15 @@ void peakQueueDestroy(struct peakQueue peakQ){
 }
 
 
-void peakQueueSwapPeaks(struct peakQueue peakQ, int index1, int index2){
+void peakQueueSwapPeaks(struct peakQueue *peakQ, int index1, int index2){
 	// helper function that swaps the peak at index1 with the peak at index 2
 	struct peak tempPeak;
-	tempPeak = peakQ.array[index1];
-	peakQ.array[index1] = peakQ.array[index2];
-	peakQ.array[index2]=tempPeak;
+	tempPeak = peakQ->array[index1];
+	peakQ->array[index1] = peakQ->array[index2];
+	peakQ->array[index2]=tempPeak;
 }
 
-void peakQueueBubbleUp(struct peakQueue peakQ,int index){
+void peakQueueBubbleUp(struct peakQueue *peakQ,int index){
 	
 	// this helper function is called after a new peak has been inserted
 	// this restores the heap properties
@@ -44,7 +44,7 @@ void peakQueueBubbleUp(struct peakQueue peakQ,int index){
 	int parentIndex = (index-1)/2;
 	
 	//check to see if the 
-	if (peakQ.array[parentIndex].peakY > peakQ.array[index].peakY){
+	if (peakQ->array[parentIndex].peakY > peakQ->array[index].peakY){
 	  peakQueueSwapPeaks(peakQ, index, parentIndex);
 		if (parentIndex>0){
 			peakQueueBubbleUp(peakQ,parentIndex);
@@ -52,7 +52,7 @@ void peakQueueBubbleUp(struct peakQueue peakQ,int index){
 	}
 }
 
-void peakQueueBubbleDown(struct peakQueue peakQ, int index){
+void peakQueueBubbleDown(struct peakQueue *peakQ, int index){
 	// this helper function is called after the minimum has been 
 	// replaced with the peak at the last level. This restores 
 	// the heap properties
@@ -68,21 +68,21 @@ void peakQueueBubbleDown(struct peakQueue peakQ, int index){
 	int leftIndex = 2*index+1;
 	int rightIndex = 2*index+2;
 	
-	if (leftIndex >= peakQ.cur_size){
+	if (leftIndex >= peakQ->cur_size){
 		// in this scenario, the current node has no children
 		return;
 	}
-	else if (rightIndex>= peakQ.cur_size){
+	else if (rightIndex>= peakQ->cur_size){
 		// in this scenario, the current node only has 1 child
-		if (peakQ.array[index].peakY > peakQ.array[leftIndex].peakY){
+		if (peakQ->array[index].peakY > peakQ->array[leftIndex].peakY){
 			peakQueueSwapPeaks(peakQ, index, leftIndex);
 		}
 		return;
 	}
-	else if (peakQ.array[index].peakY > peakQ.array[leftIndex].peakY){
+	else if (peakQ->array[index].peakY > peakQ->array[leftIndex].peakY){
 		// in this scenario, the current node has a smaller peak than 
 		// the left child
-		if (peakQ.array[leftIndex].peakY>peakQ.array[rightIndex].peakY){
+		if (peakQ->array[leftIndex].peakY>peakQ->array[rightIndex].peakY){
 			// this means the right child is even smaller than the left 
 			// child
 			peakQueueSwapPeaks(peakQ, index, rightIndex);
@@ -96,7 +96,7 @@ void peakQueueBubbleDown(struct peakQueue peakQ, int index){
 		}
 		return;
 	}
-	else if (peakQ.array[index].peakY > peakQ.array[rightIndex].peakY){
+	else if (peakQ->array[index].peakY > peakQ->array[rightIndex].peakY){
 		// the parent is larger than the right child but not the left child
 		peakQueueSwapPeaks(peakQ, index, rightIndex);
 		peakQueueBubbleDown(peakQ, rightIndex);
@@ -107,39 +107,39 @@ void peakQueueBubbleDown(struct peakQueue peakQ, int index){
 	}	
 }
 
-void peakQueueInsert(struct peakQueue peakQ, struct peak newPeak){
+void peakQueueInsert(struct peakQueue *peakQ, struct peak newPeak){
 	// insert a new peak into the peak queue
-	peakQ.array[peakQ.cur_size]= newPeak;
-	if (peakQ.cur_size != 0){
-		peakQueueBubbleUp(peakQ,peakQ.cur_size-1);
+	peakQ->array[peakQ->cur_size]= newPeak;
+	if (peakQ->cur_size != 0){
+		peakQueueBubbleUp(peakQ,peakQ->cur_size-1);
 	}
-	peakQ.cur_size+=1;
+	peakQ->cur_size+=1;
 }
 
-struct peak peakQueuePop(struct peakQueue peakQ){
+struct peak peakQueuePop(struct peakQueue *peakQ){
 	// pop the minimum peak off of the peakQ
 	
 	// first check to see if there is only one value
-	if (peakQ.cur_size == 1){
-		peakQ.cur_size = 0;
-		return peakQ.array[0];
+	if (peakQ->cur_size == 1){
+		peakQ->cur_size = 0;
+		return peakQ->array[0];
 	}
 	else{
 		// swap the minimum value with the last value
-		peakQueueSwapPeaks(peakQ, 0, peakQ.cur_size-1);
-		peakQ.cur_size-=1;
-		return peakQ.array[peakQ.cur_size];
+		peakQueueSwapPeaks(peakQ, 0, peakQ->cur_size-1);
+		peakQ->cur_size-=1;
+		return peakQ->array[peakQ->cur_size];
 	}
 }
 
-void peakQueueAddNewPeak(struct peakQueue peakQ, long index, double peakX, 
+void peakQueueAddNewPeak(struct peakQueue *peakQ, long index, double peakX, 
 			 double peakY, double measuredWidth){
 	// mutator method to the peakQ
 	// This function is in charge of adding new peak data to the peakQ
 	// Basically it keeps adding data until the peakQ is full and it 
 	// ensures that the peakQ always contains the largest peaks
 	
-	if (peakQ.cur_size != peakQ.max_size){
+	if (peakQ->cur_size != peakQ->max_size){
 		// this means that we simply insert another peak into the peakQ
 		struct peak newPeak;
 		newPeak.index = index;
@@ -154,26 +154,26 @@ void peakQueueAddNewPeak(struct peakQueue peakQ, long index, double peakX,
 		// than the value of peakY for the new peak, we will effectively 
 		// insert the new peak and pop the minimum peak.
 		
-		if (peakY > peakQ.array[0].peakY){
+		if (peakY > peakQ->array[0].peakY){
 			// We cut out the intermediary steps of inserting then popping, 
 			// we will just by just updating the information of the minimum 
 			// peak to reflect the data of the new peak and then we will call
 			// peakQueueBubbleDown.
-			peakQ.array[0].index = index;
-			peakQ.array[0].peakX = peakX;
-			peakQ.array[0].peakY = peakY;
-			peakQ.array[0].measuredWidth = measuredWidth;
+			peakQ->array[0].index = index;
+			peakQ->array[0].peakX = peakX;
+			peakQ->array[0].peakY = peakY;
+			peakQ->array[0].measuredWidth = measuredWidth;
 			peakQueueBubbleDown(peakQ, 0);
 		}
 	}
 }
 
-int peakQueueToArrays(struct peakQueue peakQ,long* peakIndices, double* peakX,
+int peakQueueToArrays(struct peakQueue *peakQ,long* peakIndices, double* peakX,
 		      double* peakY, double* measuredWidth){
 	// this removes the data from array struct format and places it in arrays
 	// this function returns the number of entries in the arrays
 	int i;
-	int length = peakQ.cur_size;
+	int length = peakQ->cur_size;
 	struct peak tempPeak;
 	peakIndices = malloc(length * sizeof(long));
 	peakX = malloc(length * sizeof(double));

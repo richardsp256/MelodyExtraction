@@ -17,12 +17,12 @@ struct peakQueue{
 
 struct peakQueue peakQueueNew(int max_size);
 void peakQueueDestroy(struct peakQueue peakQ);
-void peakQueueSwapPeaks(struct peakQueue peakQ, int index1, int index2);
-void peakQueueBubbleUp(struct peakQueue peakQ,int index);
-void peakQueueBubbleDown(struct peakQueue peakQ, int index);
-void peakQueueInsert(struct peakQueue peakQ, struct peak newPeak);
-struct peak peakQueuePop(struct peakQueue peakQ);
-void peakQueueAddNewPeak(struct peakQueue peakQ, long index, double peakX, 
+void peakQueueSwapPeaks(struct peakQueue *peakQ, int index1, int index2);
+void peakQueueBubbleUp(struct peakQueue *peakQ,int index);
+void peakQueueBubbleDown(struct peakQueue *peakQ, int index);
+void peakQueueInsert(struct peakQueue *peakQ, struct peak newPeak);
+struct peak peakQueuePop(struct peakQueue *peakQ);
+void peakQueueAddNewPeak(struct peakQueue *peakQ, long index, double peakX, 
 			 double peakY, double measuredWidth);
-int peakQueueToArrays(struct peakQueue peakQ,long* peakIndices, double* peakX,
+int peakQueueToArrays(struct peakQueue *peakQ,long* peakIndices, double* peakX,
 		      double* peakY, double* measuredWidth);
