@@ -83,7 +83,7 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 	for(int i = 0; i < numBlocks; ++i){
 		float freq = BinToFreq(melodyIndices[i], winSize, info.samplerate);
 		melodyMidi[i] = FrequencyToNote(freq);
-		char* noteName = calloc(4, sizeof(char));
+		char* noteName = calloc(5, sizeof(char));
 		NoteToName(melodyMidi[i], &noteName);
 		printf("bin:%d  freq:%f  midi:%d  name:%s \n", melodyIndices[i], freq, melodyMidi[i], noteName);
 		fflush(NULL);

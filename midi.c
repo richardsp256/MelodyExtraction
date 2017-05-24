@@ -14,13 +14,14 @@ int isMidiNote(int x){
 }
 
 void NoteToName(int n, char** name){
+	//note: name should be allocated a length of 5
 	if(!isMidiNote(n)){
 		strcpy((*name), "----");
 		return;
 	}
 	strcpy((*name), notes[n%12]);
 
-	char* octave = malloc(sizeof(char)*2);
+	char* octave = malloc(sizeof(char)*3);
 	sprintf(octave, "%d", n/12);
 	strcat((*name), octave); /* add the extension */
 	free(octave);
