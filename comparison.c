@@ -253,7 +253,7 @@ int* HarmonicProductSpectrum(double** AudioData, int size, int dftBlocksize, int
 	printf("dftblocksize: %d\n", dftBlocksize);
 
 	//do each block at a time.
-	for(int blockstart = 0; blockstart < (size - dftBlocksize); blockstart += dftBlocksize){
+	for(int blockstart = 0; blockstart <= (size - dftBlocksize); blockstart += dftBlocksize){
 
 		//copy the block
 		for(i = 0; i < dftBlocksize; ++i){
