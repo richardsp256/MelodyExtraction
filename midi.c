@@ -38,19 +38,27 @@ double log2(double x){
 	return log(x)/log(2);
 }
 
-void SaveMIDI(int* noteArr, int size, char* path){
+void SaveMIDI(int* noteArr, int size, char* path, int verbose){
 	//MIDI files are big-endian, so reverse byte order of all ints and shorts
 	FILE* f = fopen(path, "wb+");
 
 	AddHeader(&f, 0, 1, 24); //first 
-
-	printf("header added!\n");
+	if(verbose){
+		printf("header added\n");
+		fflush(NULL);
+	}
 
 	unsigned char* trackData;
 	int tracklength = MakeTrack(&trackData, noteArr, size);
+	if(verbose){
+		printf("track generated\n");
+		ffluh(NULL);
+	}
 	AddTrack(&f, trackData, tracklength);
-
-	printf("track added!\n");
+	if(verbose){
+		printf("track added\n");
+		fflush(NULL)''
+	}
 
 	fclose(f);
 }

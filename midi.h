@@ -2,7 +2,7 @@ int isMidiNote(int note);
 void NoteToName(int n, char** name);
 int FrequencyToNote(double freq);
 double log2(double x);
-void SaveMIDI(int* noteArr, int size, char* path);
+void SaveMIDI(int* noteArr, int size, char* path, int verbose);
 void AddHeader(FILE** f, short format, short tracks, short division);
 void AddTrack(FILE** f, unsigned char* track, int len);
 int MakeTrack(unsigned char** track, int* noteArr, int size);
