@@ -99,15 +99,26 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 		free(spectraFile);
 	}
 	
+	//get midi note values of pitch in each bin
 	for(int i = 0; i < numBlocks; ++i){
+		if(verbose){
+			printf("block%d:", i);
+			fflush(NULL);
+			printf("   bin: %d", melodyIndices[i]);
+			fflush(NULL);
+		}
 		float freq = BinToFreq(melodyIndices[i], winSize, info.samplerate);
 		melodyMidi[i] = FrequencyToNote(freq);
-		char* noteName = malloc(sizeof(char) * 3);
-		printf("ddd");
-		fflush(NULL);
+		if(verbose){
+			printf("   midi: %d", melodyMidi[i]);
+			fflush(NULL);
+		}
+		char* noteName = calloc(5, sizeof(char));
 		NoteToName(melodyMidi[i], &noteName);
-		printf("bin:%d  freq:%f  midi:%d  name:%s \n", melodyIndices[i], freq, melodyMidi[i], noteName);
-		fflush(NULL);
+		if(verbose){
+			printf("   name: %s \n", noteName);
+			fflush(NULL);
+		}
 		free(noteName);
 	}
 
@@ -115,6 +126,9 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 	fflush(NULL);
 
 	free(melodyIndices);
+
+	SaveMIDI(melodyMidi, numBlocks, outFile);
+
 	free(melodyMidi);
 
 
@@ -271,7 +285,7 @@ int* HarmonicProductSpectrum(double** AudioData, int size, int dftBlocksize, int
 	printf("dftblocksize: %d\n", dftBlocksize);
 
 	//do each block at a time.
-	for(int blockstart = 0; blockstart < (size - dftBlocksize); blockstart += dftBlocksize){
+	for(int blockstart = 0; blockstart <= (size - dftBlocksize); blockstart += dftBlocksize){
 
 		//copy the block
 		for(i = 0; i < dftBlocksize; ++i){
