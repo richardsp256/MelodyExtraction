@@ -80,13 +80,26 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 
 	int* melodyMidi = malloc(sizeof(float) * numBlocks);
 	
+	//get midi note values of pitch in each bin
 	for(int i = 0; i < numBlocks; ++i){
+		if(verbose){
+			printf("block%d:", i);
+			fflush(NULL);
+			printf("   bin: %d", melodyIndices[i]);
+			fflush(NULL);
+		}
 		float freq = BinToFreq(melodyIndices[i], winSize, info.samplerate);
 		melodyMidi[i] = FrequencyToNote(freq);
+		if(verbose){
+			printf("   midi: %d", melodyMidi[i]);
+			fflush(NULL);
+		}
 		char* noteName = calloc(5, sizeof(char));
 		NoteToName(melodyMidi[i], &noteName);
-		printf("bin:%d  freq:%f  midi:%d  name:%s \n", melodyIndices[i], freq, melodyMidi[i], noteName);
-		fflush(NULL);
+		if(verbose){
+			printf("   name: %s \n", noteName);
+			fflush(NULL);
+		}
 		free(noteName);
 	}
 
