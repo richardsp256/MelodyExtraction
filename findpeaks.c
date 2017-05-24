@@ -62,8 +62,7 @@ double* measuredWidth){
 					findpeaksHelper(x, y, length, peakgroup, &peakIndex, 
 					&curPeakX, &curPeakY, &curMeasuredWidth, j,n);
 					
-					peakQueueAddNewPeak(&peakQ, peakIndex, curPeakX, curPeakY, 
-					curMeasuredWidth);
+					peakQueueAddNewPeak(&peakQ, curPeakX, curPeakY);
 					
 					if ((first>=1)&(peakQ.cur_size == N)){
 						j = length;
@@ -74,7 +73,7 @@ double* measuredWidth){
 	}
 	free(d);
 
-	int out = peakQueueToArrays(&peakQ,peakIndices,peakX,peakY,measuredWidth);
+	int out = peakQueueToArrays(&peakQ,peakX,peakY);
 	peakQueueDestroy(peakQ);
 	return out;
 }

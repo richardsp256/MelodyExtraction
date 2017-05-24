@@ -1,12 +1,9 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include "peakQueue.h"
 //Implementing a minimum priority queue based on a peak's amplitude (value of peakY)
 
-// Need to make modifications:
-// Any function where we modify a non-pointer entry, we need to pass
-// a pointer to the function
-
-// Can get rid of measuredWidth and index methods.
+// Can get rid of  index methods.
 
 
 
@@ -132,8 +129,8 @@ struct peak peakQueuePop(struct peakQueue *peakQ){
 	}
 }
 
-void peakQueueAddNewPeak(struct peakQueue *peakQ, long index, double peakX, 
-			 double peakY, double measuredWidth){
+void peakQueueAddNewPeak(struct peakQueue *peakQ, double peakX, 
+			 double peakY){
 	// mutator method to the peakQ
 	// This function is in charge of adding new peak data to the peakQ
 	// Basically it keeps adding data until the peakQ is full and it 
@@ -142,10 +139,8 @@ void peakQueueAddNewPeak(struct peakQueue *peakQ, long index, double peakX,
 	if (peakQ->cur_size != peakQ->max_size){
 		// this means that we simply insert another peak into the peakQ
 		struct peak newPeak;
-		newPeak.index = index;
 		newPeak.peakX = peakX;
 		newPeak.peakY = peakY;
-		newPeak.measuredWidth = measuredWidth;
 		peakQueueInsert(peakQ, newPeak);
 	}
 	else{
@@ -159,39 +154,79 @@ void peakQueueAddNewPeak(struct peakQueue *peakQ, long index, double peakX,
 			// we will just by just updating the information of the minimum 
 			// peak to reflect the data of the new peak and then we will call
 			// peakQueueBubbleDown.
-			peakQ->array[0].index = index;
 			peakQ->array[0].peakX = peakX;
 			peakQ->array[0].peakY = peakY;
-			peakQ->array[0].measuredWidth = measuredWidth;
 			peakQueueBubbleDown(peakQ, 0);
 		}
 	}
 }
 
-int peakQueueToArrays(struct peakQueue *peakQ,long* peakIndices, double* peakX,
-		      double* peakY, double* measuredWidth){
+int peakQueueToArrays(struct peakQueue *peakQ, double* peakX, double* peakY){
 	// this removes the data from array struct format and places it in arrays
 	// this function returns the number of entries in the arrays
 	int i;
 	int length = peakQ->cur_size;
 	struct peak tempPeak;
-	peakIndices = malloc(length * sizeof(long));
 	peakX = malloc(length * sizeof(double));
 	peakY = malloc(length * sizeof(double));
-	measuredWidth = malloc(length * sizeof(double));
 	for (i=0;i<length;i++){
 		tempPeak = peakQueuePop(peakQ);
-		peakIndices[i] = tempPeak.index;
 		peakX[i] = tempPeak.peakX;
 		peakY[i] = tempPeak.peakY;
-		measuredWidth[i] = tempPeak.measuredWidth;
 	}
 	return length;
+}
+
+void peakQueuePrint(struct peakQueue *peakQ){
+  // print out the peaks in the Queue
+  int i,length;
+
+  length = peakQ->cur_size;
+  struct peak *temp = malloc(length * sizeof(struct peak));
+  printf("[");
+
+  if (peakQ->cur_size !=0){
+    temp[0] = peakQueuePop(peakQ);
+    printf("frequency = %f magnitude = %f", temp[0].peakX,
+	   temp[0].peakY);
+  }
+  for (i=1;i<length;i++){
+    temp[i] = peakQueuePop(peakQ);
+    printf(",\n frequency = %f magnitude = %f", temp[i].peakX,
+	   temp[i].peakY);
+  }
+
+
+  // now put everything back into the Queue
+  for (i=0;i<length;i++){
+    peakQueueInsert(peakQ, temp[i]);
+  }
+  
+  printf("]\n");
+  free(temp);
+
 }
 
 /*
 int main(int argc, char*argv[]){
   // only including this for testing purposes
+
+  struct peakQueue peakQ;
+  peakQ = peakQueueNew(5);
+  peakQueuePrint(&peakQ);
+  printf("\n");
+  peakQueueAddNewPeak(&peakQ, 53, 534);
+  peakQueuePrint(&peakQ);
+  printf("\n");
+  peakQueueAddNewPeak(&peakQ, 192, 593);
+  peakQueuePrint(&peakQ);
+  printf("\n");
+  peakQueueAddNewPeak(&peakQ, 190, 603);
+  peakQueuePrint(&peakQ);
+  
+  peakQueueDestroy(peakQ);
+  
   return 0;
 }
+
 */
