@@ -40,10 +40,12 @@ double log2(double x){
 
 void SaveMIDI(int* noteArr, int size, char* path, int verbose){
 	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	unsigned char* trackData;
-	int tracklength = MakeTrack(&trackData, noteArr, size);
+	int trackCapacity = 500;
+	unsigned char* trackData = malloc(sizeof(char) * trackCapacity); //experiment with size or more dynamic allocation
+	int tracklength = MakeTrack(&trackData, trackCapacity, noteArr, size);
 	if(tracklength < 0){
 		printf("track generation failed\n");
+		free(trackData);
 	}
 	else{
 		FILE* f = fopen(path, "wb+");
@@ -60,6 +62,7 @@ void SaveMIDI(int* noteArr, int size, char* path, int verbose){
 			printf("track added\n");
 			fflush(NULL);
 		}
+		free(trackData);
 
 		fclose(f);
 	}
@@ -109,7 +112,7 @@ void AddTrack(FILE** f, unsigned char* track, int len){
 	fwrite(buf, sizeof(unsigned char), len + 8, (*f));
 }
 
-int MakeTrack(unsigned char** track, int* noteArr, int size){
+int MakeTrack(unsigned char** track, int trackCapacity, int* noteArr, int size){
 	int dt = 2; //time between events.
 	int timeSinceLast = 0;
 
@@ -121,7 +124,6 @@ int MakeTrack(unsigned char** track, int* noteArr, int size){
 	int timerSize = 0;
 	unsigned char* message;
 
-	(*track) = malloc(sizeof(char) * 10000); //experiment with size or more dynamic allocation
 	int trackLen = 0; 
 
 
@@ -132,23 +134,81 @@ int MakeTrack(unsigned char** track, int* noteArr, int size){
 		}
 
 		timerSize = IntToVLQ(timeSinceLast, &timer);
+
+		if(trackLen + timerSize >= trackCapacity){
+			//allocate more space for track
+			trackCapacity += 1000;
+			unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+			if(reallocatedTrack){
+				(*track) = reallocatedTrack;
+			}
+			else{ //memory could not be allocated
+				free((*track));
+				free(timer);
+				return -1;
+			}
+		}
 		memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
 		trackLen += timerSize;
 		free(timer);
 
+
 		if(last != -1){
 			message = MessageNoteOff(last, vel);
+			if(trackLen + 3 >= trackCapacity){
+				//allocate more space for track
+				trackCapacity += 1000;
+				unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+				if(reallocatedTrack){
+					(*track) = reallocatedTrack;
+				}
+				else{ //memory could not be allocated
+					free((*track));
+					free(message);
+					return -1;
+				}
+			}
 			memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
 			trackLen += 3;
 			free(message);
 
+
+			//TODO::::: allocation completed for first two appends, just two more! below this message (one for each memcpy.) just copy that if statement with >= trackcapacity, and change value added to tacklen, 
+
+
 			timerSize = IntToVLQ(0, &timer);
+			if(trackLen + timerSize >= trackCapacity){
+				//allocate more space for track
+				trackCapacity += 1000;
+				unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+				if(reallocatedTrack){
+					(*track) = reallocatedTrack;
+				}
+				else{ //memory could not be allocated
+					free((*track));
+					free(timer);
+					return -1;
+				}
+			}
 			memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
 			trackLen += timerSize;
 			free(timer);
 		}
 
 		message = MessageNoteOn(noteArr[i], vel);
+		if(trackLen + 3 >= trackCapacity){
+			//allocate more space for track
+			trackCapacity += 1000;
+			unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+			if(reallocatedTrack){
+				(*track) = reallocatedTrack;
+			}
+			else{ //memory could not be allocated
+				free((*track));
+				free(message);
+				return -1;
+			}
+		}
 		memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
 		trackLen += 3;
 		free(message);
@@ -159,10 +219,35 @@ int MakeTrack(unsigned char** track, int* noteArr, int size){
 	timeSinceLast += dt;
 
 	timerSize = IntToVLQ(timeSinceLast, &timer);
+	if(trackLen + timerSize >= trackCapacity){
+		//allocate more space for track
+		trackCapacity += 1000;
+		unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+		if(reallocatedTrack){
+			(*track) = reallocatedTrack;
+		}
+		else{ //memory could not be allocated
+			free((*track));
+			free(timer);
+			return -1;
+		}
+	}
 	memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
 	trackLen += timerSize;
 	free(timer);
 
+	if(trackLen + 3 >= trackCapacity){
+		//allocate more space for track
+		trackCapacity += 1000;
+		unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+		if(reallocatedTrack){
+			(*track) = reallocatedTrack;
+		}
+		else{ //memory could not be allocated
+			free((*track));
+			return -1;
+		}
+	}
 	memcpy( &(*track)[trackLen], &endTrack[0], 3 * sizeof(char));
 	trackLen += 3;
 
