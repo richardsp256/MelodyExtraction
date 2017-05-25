@@ -8,7 +8,7 @@
 int findpeaks(double* x, double* y, long length,double slopeThreshold, 
 	      double ampThreshold, double smoothwidth, int peakgroup,
 	      int smoothtype, int N, int first, double* peakX,
-	      double* peakY)
+	      double* peakY, double* firstPeakX)
 {
 	// This function has been transcribed from T. C. O'Haver's findpeaks
 	// function.
@@ -46,13 +46,42 @@ int findpeaks(double* x, double* y, long length,double slopeThreshold,
 	int n = (int)round(peakgroup/2 +1);
 	//int outIndex = 0;
 	
-	long j;
+	long j, temp;
 	double curPeakX,curPeakY;
 
 	struct peakQueue peakQ=peakQueueNew(N);
 
-
+	// Here we try to find the first peak
 	for (j=((long)smoothwidth)-1;j<(length-(long)smoothwidth);j++){
+		// check for zero-crossing
+		if (sign(d[j]) > sign(d[j+1])) {
+			// check if the slope of the derivative is greater than 
+			// slopeThresholdlong* peakIndices, 
+			if ((d[j]-d[j+1])>(slopeThreshold*y[j])) {
+				// check if the height of the peak exceeds
+				// ampThreshold
+				if (y[j]>ampThreshold) {
+					findpeaksHelper(x, y, length, peakgroup,
+							&curPeakX, &curPeakY,
+							j,n);
+
+					peakQueueAddNewPeak(&peakQ, curPeakX,
+							    curPeakY);
+					*firstPeakX = curPeakX;
+
+					if ((first>=1)&(peakQ.cur_size == N) ){
+						j = length;
+					}
+					break;
+				}
+			}
+		}
+	}
+	
+	temp = j;
+
+	// Here, we find the remaining peaks
+	for (j=temp;j<(length-(long)smoothwidth);j++){
 		// check for zero-crossing
 		if (sign(d[j]) > sign(d[j+1])) {
 			// check if the slope of the derivative is greater than 

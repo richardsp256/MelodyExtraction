@@ -118,7 +118,7 @@ void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
 	int blockstart;
 	int numPeaks;
 	double *magnitudes = malloc(dftBlocksize * sizeof(double));
-	double temp, slopeThreshold, ampThreshold,smoothwidth;
+	double temp, firstFreqPeak, slopeThreshold, ampThreshold, smoothwidth;
 	double *peakFreq, *peakMag, *measuredWidth;
 
 	struct orderedList candidates;
@@ -156,11 +156,13 @@ void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
 		numPeaks = findpeaks(frequencies, magnitudes,
 				     (long)dftBlocksize, slopeThreshold,
 				     ampThreshold, smoothwidth, 5, 3, 
-				     p, first, peakFreq, peakMag);
+				     p, first, peakFreq, peakMag,
+				     &firstFreqPeak);
 
 		// determine the candidates from the peaks
 		candidates = calcCandidates(peakFreq, numPeaks);
 		// add the lowest frequency peak fundamental candidate
+		orderedListInsert(&candidates, firstFreqPeak);
 		// add the cepstrum fundamental candidate
 
 		// determine the distinctive candidates and add them to

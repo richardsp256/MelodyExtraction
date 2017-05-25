@@ -1,6 +1,7 @@
 int findpeaks(double* x, double* y, long length,double slopeThreshold, 
 	      double ampThreshold, double smoothwidth, int peakgroup,
-	      int smoothtype, int N, int first, double* peakX, double* peakY);
+	      int smoothtype, int N, int first, double* peakX, double* peakY,
+	      double* firstPeakX);
 int sign(double x);
 void findpeaksHelper(double* x, double* y, long length, int peakgroup, 
 		     double* peakX, double* peakY, long j, int n);
