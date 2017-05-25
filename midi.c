@@ -76,19 +76,19 @@ void AddHeader(FILE** f, short format, short tracks, short division){
 
 	unsigned char* tmp;
 
-	AppendInt(&tmp, 6);
+	BigEndianInteger(&tmp, 6);
 	memcpy( &headerBuf[4], &tmp[0], 4 * sizeof(char) );
 	free(tmp);
 
-	AppendShort(&tmp, format);
+	BigEndianShort(&tmp, format);
 	memcpy( &headerBuf[8], &tmp[0], 2 * sizeof(char) );
 	free(tmp);
 
-	AppendShort(&tmp, tracks);
+	BigEndianShort(&tmp, tracks);
 	memcpy( &headerBuf[10], &tmp[0], 2 * sizeof(char) );
 	free(tmp);
 
-	AppendShort(&tmp, division);
+	BigEndianShort(&tmp, division);
 	memcpy( &headerBuf[12], &tmp[0], 2 * sizeof(char) );
 	free(tmp);
 
@@ -103,7 +103,7 @@ void AddTrack(FILE** f, unsigned char* track, int len){
 	memcpy( &buf[0], &descriptor[0], 4 * sizeof(char) );
 
 	unsigned char* tmp;
-	AppendInt(&tmp, len);
+	BigEndianInteger(&tmp, len);
 	memcpy( &buf[4], &tmp[0], 4 * sizeof(char) );
 	free(tmp);
 
@@ -219,7 +219,7 @@ int MakeTrack(unsigned char** track, int trackCapacity, int* noteArr, int size){
 
 //todo: make single templated swapbytes function
 
-void AppendInt(unsigned char** c, int num){
+void BigEndianInteger(unsigned char** c, int num){
 	//first convert to char[] so thats its Big-Endian
 	(*c) = calloc(4, sizeof(char));
 	(*c)[0] = (num >> 24) & 0xFF;
@@ -228,7 +228,7 @@ void AppendInt(unsigned char** c, int num){
 	(*c)[3] = num & 0xFF;
 }
 
-void AppendShort(unsigned char** c, short num){
+void BigEndianShort(unsigned char** c, short num){
 	//first convert to char[] so thats its Big-Endian
 	(*c) = calloc(2, sizeof(char));
 	(*c)[0] = (num >> 8) & 0xFF;
