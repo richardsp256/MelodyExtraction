@@ -13,6 +13,7 @@
  *   -w: stft window size, def = 2048\n"
  *   -s: stft window interval spacing, def = 128\n"
  *   -h: number of harmonic product specturm overtones, def = 2\n";
+ *   -p: prefix for fname where spectral data is stored, def = NULL\n";
  */
 
 int main(int argc, char ** argv)
@@ -23,11 +24,12 @@ int main(int argc, char ** argv)
 	int spacing = 1024;
 	int hpsOvertones = 2;
 	int verbose = 0; 
+	char* prefix = NULL;
 
 	//check command line arguments
 	int opt = 0;
 	int badargs = 0;
-	while ((opt = getopt (argc, argv, "i:o:vw:s:h:")) != -1) {
+	while ((opt = getopt (argc, argv, "i:o:vw:s:h:p:")) != -1) {
 		switch (opt) {
 		case 'i':
 			inFile = optarg;
@@ -59,6 +61,9 @@ int main(int argc, char ** argv)
 				badargs = 1;
 			}
 			break;
+		case 'p':
+			prefix = optarg;
+			break;
 		case '?':
 			if (optopt == 'i' || optopt == 'o' || optopt == 'w' || optopt == 's' || optopt == 'h')
 				printf ("Option -%c requires an argument.\n", optopt);
@@ -78,7 +83,7 @@ int main(int argc, char ** argv)
 	}
 
 	if(!badargs){
-		ExtractMelody(inFile, outFile, windowsize, spacing, hpsOvertones, verbose);
+	  ExtractMelody(inFile, outFile, windowsize, spacing, hpsOvertones, verbose, prefix);
 	}
 
 	return 0;
