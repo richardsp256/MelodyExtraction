@@ -145,7 +145,6 @@ int MakeTrack(unsigned char** track, int trackCapacity, int* noteArr, int size){
 					(*track) = reallocatedTrack;
 				}
 				else{ //memory could not be allocated
-					free((*track));
 					free(timer);
 					free(message);
 					return -1;
@@ -172,7 +171,6 @@ int MakeTrack(unsigned char** track, int trackCapacity, int* noteArr, int size){
 				(*track) = reallocatedTrack;
 			}
 			else{ //memory could not be allocated
-				free((*track));
 				free(timer);
 				free(message);
 				return -1;
@@ -202,7 +200,6 @@ int MakeTrack(unsigned char** track, int trackCapacity, int* noteArr, int size){
 			(*track) = reallocatedTrack;
 		}
 		else{ //memory could not be allocated
-			free((*track));
 			free(timer);
 			return -1;
 		}
