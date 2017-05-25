@@ -114,7 +114,6 @@ void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
   double *magnitudes = malloc(dftBlocksize * sizeof(double));
   double temp, slopeThreshold, ampThreshold,smoothwidth;
   double *peakFreq, *peakMag, *measuredWidth;
-  long *peakIndices;
   
   struct orderedList candidates;
   
@@ -149,8 +148,7 @@ void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
     // find the harmonic spectra peaks
     numPeaks = findpeaks(frequencies, magnitudes, (long)dftBlocksize,
 			 slopeThreshold, ampThreshold, smoothwidth, 5, 3, 
-			 p, first, peakIndices,peakFreq, peakMag, 
-			 measuredWidth);
+			 p, first,peakFreq, peakMag);
 
     // determine the candidates from the peaks
     candidates = calcCandidates(peakFreq, numPeaks);
@@ -163,9 +161,7 @@ void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
     orderedListDestroy(candidates);
 
     free(peakFreq);
-    free(peakMag);
-    free(measuredWidth);
-    free(peakIndices); 
+    free(peakMag); 
   }
 free(magnitudes);
 

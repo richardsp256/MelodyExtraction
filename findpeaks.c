@@ -7,8 +7,7 @@
 
 int findpeaks(double* x, double* y, long length,double slopeThreshold, 
 double ampThreshold, double smoothwidth, int peakgroup, int smoothtype, 
-int N, int first, long* peakIndices,double* peakX, double* peakY, 
-double* measuredWidth){
+int N, int first, double* peakX, double* peakY){
 	// This function has been transcribed from T. C. O'Haver's findpeaks function
 
 	// Function to locate the positive peaks in a noisy x-y time series data
@@ -36,8 +35,7 @@ double* measuredWidth){
 	// integer is passed to "first", then the first "N" peaks are returned.
 	// Otherwise, the "N": peaks with the highest amplitude are returned.
 	
-	// "peakIndices", "peakX", "peakY", and "measuredWidth" will point at 
-	// the peaks with the greatest 
+	// "peakX", "peakY", and will point at the peaks with the greatest 
 
 	smoothwidth = round(smoothwidth);
 	peakgroup = round(peakgroup);
@@ -45,8 +43,8 @@ double* measuredWidth){
 	int n = (int)round(peakgroup/2 +1);
 	//int outIndex = 0;
 	
-	long j, peakIndex;
-	double curPeakX,curPeakY, curMeasuredWidth;
+	long j;
+	double curPeakX,curPeakY;
        
 	struct peakQueue peakQ=peakQueueNew(N);
 
@@ -55,12 +53,12 @@ double* measuredWidth){
 		// check for zero-crossing
 		if (sign(d[j]) > sign(d[j+1])){
 			// check if the slope of the derivative is greater than 
-			// slopeThreshold
+			// slopeThresholdlong* peakIndices, 
 			if ((d[j]-d[j+1])>(slopeThreshold*y[j])){
 				// check if the height of the peak exceeds ampThreshold
 				if (y[j]>ampThreshold){
-					findpeaksHelper(x, y, length, peakgroup, &peakIndex, 
-					&curPeakX, &curPeakY, &curMeasuredWidth, j,n);
+					findpeaksHelper(x, y, length, peakgroup,
+							&curPeakX, &curPeakY, j,n);
 					
 					peakQueueAddNewPeak(&peakQ, curPeakX, curPeakY);
 					
@@ -90,14 +88,13 @@ int sign(double x){
 	}
 }
 
-void findpeaksHelper(double* x, double* y, long length, int peakgroup, 
-long* peakIndex, double* peakX, double* peakY, double* measuredWidth, long j, int n){
+void findpeaksHelper(double* x, double* y, long length, int peakgroup,
+		     double* peakX, double* peakY, long j, int n){
 	// Helper Function
 	int k;
 	long groupindex;
 	if (peakgroup<5){
 		*peakY = -1.0;
-		*measuredWidth = -1.0;
 		// At a glance the following for loop seems wrong (especiall in comparison 
 		// to the matlab code but I think its actually correct)
 		for (k=1;k<=peakgroup;k++){
@@ -111,7 +108,6 @@ long* peakIndex, double* peakX, double* peakY, double* measuredWidth, long j, in
 			if (y[groupindex]>*peakY){
 				*peakY = y[groupindex];
 				*peakX = x[groupindex];
-				*peakIndex = groupindex;
 			}
 		}
 	}
@@ -141,8 +137,6 @@ long* peakIndex, double* peakX, double* peakY, double* measuredWidth, long j, in
 		*peakX = -((std*coef[1]/(2.*coef[2]))-mean);
 		// check that we are correctly squaring
 		*peakY = exp(coef[0]-coef[2]*pow((coef[1]/(2.*coef[2])),2));
-		
-		// need to calculate the peakIndex
 	}
 }
 
