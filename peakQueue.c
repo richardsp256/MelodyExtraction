@@ -122,6 +122,7 @@ struct peak peakQueuePop(struct peakQueue *peakQ)
 		// swap the minimum value with the last value
 		peakQueueSwapPeaks(peakQ, 0, peakQ->cur_size-1);
 		peakQ->cur_size-=1;
+		peakQueueBubbleDown(peakQ, 0);
 		return peakQ->array[peakQ->cur_size];
 	}
 }
@@ -176,6 +177,7 @@ int peakQueueToArrays(struct peakQueue *peakQ, double* peakX, double* peakY)
 	return length;
 }
 
+
 void peakQueuePrint(struct peakQueue *peakQ)
 {
 	// print out the peaks in the Queue
@@ -187,12 +189,12 @@ void peakQueuePrint(struct peakQueue *peakQ)
 	
 	if (peakQ->cur_size !=0) {
 		temp[0] = peakQueuePop(peakQ);
-		printf("frequency = %f magnitude = %f", temp[0].peakX,
+		printf("frequency = %.0f magnitude = %.0f", temp[0].peakX,
 		       temp[0].peakY);
 	}
 	for (i=1;i<length;i++){
 		temp[i] = peakQueuePop(peakQ);
-		printf(",\n frequency = %f magnitude = %f", temp[i].peakX,
+		printf(",\n frequency = %.0f magnitude = %.0f", temp[i].peakX,
 		       temp[i].peakY);
 	}
 
@@ -222,9 +224,27 @@ int main(int argc, char*argv[]){
 	printf("\n");
 	peakQueueAddNewPeak(&peakQ, 190, 603);
 	peakQueuePrint(&peakQ);
+	printf("\n");
 
+	peakQueueAddNewPeak(&peakQ, 54, 502);
+	peakQueuePrint(&peakQ);
+	printf("\n");
+
+	peakQueueAddNewPeak(&peakQ, 391, 597);
+	peakQueuePrint(&peakQ);
+	printf("\n");
+
+	peakQueueAddNewPeak(&peakQ, 265, 586);
+	peakQueuePrint(&peakQ);
+	printf("\n");
+
+	peakQueueAddNewPeak(&peakQ, 600, 400);
+	peakQueuePrint(&peakQ);
+	printf("\n");
+	
 	peakQueueDestroy(peakQ);
 
 	return 0;
 }
+
 */
