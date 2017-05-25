@@ -38,21 +38,34 @@ double log2(double x){
 	return log(x)/log(2);
 }
 
-void SaveMIDI(int* noteArr, int size, char* path){
+void SaveMIDI(int* noteArr, int size, char* path, int verbose){
 	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	FILE* f = fopen(path, "wb+");
+	int trackCapacity = 1000;
+	unsigned char* trackData = malloc(sizeof(char) * trackCapacity); //experiment with size or more dynamic allocation
+	int tracklength = MakeTrack(&trackData, trackCapacity, noteArr, size);
+	if(tracklength < 0){
+		printf("track generation failed\n");
+		free(trackData);
+	}
+	else{
+		FILE* f = fopen(path, "wb+");
 
-	AddHeader(&f, 0, 1, 24); //first 
+		AddHeader(&f, 0, 1, 24); //first 
+		if(verbose){
+			printf("header added\n");
+			fflush(NULL);
+		}
 
-	printf("header added!\n");
 
-	unsigned char* trackData;
-	int tracklength = MakeTrack(&trackData, noteArr, size);
-	AddTrack(&f, trackData, tracklength);
+		AddTrack(&f, trackData, tracklength);
+		if(verbose){
+			printf("track added\n");
+			fflush(NULL);
+		}
+		free(trackData);
 
-	printf("track added!\n");
-
-	fclose(f);
+		fclose(f);
+	}
 }
 
 void AddHeader(FILE** f, short format, short tracks, short division){
@@ -63,19 +76,19 @@ void AddHeader(FILE** f, short format, short tracks, short division){
 
 	unsigned char* tmp;
 
-	AppendInt(&tmp, 6);
+	BigEndianInteger(&tmp, 6);
 	memcpy( &headerBuf[4], &tmp[0], 4 * sizeof(char) );
 	free(tmp);
 
-	AppendShort(&tmp, format);
+	BigEndianShort(&tmp, format);
 	memcpy( &headerBuf[8], &tmp[0], 2 * sizeof(char) );
 	free(tmp);
 
-	AppendShort(&tmp, tracks);
+	BigEndianShort(&tmp, tracks);
 	memcpy( &headerBuf[10], &tmp[0], 2 * sizeof(char) );
 	free(tmp);
 
-	AppendShort(&tmp, division);
+	BigEndianShort(&tmp, division);
 	memcpy( &headerBuf[12], &tmp[0], 2 * sizeof(char) );
 	free(tmp);
 
@@ -90,7 +103,7 @@ void AddTrack(FILE** f, unsigned char* track, int len){
 	memcpy( &buf[0], &descriptor[0], 4 * sizeof(char) );
 
 	unsigned char* tmp;
-	AppendInt(&tmp, len);
+	BigEndianInteger(&tmp, len);
 	memcpy( &buf[4], &tmp[0], 4 * sizeof(char) );
 	free(tmp);
 
@@ -99,60 +112,102 @@ void AddTrack(FILE** f, unsigned char* track, int len){
 	fwrite(buf, sizeof(unsigned char), len + 8, (*f));
 }
 
-int MakeTrack(unsigned char** track, int* noteArr, int size){
+int MakeTrack(unsigned char** track, int trackCapacity, int* noteArr, int size){
 	int dt = 2; //time between events.
 	int timeSinceLast = 0;
 
 	int vel = 80; //default velocity, given to all notes.
 	int last = -1; //the last note that was played
-	const unsigned char endTrack[3] = {(unsigned char) 255, (unsigned char) 47, (unsigned char) 0};
 
 	unsigned char* timer;
 	int timerSize = 0;
 	unsigned char* message;
 
-	(*track) = malloc(sizeof(char) * 1000); //experiment with size or more dynamic allocation
 	int trackLen = 0; 
 
 
 	for(int i = 0; i < size; ++i){
 		timeSinceLast += dt;
+
 		if(last == noteArr[i]  || !isMidiNote(noteArr[i])){
 			continue;
 		}
 
-		timerSize = IntToVLQ(timeSinceLast, &timer);
-		memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
-		trackLen += timerSize;
-		free(timer);
-
 		if(last != -1){
+			timerSize = IntToVLQ(timeSinceLast, &timer);
 			message = MessageNoteOff(last, vel);
-			memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
-			trackLen += 3;
-			free(message);
 
-			timerSize = IntToVLQ(0, &timer);
+			if(trackLen + timerSize + 3 >= trackCapacity){
+				//allocate more space for track
+				trackCapacity += 1000;
+				unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+				if(reallocatedTrack){
+					(*track) = reallocatedTrack;
+				}
+				else{ //memory could not be allocated
+					free(timer);
+					free(message);
+					return -1;
+				}
+			}
+
 			memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
 			trackLen += timerSize;
 			free(timer);
+			memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
+			trackLen += 3;
+			free(message);
+			timeSinceLast = 0;
 		}
 
+		timerSize = IntToVLQ(timeSinceLast, &timer);
 		message = MessageNoteOn(noteArr[i], vel);
+
+		if(trackLen + timerSize + 3 >= trackCapacity){
+			//allocate more space for track
+			trackCapacity += 1000;
+			unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+			if(reallocatedTrack){
+				(*track) = reallocatedTrack;
+			}
+			else{ //memory could not be allocated
+				free(timer);
+				free(message);
+				return -1;
+			}
+		}
+
+		memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
+		trackLen += timerSize;
+		free(timer);
 		memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
 		trackLen += 3;
 		free(message);
-		last = noteArr[i];
 		timeSinceLast = 0;
+		last = noteArr[i];
 	}
 
 	timeSinceLast += dt;
 
 	timerSize = IntToVLQ(timeSinceLast, &timer);
+	unsigned char endTrack[3] = {(unsigned char) 255, (unsigned char) 47, (unsigned char) 0}; //end track value defined in MIDI standard
+
+	if(trackLen + timerSize + 3 >= trackCapacity){
+		//allocate more space for track
+		trackCapacity += 1000;
+		unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+		if(reallocatedTrack){
+			(*track) = reallocatedTrack;
+		}
+		else{ //memory could not be allocated
+			free(timer);
+			return -1;
+		}
+	}
+
 	memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
 	trackLen += timerSize;
 	free(timer);
-
 	memcpy( &(*track)[trackLen], &endTrack[0], 3 * sizeof(char));
 	trackLen += 3;
 
@@ -161,7 +216,7 @@ int MakeTrack(unsigned char** track, int* noteArr, int size){
 
 //todo: make single templated swapbytes function
 
-void AppendInt(unsigned char** c, int num){
+void BigEndianInteger(unsigned char** c, int num){
 	//first convert to char[] so thats its Big-Endian
 	(*c) = calloc(4, sizeof(char));
 	(*c)[0] = (num >> 24) & 0xFF;
@@ -170,7 +225,7 @@ void AppendInt(unsigned char** c, int num){
 	(*c)[3] = num & 0xFF;
 }
 
-void AppendShort(unsigned char** c, short num){
+void BigEndianShort(unsigned char** c, short num){
 	//first convert to char[] so thats its Big-Endian
 	(*c) = calloc(2, sizeof(char));
 	(*c)[0] = (num >> 8) & 0xFF;
