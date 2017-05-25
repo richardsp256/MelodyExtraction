@@ -12,7 +12,7 @@
 //       thing
 
 double* BaNa(double **AudioData, int size, int dftBlocksize, int p,
-	     double f0Min, double f0Max, double* frequencies)
+	     double f0Min, double f0Max, int fftSize, int samplerate)
 {
 	// Implements the BaNa fundamental pitch detection algorithm
 	// This algorithm is split into 3 parts:
@@ -32,13 +32,18 @@ double* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 	struct candidateList **windowCandidates;
 	int numBlocks = size / dftBlocksize;
 	long i;
+
+	double *frequencies = calcFrequencies(dftBlocksize, fftSize,
+					      samplerate);
+	
 	// preprocess each of the frames
 	BaNaPreprocessing(AudioData, size, dftBlocksize, p, f0Min, f0Max,
 			  frequencies);
 
 	// find the candidates for the fundamentals
 	BaNaFindCandidates(AudioData, size, dftBlocksize, p, f0Min, f0Max, 0,
-			   windowCandidates,10.0,frequencies);
+			   windowCandidates, 10.0, frequencies, fftSize,
+			   samplerate);
 
 	// determine which candidate is the fundamental
 	fundamentals = candidateSelection(windowCandidates, numBlocks);
@@ -49,11 +54,12 @@ double* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 	}
   
 	free(windowCandidates);
+	free(frequencies);
 	return fundamentals;
 }
 
 double* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
-		  double f0Min, double f0Max, double* frequencies)
+		  double f0Min, double f0Max, int fftSize, int samplerate)
 {
 	// Same as BaNa except that during determination of F0 candidates,
 	// retrieve the p peaks with the maximum amplitude
@@ -62,13 +68,18 @@ double* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 	struct candidateList **windowCandidates;
 	long numBlocks = size / dftBlocksize;
 	long i;
+
+	double *frequencies = calcFrequencies(dftBlocksize, fftSize,
+					      samplerate);
+
 	// preprocess each of the frames
 	BaNaPreprocessing(AudioData, size, dftBlocksize, p, f0Min, f0Max,
 			  frequencies);
 
 	// find the candidates for the fundamentals
 	BaNaFindCandidates(AudioData, size, dftBlocksize, p, f0Min, f0Max, 0,
-			   windowCandidates,3.0,frequencies);
+			   windowCandidates, 3.0, frequencies, fftSize,
+			   samplerate);
 
 	// determine which candidate is the fundamental
 	fundamentals = candidateSelection(windowCandidates, numBlocks);
@@ -79,10 +90,23 @@ double* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 	}
 
 	free(windowCandidates);
+	free(frequencies);
 	return fundamentals;
 }
 
-
+double* calcFrequencies(int dftBlocksize, int fftSize, int samplerate)
+{
+	// returns an array of length dftBlocksize with the frequency
+	// value for every bin
+	int i;
+	double* frequencies = malloc(dftBlocksize*sizeof(double));
+	double ratio = (double)samplerate / fftSize;
+	
+	for (i=0;i<dftBlocksize;i++) {
+		frequencies[i] = i*ratio;
+	}
+	return frequencies;
+}
 
 void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
 		       double f0Min, double f0Max, double* frequencies)
@@ -106,7 +130,8 @@ void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
 void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
 			double f0Min, double f0Max, int first,
 			struct candidateList **windowCandidates,
-			double xi, double* frequencies)
+			double xi, double* frequencies, int fftSize,
+			int samplerate)
 {
 	// this finds all of the f0 candiates
 	// windowCandidates is an array of pointers that point to the list of
@@ -118,8 +143,8 @@ void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
 	int blockstart;
 	int numPeaks;
 	double *magnitudes = malloc(dftBlocksize * sizeof(double));
-	double temp, firstFreqPeak, slopeThreshold, ampThreshold, smoothwidth;
-	double *peakFreq, *peakMag, *measuredWidth;
+	double temp, firstFreqPeak, ampThreshold, smoothwidth;
+	double *peakFreq, *peakMag;
 
 	struct orderedList candidates;
 
@@ -145,16 +170,12 @@ void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
 		}
 		ampThreshold/=15.;
 
-		// not sure what to set these variables values to. For now,
-		// arbitrary values
-		smoothwidth = 5;
-		slopeThreshold = 0.3;
-
-
+		// set smoothwidth to the equivalent of 50 Hz
+		smoothwidth = 50. * ((double) fftSize) / ((double) samplerate);
 
 		// find the harmonic spectra peaks
 		numPeaks = findpeaks(frequencies, magnitudes,
-				     (long)dftBlocksize, slopeThreshold,
+				     (long)dftBlocksize, 0.0,
 				     ampThreshold, smoothwidth, 5, 3, 
 				     p, first, peakFreq, peakMag,
 				     &firstFreqPeak);
