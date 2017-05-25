@@ -41,5 +41,10 @@
 fftw*/*
 libsndfile*/*
 
+# Text editor related files
+*.c~
+*.h~
+.dir-locals.el
+
 #Ignore compiled code
 extract
