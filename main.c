@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <string.h>
 #include "comparison.h"
+#include "detectionStrat.h"
 
 /* Usage is as follows:\n"
  * mandatory args:\n"
@@ -29,7 +31,7 @@ int main(int argc, char ** argv)
 	//check command line arguments
 	int opt = 0;
 	int badargs = 0;
-	while ((opt = getopt (argc, argv, "i:o:vw:s:h:p:")) != -1) {
+	while ((opt = getopt (argc, argv, "i:o:vw:s:h:p:d:")) != -1) {
 		switch (opt) {
 		case 'i':
 			inFile = optarg;
@@ -65,7 +67,7 @@ int main(int argc, char ** argv)
 			prefix = optarg;
 			break;
 		case '?':
-			if (optopt == 'i' || optopt == 'o' || optopt == 'w' || optopt == 's' || optopt == 'h')
+			if (optopt == 'i' || optopt == 'o' || optopt == 'w' || optopt == 's' || optopt == 'h' || optopt == 'p')
 				printf ("Option -%c requires an argument.\n", optopt);
 			else
 				printf ("Unknown option `-%c'.\n", optopt);
@@ -83,7 +85,7 @@ int main(int argc, char ** argv)
 	}
 
 	if(!badargs){
-	  ExtractMelody(inFile, outFile, windowsize, spacing, hpsOvertones, verbose, prefix);
+		ExtractMelody(inFile, outFile, windowsize, spacing, hpsOvertones, verbose, prefix, HPSDetectionStrategy);
 	}
 
 	return 0;

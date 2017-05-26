@@ -9,6 +9,7 @@
 #include "fftw3.h"
 #include "comparison.h"
 #include "midi.h"
+#include "detectionStrat.h"
 
 const char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
 const char* ERR_FILE_NOT_MONO = "Input file must be Mono."
@@ -36,7 +37,7 @@ float* WindowFunction(int size)
 	return buffer;
 }
 
-int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose, char* prefix)
+int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose, char* prefix, FundamentalDetectionStrategy detectionStrategy)
 { 
 	//reads in .wav
 	SF_INFO info;
@@ -82,7 +83,10 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 		free(spectraFile);
 	}
 	
-	int* melodyIndices = HarmonicProductSpectrum(&spectrum, size, winSize/2, hpsOvr);
+	int* melodyIndices;
+	melodyIndices = detectionStrategy(&spectrum, size, winSize/2, hpsOvr,
+					  winSize, info.samplerate);
+
 	if(verbose){
 		printf("HPS complete\n");
 		fflush(NULL);
@@ -267,51 +271,7 @@ double* Magnitude(fftw_complex* arr, int size)
 	return magArr;
 }
 
-int* HarmonicProductSpectrum(double** AudioData, int size, int dftBlocksize, int hpsOvr)
-{
-	//for now, doesn't attempt to distinguish if a note is or isnt playing.
-	//if no note is playing, the dominant tone will just be from the noise.
 
-	int i,j,limit, numBlocks;
-	double loudestOfBlock;
-	assert(size % dftBlocksize == 0);
-	numBlocks = size / dftBlocksize;
-
-	int* loudestIndices = malloc( sizeof(int) * numBlocks );
-
-	//create a copy of AudioData
-	double* AudioDataCopy = malloc( sizeof(double) * dftBlocksize );
-	printf("size: %d\n", size);
-	printf("dftblocksize: %d\n", dftBlocksize);
-
-	//do each block at a time.
-	for(int blockstart = 0; blockstart < size; blockstart += dftBlocksize){
-
-		//copy the block
-		for(i = 0; i < dftBlocksize; ++i){
-			AudioDataCopy[i] = (*AudioData)[blockstart + i];
-		}
-
-		for(i = 2; i <= hpsOvr; i++){
-			limit = dftBlocksize/i;
-			for(j = 0; j <= limit; j++){
-				(*AudioData)[blockstart + j] *= AudioDataCopy[j*i];
-			}
-		}
-
-		loudestOfBlock = 0.0;
-		for(i = 0; i < dftBlocksize; ++i){
-			if((*AudioData)[blockstart + i] > loudestOfBlock){
-				loudestOfBlock = (*AudioData)[blockstart + i];
-				loudestIndices[blockstart/dftBlocksize] = i;
-			}
-		}
-	}
-
-	free(AudioDataCopy);
-
-	return loudestIndices;
-}
 
 void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
 	FILE* file = fopen(path, "wb");

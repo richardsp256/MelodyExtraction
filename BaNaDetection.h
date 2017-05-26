@@ -1,4 +1,4 @@
-
+#include "candidates.h"
 double* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 	     double f0Min, double f0Max, int fftSize, int samplerate);
 double* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
@@ -11,3 +11,5 @@ void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
 			struct candidateList **windowCandidates,
 			double xi, double* frequencies, int fftSize,
 			int samplerate);
+int* FreqToBin(double* fundamentals, int fftSize, int samplerate, int size,
+	       int dftBlocksize);

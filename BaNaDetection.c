@@ -200,8 +200,27 @@ void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
 
 }
 
+int* FreqToBin(double* fundamentals, int fftSize, int samplerate, int size,
+	       int dftBlocksize)
+{
+	// converts the frequencies to the indicies of the FFT bins
+	// double check that when we type cast to int, we round correctly
+	// I think we are OK
+	int numBlocks = size / dftBlocksize;
+	int i;
+	int* bins = malloc(numBlocks*sizeof(int));
+	double ratio = (double)fftSize / samplerate;
+	for(i=0;i<numBlocks;i++){
+		bins[i] = (int)(fundamentals[i] * ratio);
+	}
+	return bins;
+}
+
+
+/*
 int main(int argc, char*argv[])
 {
 	// only including this for testing purposes
 	return 0;
 }
+*/
