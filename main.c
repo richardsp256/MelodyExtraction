@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <string.h>
 #include "comparison.h"
 #include "detectionStrat.h"
 
@@ -16,6 +15,7 @@
  *   -s: stft window interval spacing, def = 128\n"
  *   -h: number of harmonic product specturm overtones, def = 2\n";
  *   -p: prefix for fname where spectral data is stored, def = NULL\n";
+ *   -d: fundamental detection method - allowed arguments are HPS, BaNa, and BaNaMusic, def = HPS\n";
  */
 
 int main(int argc, char ** argv)
@@ -27,7 +27,8 @@ int main(int argc, char ** argv)
 	int hpsOvertones = 2;
 	int verbose = 0; 
 	char* prefix = NULL;
-
+	FundamentalDetectionStrategy detectionStrategy = &HPSDetectionStrategy;
+	
 	//check command line arguments
 	int opt = 0;
 	int badargs = 0;
@@ -66,8 +67,15 @@ int main(int argc, char ** argv)
 		case 'p':
 			prefix = optarg;
 			break;
+		case 'd':
+			detectionStrategy = chooseStrategy(optarg);
+			if (detectionStrategy == NULL){
+				printf("Argument for option -d must be a \"HPS\", \"BaNa\", or \"BaNaMusic\"\n");
+				badargs = 1;
+			}
+			break;
 		case '?':
-			if (optopt == 'i' || optopt == 'o' || optopt == 'w' || optopt == 's' || optopt == 'h' || optopt == 'p')
+			if (optopt == 'i' || optopt == 'o' || optopt == 'w' || optopt == 's' || optopt == 'h' || optopt == 'p' || optopt == 'd')
 				printf ("Option -%c requires an argument.\n", optopt);
 			else
 				printf ("Unknown option `-%c'.\n", optopt);
@@ -85,7 +93,7 @@ int main(int argc, char ** argv)
 	}
 
 	if(!badargs){
-		ExtractMelody(inFile, outFile, windowsize, spacing, hpsOvertones, verbose, prefix, HPSDetectionStrategy);
+		ExtractMelody(inFile, outFile, windowsize, spacing, hpsOvertones, verbose, prefix, detectionStrategy);
 	}
 
 	return 0;

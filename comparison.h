@@ -1,9 +1,6 @@
 #include "sndfile.h"
 #include "fftw3.h"
-
-typedef int* (FundamentalDetectionStrategy)(double** AudioData, int size,
-					    int dftBlocksize, int hpsOvr,
-					    int fftSize, int samplerate);
+#include "detectionStrat.h"
 
 void PrintAudioMetadata(SF_INFO * file);
 float* WindowFunction(int size);
