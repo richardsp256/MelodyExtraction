@@ -34,49 +34,40 @@ FundamentalDetectionStrategy chooseStrategy(char* name)
 	return detectionStrategy;
 }
 
-int* HPSDetectionStrategy(double** AudioData, int size, int dftBlocksize,
-			  int hpsOvr, int fftSize, int samplerate)
+float* HPSDetectionStrategy(double** AudioData, int size, int dftBlocksize,
+			    int hpsOvr, int fftSize, int samplerate)
 {
-	return HarmonicProductSpectrum(AudioData, size, dftBlocksize, hpsOvr);
+	return HarmonicProductSpectrum(AudioData, size, dftBlocksize, hpsOvr,
+				       fftSize, samplerate);
 }
 
-int* BaNaDetectionStrategy(double** AudioData, int size, int dftBlocksize,
+float* BaNaDetectionStrategy(double** AudioData, int size, int dftBlocksize,
 			   int hpsOvr, int fftSize, int samplerate)
 {
-	double* fundamentals;
-	int* bins;
-	fundamentals = BaNa(AudioData, size, dftBlocksize, 5, 50, 600,
-			    fftSize, samplerate);
-	bins = FreqToBin(fundamentals, fftSize, samplerate, size,
-			 dftBlocksize);
-	free(fundamentals);
-	return bins;
+	
+	return BaNa(AudioData, size, dftBlocksize, 5, 50, 600,
+		    fftSize, samplerate);
 }
 
-int* BaNaMusicDetectionStrategy(double** AudioData, int size, int dftBlocksize,
-				int hpsOvr, int fftSize, int samplerate)
+float* BaNaMusicDetectionStrategy(double** AudioData, int size,
+				  int dftBlocksize, int hpsOvr, int fftSize,
+				  int samplerate)
 {
-	double* fundamentals;
-	int* bins;
-	fundamentals = BaNaMusic(AudioData, size, dftBlocksize, 5, 50, 3000,
-				 fftSize, samplerate);
-	bins = FreqToBin(fundamentals, fftSize, samplerate, size,
-			 dftBlocksize);
-	free(fundamentals);
-	return bins;
+	return BaNaMusic(AudioData, size, dftBlocksize, 5, 50, 3000,
+			 fftSize, samplerate);
 }
 
-int* HarmonicProductSpectrum(double** AudioData, int size, int dftBlocksize, int hpsOvr)
+float* HarmonicProductSpectrum(double** AudioData, int size, int dftBlocksize, int hpsOvr, int fftSize, int samplerate)
 {
 	//for now, doesn't attempt to distinguish if a note is or isnt playing.
 	//if no note is playing, the dominant tone will just be from the noise.
 
-	int i,j,limit, numBlocks;
+	int i,j,limit, numBlocks, loudestIndex;
 	double loudestOfBlock;
 	assert(size % dftBlocksize == 0);
 	numBlocks = size / dftBlocksize;
 
-	int* loudestIndices = malloc( sizeof(int) * numBlocks );
+	float* loudestFreq = malloc( sizeof(float) * numBlocks );
 
 	//create a copy of AudioData
 	double* AudioDataCopy = malloc( sizeof(double) * dftBlocksize );
@@ -102,12 +93,17 @@ int* HarmonicProductSpectrum(double** AudioData, int size, int dftBlocksize, int
 		for(i = 0; i < dftBlocksize; ++i){
 			if((*AudioData)[blockstart + i] > loudestOfBlock){
 				loudestOfBlock = (*AudioData)[blockstart + i];
-				loudestIndices[blockstart/dftBlocksize] = i;
+				loudestIndex = i;
 			}
 		}
+		loudestFreq[blockstart/dftBlocksize] = BinToFreq(loudestIndex, fftSize, samplerate);
 	}
 
 	free(AudioDataCopy);
 
-	return loudestIndices;
+	return loudestFreq;
 }
+
+float BinToFreq(int bin, int fftSize, int samplerate){
+	return bin * (float)samplerate / fftSize;
+} 

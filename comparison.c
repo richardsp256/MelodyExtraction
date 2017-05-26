@@ -83,9 +83,8 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 		free(spectraFile);
 	}
 	
-	int* melodyIndices;
-	melodyIndices = detectionStrategy(&spectrum, size, winSize/2, hpsOvr,
-					  winSize, info.samplerate);
+	float* freq = detectionStrategy(&spectrum, size, winSize/2, hpsOvr,
+					winSize, info.samplerate);
 
 	if(verbose){
 		printf("HPS complete\n");
@@ -108,11 +107,11 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 		if(verbose){
 			printf("block%d:", i);
 			fflush(NULL);
-			printf("   bin: %d", melodyIndices[i]);
+			printf("   freq: %.2f", freq[i]);
 			fflush(NULL);
 		}
-		float freq = BinToFreq(melodyIndices[i], winSize, info.samplerate);
-		melodyMidi[i] = FrequencyToNote(freq);
+		
+		melodyMidi[i] = FrequencyToNote(freq[i]);
 		if(verbose){
 			printf("   midi: %d", melodyMidi[i]);
 			fflush(NULL);
@@ -128,8 +127,6 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 
 	printf("printout complete\n");
 	fflush(NULL);
-
-	free(melodyIndices);
 
 	SaveMIDI(melodyMidi, numBlocks, outFile, verbose);
 
@@ -332,10 +329,6 @@ void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
 	//Close the file
 	fclose(file);
 }
-
-float BinToFreq(int bin, int fftSize, int samplerate){
-	return bin * (float)samplerate / fftSize;
-} 
 
 void SaveWeightsTxt(char* fileName, double** AudioData, int size, int dftBlocksize, int samplerate, int winSize){
         // Saves the weights of each frequency bin to a text file

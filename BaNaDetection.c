@@ -11,7 +11,9 @@
 // NOTE: in all of my code I use window, frame, and block to refer to the same
 //       thing
 
-double* BaNa(double **AudioData, int size, int dftBlocksize, int p,
+// NOTE: modify use of doubles to represent frequency to floats for consistency
+
+float* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 	     double f0Min, double f0Max, int fftSize, int samplerate)
 {
 	// Implements the BaNa fundamental pitch detection algorithm
@@ -28,7 +30,8 @@ double* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 	// 3. Post-Processing. Selection of F0 from candidates
 
 
-	double *fundamentals;
+	double *temp;
+	float *fundamentals;
 	struct candidateList **windowCandidates;
 	int numBlocks = size / dftBlocksize;
 	long i;
@@ -46,8 +49,14 @@ double* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 			   samplerate);
 
 	// determine which candidate is the fundamental
-	fundamentals = candidateSelection(windowCandidates, numBlocks);
+	temp = candidateSelection(windowCandidates, numBlocks);
 
+	fundamentals = malloc(sizeof(float)*numBlocks);
+	
+	for (i=0;i<numBlocks;i++){
+		fundamentals[i] = (float)temp[i];
+	}
+	
 	// clean up
 	for (i=0;i<numBlocks;i++){
 		candidateListDestroy(windowCandidates[i]);
@@ -55,16 +64,17 @@ double* BaNa(double **AudioData, int size, int dftBlocksize, int p,
   
 	free(windowCandidates);
 	free(frequencies);
+	free(temp);
 	return fundamentals;
 }
 
-double* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
+float* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 		  double f0Min, double f0Max, int fftSize, int samplerate)
 {
 	// Same as BaNa except that during determination of F0 candidates,
 	// retrieve the p peaks with the maximum amplitude
-
-	double *fundamentals;
+	double *temp;
+	float *fundamentals;
 	struct candidateList **windowCandidates;
 	long numBlocks = size / dftBlocksize;
 	long i;
@@ -82,8 +92,14 @@ double* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 			   samplerate);
 
 	// determine which candidate is the fundamental
-	fundamentals = candidateSelection(windowCandidates, numBlocks);
+	temp = candidateSelection(windowCandidates, numBlocks);
 
+	fundamentals = malloc(sizeof(float)*numBlocks);
+	
+	for (i=0;i<numBlocks;i++){
+		fundamentals[i] = (float)temp[i];
+	}
+	
 	// clean up
 	for (i=0;i<numBlocks;i++){
 		candidateListDestroy(windowCandidates[i]);
@@ -91,6 +107,7 @@ double* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 
 	free(windowCandidates);
 	free(frequencies);
+	free(temp);
 	return fundamentals;
 }
 
