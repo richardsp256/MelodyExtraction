@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include "findpeaks.h"
 #include "findCandidates.h"
 #include "candidateSelection.h"
@@ -42,15 +43,16 @@ float* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 	// preprocess each of the frames
 	BaNaPreprocessing(AudioData, size, dftBlocksize, p, f0Min, f0Max,
 			  frequencies);
-
+	printf("Done Preprocessing\n");
 	// find the candidates for the fundamentals
-	BaNaFindCandidates(AudioData, size, dftBlocksize, p, f0Min, f0Max, 0,
-			   windowCandidates, 10.0, frequencies, fftSize,
-			   samplerate);
-
+	windowCandidates = BaNaFindCandidates(AudioData, size, dftBlocksize,
+					      p, f0Min, f0Max, 0, 10.0,
+					      frequencies, fftSize, samplerate);
+	printf("Done finding candidates\n");
 	// determine which candidate is the fundamental
 	temp = candidateSelection(windowCandidates, numBlocks);
 
+	printf("Done determining fundamentals\n");
 	fundamentals = malloc(sizeof(float)*numBlocks);
 	
 	for (i=0;i<numBlocks;i++){
@@ -87,9 +89,9 @@ float* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 			  frequencies);
 
 	// find the candidates for the fundamentals
-	BaNaFindCandidates(AudioData, size, dftBlocksize, p, f0Min, f0Max, 0,
-			   windowCandidates, 3.0, frequencies, fftSize,
-			   samplerate);
+	windowCandidates = BaNaFindCandidates(AudioData, size, dftBlocksize, p,
+					      f0Min, f0Max, 0, 3.0, frequencies,
+					      fftSize, samplerate);
 
 	// determine which candidate is the fundamental
 	temp = candidateSelection(windowCandidates, numBlocks);
@@ -132,7 +134,7 @@ void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
 	int blockstart, i;
 	double temp;
 	double maxFreq = (((double)p)*f0Max);
-	for (blockstart = 0; blockstart < (size - dftBlocksize); blockstart += dftBlocksize){
+	for (blockstart = 0; blockstart < size; blockstart += dftBlocksize){
 		for (i=0; i<dftBlocksize; i++){
 			// use a better algorithm
 			// for now this is a placeholder
@@ -144,11 +146,12 @@ void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
 	}
 }
 
-void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
-			double f0Min, double f0Max, int first,
-			struct candidateList **windowCandidates,
-			double xi, double* frequencies, int fftSize,
-			int samplerate)
+struct candidateList** BaNaFindCandidates(double **AudioData, int size,
+					  int dftBlocksize, int p,
+					  double f0Min, double f0Max,
+					  int first, double xi,
+					  double* frequencies, int fftSize,
+					  int samplerate)
 {
 	// this finds all of the f0 candiates
 	// windowCandidates is an array of pointers that point to the list of
@@ -163,9 +166,13 @@ void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
 	double temp, firstFreqPeak, ampThreshold, smoothwidth;
 	double *peakFreq, *peakMag;
 
+	peakFreq = malloc(p * sizeof(double));
+	peakMag = malloc(p * sizeof(double));
+
 	struct orderedList candidates;
 
-	windowCandidates = malloc(sizeof(struct candidateList*)*numBlocks);
+	struct candidateList **windowCandidates;
+	windowCandidates = malloc(sizeof(*windowCandidates) * numBlocks);
 
 	// outer loop iterates over blocks
 	for (blockstart = 0; blockstart < (size - dftBlocksize); blockstart += dftBlocksize){
@@ -196,25 +203,37 @@ void BaNaFindCandidates(double **AudioData,int size,int dftBlocksize, int p,
 				     ampThreshold, smoothwidth, 5, 3, 
 				     p, first, peakFreq, peakMag,
 				     &firstFreqPeak);
-
+		printf("[%.0f",peakFreq);
+		for (int j =1; j<numPeaks;j++){
+			printf(", %.0f",peakFreq[j]);
+		}
+		printf("]\n");
+		
+		//printf("Done finding peaks\n");
 		// determine the candidates from the peaks
 		candidates = calcCandidates(peakFreq, numPeaks);
+		//printf("Done finding candidates\n");
 		// add the lowest frequency peak fundamental candidate
 		orderedListInsert(&candidates, firstFreqPeak);
+		//printf("Inserted lowest frequency candidate\n");
 		// add the cepstrum fundamental candidate
 
-		// determine the distinctive candidates and add them to
-		// windowCandidates[i]
-		windowCandidates[i] = distinctCandidates(&candidates,
+		struct candidateList* t = distinctCandidates(&candidates,
 							 (p-1)*(p-1)+2, xi);
+		candidateListPrintFreq(*t);
+		// determine the distinctive candidates and add them to
+		windowCandidates[i] = t;
+		//windowCandidates[i] = distinctCandidates(&candidates,
+		//					 (p-1)*(p-1)+2, xi);
 
 		orderedListDestroy(candidates);
 
-		free(peakFreq);
-		free(peakMag); 
+		 
 	}
+	free(peakFreq);
+	free(peakMag);
 	free(magnitudes);
-
+	return windowCandidates;
 }
 
 int* FreqToBin(double* fundamentals, int fftSize, int samplerate, int size,

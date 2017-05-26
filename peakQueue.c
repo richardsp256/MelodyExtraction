@@ -167,8 +167,6 @@ int peakQueueToArrays(struct peakQueue *peakQ, double* peakX, double* peakY)
 	int i;
 	int length = peakQ->cur_size;
 	struct peak tempPeak;
-	peakX = malloc(length * sizeof(double));
-	peakY = malloc(length * sizeof(double));
 	for (i=0;i<length;i++){
 		tempPeak = peakQueuePop(peakQ);
 		peakX[i] = tempPeak.peakX;
