@@ -4,7 +4,7 @@
 
 void PrintAudioMetadata(SF_INFO * file);
 float* WindowFunction(int size);
-int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose, char* prefix, FundamentalDetectionStrategy detectionStrategy);
+int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose, char* prefix, PitchDetectionStrategyFunc detectionStrategy);
 int STFT(double** input, SF_INFO info, int winSize, int interval, fftw_complex** dft_data);
 int STFTinverse(fftw_complex** input, SF_INFO info, int winSize, int interval, double** output);
 double* Magnitude(fftw_complex* arr, int size);

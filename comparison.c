@@ -37,7 +37,7 @@ float* WindowFunction(int size)
 	return buffer;
 }
 
-int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose, char* prefix, FundamentalDetectionStrategy detectionStrategy)
+int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose, char* prefix, PitchDetectionStrategyFunc detectionStrategy)
 { 
 	//reads in .wav
 	SF_INFO info;

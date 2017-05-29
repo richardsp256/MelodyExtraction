@@ -27,7 +27,7 @@ int main(int argc, char ** argv)
 	int hpsOvertones = 2;
 	int verbose = 0; 
 	char* prefix = NULL;
-	FundamentalDetectionStrategy detectionStrategy = &HPSDetectionStrategy;
+	PitchDetectionStrategyFunc detectionStrategy = &HPSDetectionStrategy; //HPS is default strategy
 	
 	//check command line arguments
 	int opt = 0;
