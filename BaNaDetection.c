@@ -175,7 +175,7 @@ struct candidateList** BaNaFindCandidates(double **AudioData, int size,
 	windowCandidates = malloc(sizeof(*windowCandidates) * numBlocks);
 
 	// outer loop iterates over blocks
-	for (blockstart = 0; blockstart < (size - dftBlocksize); blockstart += dftBlocksize){
+	for (blockstart = 0; blockstart < size; blockstart += dftBlocksize){
 
 		// for now copy the magnitudes into a buffer. Fix this in the
 		// future
