@@ -172,7 +172,7 @@ struct candidateList** BaNaFindCandidates(double **AudioData, int size,
 	struct orderedList candidates;
 
 	struct candidateList **windowCandidates;
-	windowCandidates = malloc(sizeof(*windowCandidates) * numBlocks);
+	windowCandidates = malloc(sizeof(candidateList*) * numBlocks);
 
 	// outer loop iterates over blocks
 	for (blockstart = 0; blockstart < size; blockstart += dftBlocksize){
