@@ -274,7 +274,7 @@ double* fastsmooth(double* y, long length, double w, int type)
 	//  If type=1, rectangular (sliding-average or boxcar)
 	//  If type=2, triangular (2 passes of sliding-average)
 	//  If type=3, pseudo-Gaussian (3 passes of sliding-average)
-	double* smoothY = malloc(sizeof(double)*length);
+	double* smoothY;
 	switch (type){
 	case 1 :
 		smoothY = sa(y,length,w);
