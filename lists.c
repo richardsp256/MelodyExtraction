@@ -113,64 +113,6 @@ void orderedListPrint(struct orderedList list)
 }
 
 
-// Defining functions for unorderedList
-
-struct unorderedList unorderedListCreate(int max_length)
-{
-	struct unorderedList list;
-	list.array = malloc(max_length*sizeof(int));
-	list.max_length = max_length;
-	list.length = 0;
-	return list;	
-}
-
-void unorderedListDestroy(struct unorderedList list)
-{
-	free(list.array);
-}
-
-int unorderedListGet(struct unorderedList list, int index)
-{
-	return list.array[index];
-}
-
-void unorderedListAppend(struct unorderedList *list, int value)
-{
-	(list->array)[list->length] = value;
-	(list->length)++;
-}
-
-void unorderedListDeleteEntries(struct unorderedList *list, int start,
-				int stop)
-{
-	// exact same code as orderedListDeleteEntries
-	if (start>=stop){
-		return;
-	}
-
-	int n = stop - start;
-	int i;
-	for (i = stop; i<(list->length);i++){
-		(list->array)[i-n] = (list->array)[i];
-	}
-	(list->length) -= n;
-}
-
-void unorderedListPrint(struct unorderedList list)
-{
-	printf("[");
-	if (list.length != 0){
-		printf("%d",list.array[0]);
-	}
-	int i;
-	for (i=1; i<list.length; i++){
-		printf(", %d",list.array[i]);
-	}
-	printf("]\n");
-}
-
-
-
 /*
 int main(int argc, char*argv[])
 {
@@ -198,23 +140,5 @@ int main(int argc, char*argv[])
 	orderedListPrint(l);
 	orderedListDestroy(l);
 
-	struct unorderedList ul = unorderedListCreate(18);
-	unorderedListPrint(ul);
-	unorderedListAppend(&ul, 63);
-	unorderedListPrint(ul);
-	unorderedListAppend(&ul, 1244);
-	unorderedListPrint(ul);
-	unorderedListAppend(&ul, 542);
-	unorderedListPrint(ul);
-	unorderedListAppend(&ul, 17);
-	unorderedListPrint(ul);
-	unorderedListDeleteEntries(&ul, 1, 3);
-	unorderedListPrint(ul);
-	unorderedListAppend(&ul, 89);
-	unorderedListPrint(ul);
-	unorderedListDeleteEntries(&ul, 0, 2);
-	unorderedListPrint(ul);    
-	unorderedListDestroy(ul);
-	return 0;
 }
 */
