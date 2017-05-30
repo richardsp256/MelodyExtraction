@@ -259,10 +259,11 @@ double* deriv(double* a, long length)
 	// arrays properly
 	long i;
 	double* d = malloc( sizeof(double) * length);
-	for(i=0;i<length-1;i++){
-		d[i] = (d[i+1]-d[i])/2.;
+	d[0] = a[1]-a[0];
+	d[length-1] = a[length-1]-a[length-2];
+	for(i=1;i<length-1;i++){
+		d[i] = (a[i+1]-a[i-1])/2.;
 	}
-	d[length-1] = d[length-2];
 	return d;
 }
 
