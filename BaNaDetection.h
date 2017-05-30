@@ -1,4 +1,4 @@
-#include "candidates.h"
+#include "lists.h"
 float* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 	     double f0Min, double f0Max, int fftSize, int samplerate);
 float* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,

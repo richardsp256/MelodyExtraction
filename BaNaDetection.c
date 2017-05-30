@@ -3,7 +3,6 @@
 #include "findpeaks.h"
 #include "findCandidates.h"
 #include "candidateSelection.h"
-#include "candidates.h"
 #include "lists.h"
 #include "BaNaDetection.h"
 

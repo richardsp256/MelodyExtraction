@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "candidates.h"
+#include "lists.h"
 #include "candidateSelection.h"
 
 

@@ -1,4 +1,4 @@
-#include "candidates.h"
+#include "lists.h"
 
 double costFunction(struct candidate cand1, struct candidate cand2);
 double* candidateSelection(struct candidateList **windowLists, long length);

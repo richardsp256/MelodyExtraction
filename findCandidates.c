@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include "candidates.h"
 #include "lists.h"
 #include "findCandidates.h"
 
