@@ -45,6 +45,9 @@ int findpeaks(double* x, double* y, long length,double slopeThreshold,
 	double* d=fastsmooth(deriv(y,length),length, smoothwidth, smoothtype);
 	int n = (int)round(peakgroup/2 +1);
 	//int outIndex = 0;
+
+	//printf("%lf, %lf, %lf, %lf, %lf\n", d[20],d[21],d[22],d[23],d[24]);
+	//printf("peakgroup = %d\n",peakgroup);
 	
 	long j, temp;
 	double curPeakX,curPeakY;
@@ -53,14 +56,19 @@ int findpeaks(double* x, double* y, long length,double slopeThreshold,
 
 	// Here we try to find the first peak
 	for (j=((long)smoothwidth)-1;j<(length-(long)smoothwidth);j++){
+		//printf("%lf, ", d[j]);
 		// check for zero-crossing
 		if (sign(d[j]) > sign(d[j+1])) {
 			// check if the slope of the derivative is greater than 
-			// slopeThresholdlong* peakIndices, 
+			// slopeThresholdlong* peakIndices,
+			
 			if ((d[j]-d[j+1])>(slopeThreshold*y[j])) {
 				// check if the height of the peak exceeds
 				// ampThreshold
+				
 				if (y[j]>ampThreshold) {
+					//printf("%lf\n",d[j]);
+					
 					findpeaksHelper(x, y, length, peakgroup,
 							&curPeakX, &curPeakY,
 							j,n);
@@ -72,13 +80,14 @@ int findpeaks(double* x, double* y, long length,double slopeThreshold,
 					if ((first>=1)&(peakQ.cur_size == N) ){
 						j = length;
 					}
+					
 					break;
 				}
 			}
 		}
 	}
 	
-	temp = j;
+	temp = j+1;
 
 	// Here, we find the remaining peaks
 	for (j=temp;j<(length-(long)smoothwidth);j++){
@@ -96,7 +105,6 @@ int findpeaks(double* x, double* y, long length,double slopeThreshold,
 
 					peakQueueAddNewPeak(&peakQ, curPeakX,
 							    curPeakY);
-
 					if ((first>=1)&(peakQ.cur_size == N) ){
 						j = length;
 					}		
@@ -134,7 +142,8 @@ void findpeaksHelper(double* x, double* y, long length, int peakgroup,
 		// comparison to the matlab code but I think its actually
 		// correct)
 		for (k=1;k<=peakgroup;k++){
-			groupindex = (j+(long)k-(long)n+1);
+			groupindex = (j+(long)k-(long)n);
+			//printf("%li, ", groupindex);
 			if (groupindex < 0) {
 				groupindex = 0;
 			}
@@ -155,7 +164,8 @@ void findpeaksHelper(double* x, double* y, long length, int peakgroup,
 		// in comparison to the matlab code), but I think its actually
 		// correct)
 		for (k=1;k<=peakgroup;k++){
-			groupindex = (j+(long)k-(long)n+1);
+			groupindex = (j+(long)k-(long)n);
+			//printf("%li, ", groupindex);
 			if (groupindex < 0) {
 				groupindex = 0;
 			}
@@ -163,11 +173,24 @@ void findpeaksHelper(double* x, double* y, long length, int peakgroup,
 				groupindex = length-1;
 			}
 			xx[k-1]=x[groupindex];
-			yy[k-1]=log(y[groupindex]);
+			yy[k-1]=log(fabs(y[groupindex]));
 		}
+		//printf("\nxx = [%lf", xx[0]);
+		//for (k=1; k<peakgroup;k++){
+		//	printf(", %lf", xx[k]);
+		//}
+		//printf("]\n");
+		//printf("\nyy = [%lf", yy[0]);
+		//for (k=1; k<peakgroup;k++){
+		//	printf(", %lf", yy[k]);
+		//}
+		//printf("]\n");
 		
 		// fit parabola to log10 of sub-group with centering and scaling
 		coef = quadFit(xx, yy, peakgroup, &mean, &std);
+		//printf("mean = %lf\n", mean);
+                //printf("std = %lf\n", std);
+		//printf("c1 =%lf, c2 =%lf, c3 =%lf\n", coef[0],coef[1],coef[2]);
 		*peakX = -((std*coef[1]/(2.*coef[2]))-mean);
 		// check that we are correctly squaring
 		*peakY = exp(coef[0]-coef[2]*pow((coef[1]/(2.*coef[2])),2));
@@ -243,7 +266,7 @@ double* quadFit(double* x, double* y, long length, double* mean, double *std)
 	sx2y -= ((sumx2*sumy)/((double)length));
 
 	coef[2] = ((sx2y * sxx)-(sxy * sxx2))/((sxx * sx2x2)-(sxx2 * sxx2));
-	coef[1] = ((sx2y * sxx)-(sxy * sxx2))/((sxx * sx2x2)-(sxx2 * sxx2));
+	coef[1] = ((sxy * sx2x2)-(sx2y * sxx2))/((sxx * sx2x2)-(sxx2 * sxx2));
 	coef[0] = (sumy - (coef[1]*sumx)-(coef[2]*sumx2))/((double)length);
 
 	free(xp);
