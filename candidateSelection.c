@@ -29,7 +29,6 @@ double* candidateSelection(struct candidateList **windowLists, long length)
 		// have a cost of zero and an indexLowestCost of zero
 		// iterate through candidate lists until we encounter a list
 		// with at least 1 element
-    
 		for (i=start;i<length;i++){
 			curWindowList = windowLists[i];
 			if (curWindowList->length!=0) {
@@ -38,7 +37,6 @@ double* candidateSelection(struct candidateList **windowLists, long length)
 				fundamentals[i] = 0.0;
 			}
 		}
-
 		if (i == length) {
 			break;
 		}
@@ -55,10 +53,10 @@ double* candidateSelection(struct candidateList **windowLists, long length)
 				windowComparison(prevWindowList, curWindowList);
 			}
 		}
-
+		
 		// at this point we have either iterated through the candidate
 		// lists for all windows OR we have hit an empty candidate list
-		if (start-i==1) {
+		if (i-start==1) {
 
 			// this is if window i has no candidates and it is
 			// preceeded by only 1 window with candidates. In other
@@ -76,7 +74,7 @@ double* candidateSelection(struct candidateList **windowLists, long length)
 			// for the scenario where window i has no candidates,
 			// the frequency will be set to 0 on the next loop
 			// through 
-		} else if (start-i > 1) {
+		} else if (i -start > 1) {
 			// this is if window i has 0 candidates or window i-1
 			// was the last frame
 			chooseLowestCost(fundamentals, windowLists,i-1,start);

@@ -42,19 +42,20 @@ float* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 	// preprocess each of the frames
 	BaNaPreprocessing(AudioData, size, dftBlocksize, p, f0Min, f0Max,
 			  frequencies);
-	printf("Done Preprocessing\n");
+	//printf("Done Preprocessing\n");
 	// find the candidates for the fundamentals
 	windowCandidates = BaNaFindCandidates(AudioData, size, dftBlocksize,
 					      p, f0Min, f0Max, 0, 10.0,
 					      frequencies, fftSize, samplerate);
-	printf("Done finding candidates\n");
+	//printf("Done finding candidates\n");
 	// determine which candidate is the fundamental
 	temp = candidateSelection(windowCandidates, numBlocks);
 
-	printf("Done determining fundamentals\n");
+	//printf("Done determining fundamentals\n");
 	fundamentals = malloc(sizeof(float)*numBlocks);
 	
 	for (i=0;i<numBlocks;i++){
+		//printf("%lf\n", temp[i]);
 		fundamentals[i] = (float)temp[i];
 	}
 	
@@ -202,11 +203,11 @@ struct candidateList** BaNaFindCandidates(double **AudioData, int size,
 				     ampThreshold, smoothwidth, 5, 3, 
 				     p, first, peakFreq, peakMag,
 				     &firstFreqPeak);
-		printf("[%.0f",peakFreq);
-		for (int j =1; j<numPeaks;j++){
-			printf(", %.0f",peakFreq[j]);
-		}
-		printf("]\n");
+		//printf("Candidates = [%.0lf",firstFreqPeak);
+		//for (int j =1; j<numPeaks;j++){
+		//	printf(", %.0lf",peakFreq[j]);
+		//}
+		//printf("]\n");
 		
 		//printf("Done finding peaks\n");
 		// determine the candidates from the peaks
@@ -219,7 +220,7 @@ struct candidateList** BaNaFindCandidates(double **AudioData, int size,
 
 		struct candidateList* t = distinctCandidates(&candidates,
 							 (p-1)*(p-1)+2, xi);
-		candidateListPrintFreq(*t);
+		//candidateListPrintFreq(*t);
 		// determine the distinctive candidates and add them to
 		windowCandidates[blockstart/dftBlocksize] = t;
 		//windowCandidates[i] = distinctCandidates(&candidates,
