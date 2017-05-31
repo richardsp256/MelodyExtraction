@@ -4,7 +4,9 @@
 #include <unistd.h>
 #include <getopt.h>
 #include "comparison.h"
-#include "detectionStrat.h"
+#include "pitchStrat.h"
+#include "onsetStrat.h"
+
 
 /* Usage is as follows:\n"
  * mandatory args:\n"
@@ -23,9 +25,17 @@ int main(int argc, char ** argv)
 {
 	char* inFile = NULL;
 	char* outFile = NULL;
+
+	//args for pitch detection
 	int p_windowsize = 4096;
 	int p_spacing = 2048;
-	PitchDetectionStrategyFunc p_Strategy = &HPSDetectionStrategy; //HPS is default strategy
+	PitchStrategyFunc p_Strategy = &HPSDetectionStrategy; //HPS is default strategy
+	
+	//args for onset detection
+	int o_windowsize = 512;
+	int o_spacing = 256;
+	OnsetStrategyFunc o_Strategy = &OnsetsDSDetectionStrategy; //HPS is default strategy
+
 	int hpsOvertones = 2;
 	int verbose = 0; 
 	char* prefix = NULL;
@@ -36,6 +46,11 @@ int main(int argc, char ** argv)
 			{"pitch_window", required_argument, 0, 'a'},
 			{"pitch_spacing", required_argument, 0, 'b'},
 			{"pitch_strategy", required_argument, 0, 'c'},
+
+			{"onset_window", required_argument, 0, 'd'},
+			{"onset_spacing", required_argument, 0, 'e'},
+			{"onset_strategy", required_argument, 0, 'f'},
+
 			{0,0,0,0},
 		};
 
@@ -70,9 +85,30 @@ int main(int argc, char ** argv)
 			}
 			break;
 		case 'c':
-			p_Strategy = chooseStrategy(optarg);
+			p_Strategy = choosePitchStrategy(optarg);
 			if (p_Strategy == NULL){
-				printf("Argument for option --pitch_strategy must be a \"HPS\", \"BaNa\", or \"BaNaMusic\"\n");
+				printf("Argument for option --pitch_strategy must be \"HPS\", \"BaNa\", or \"BaNaMusic\"\n");
+				badargs = 1;
+			}
+			break;
+		case 'd':
+			o_windowsize = atoi(optarg);
+			if(o_windowsize < 1){
+				printf("Argument for option --onset_window must be a positive integer\n");
+				badargs = 1;
+			}
+			break;
+		case 'e':
+			o_spacing = atoi(optarg);
+			if(o_spacing < 1){
+				printf("Argument for option --onset_spacing must be a positive integer\n");
+				badargs = 1;
+			}
+			break;
+		case 'f':
+			o_Strategy = chooseOnsetStrategy(optarg);
+			if (o_Strategy == NULL){
+				printf("Argument for option --onset_strategy must be \"OnsetsDS\"\n");
 				badargs = 1;
 			}
 			break;
@@ -104,7 +140,7 @@ int main(int argc, char ** argv)
 	}
 
 	if(!badargs){
-		ExtractMelody(inFile, outFile, p_windowsize, p_spacing, hpsOvertones, verbose, prefix, p_Strategy);
+		ExtractMelody(inFile, outFile, p_windowsize, p_spacing, p_Strategy, o_windowsize, o_spacing, o_Strategy, hpsOvertones, verbose, prefix);
 	}
 
 	return 0;
