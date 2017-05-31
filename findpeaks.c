@@ -194,6 +194,9 @@ void findpeaksHelper(double* x, double* y, long length, int peakgroup,
 		*peakX = -((std*coef[1]/(2.*coef[2]))-mean);
 		// check that we are correctly squaring
 		*peakY = exp(coef[0]-coef[2]*pow((coef[1]/(2.*coef[2])),2));
+		free(xx);
+		free(yy);
+		free(coef);
 	}
 }
 
@@ -210,14 +213,16 @@ double* quadFit(double* x, double* y, long length, double* mean, double *std)
 
 	double* coef = malloc(sizeof(double)*3);
 	long i;
-	for (*mean=0.0,i=0;i<length;i++){
+	*mean=0.0;
+	for (i=0;i<length;i++){
 		*mean+=x[i];
 	}
 	*mean/=(double)length;
 
 	double temp;
 	// assuming that all values of x are real
-	for (*std=0.0,i=0;i<length;i++){
+	*std=0.0;
+	for (i=0;i<length;i++){
 		temp=(x[i]-*mean);
 		*std+=temp*temp;
 	}
@@ -245,6 +250,13 @@ double* quadFit(double* x, double* y, long length, double* mean, double *std)
 	// S_y2 -> sx2y
 	double sxx, sxx2, sx2x2, sxy, sx2y, sumx, sumx2, sumy, cur_x, cur_x2;
 	double cur_y;
+	sumx = 0;
+	sumx2 = 0;
+	sumy = 0;
+	sxx2 = 0;
+	sx2x2 = 0;
+        sxy = 0;
+	sx2y = 0;
 
 	for (i=0;i<length;i++){
 		cur_x = xp[i];
