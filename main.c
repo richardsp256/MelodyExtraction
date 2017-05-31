@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <getopt.h>
 #include "comparison.h"
 #include "detectionStrat.h"
 
@@ -22,17 +23,28 @@ int main(int argc, char ** argv)
 {
 	char* inFile = NULL;
 	char* outFile = NULL;
-	int windowsize = 2048;
-	int spacing = 1024;
+	int p_windowsize = 4096;
+	int p_spacing = 2048;
+	PitchDetectionStrategyFunc p_Strategy = &HPSDetectionStrategy; //HPS is default strategy
 	int hpsOvertones = 2;
 	int verbose = 0; 
 	char* prefix = NULL;
-	PitchDetectionStrategyFunc detectionStrategy = &HPSDetectionStrategy; //HPS is default strategy
 	
 	//check command line arguments
+	static struct option long_options[] =
+		{
+			{"pitch_window", required_argument, 0, 'a'},
+			{"pitch_spacing", required_argument, 0, 'b'},
+			{"pitch_strategy", required_argument, 0, 'c'},
+			{0,0,0,0},
+		};
+
+	int option_index = 0;
+
 	int opt = 0;
 	int badargs = 0;
-	while ((opt = getopt (argc, argv, "i:o:vw:s:h:p:d:")) != -1) {
+
+	while ((opt = getopt_long (argc, argv, "i:o:vh:p:d:", long_options, &option_index)) != -1) {
 		switch (opt) {
 		case 'i':
 			inFile = optarg;
@@ -43,17 +55,24 @@ int main(int argc, char ** argv)
 		case 'v':
 			verbose = 1;
 			break;
-		case 'w':
-			windowsize = atoi(optarg);
-			if(windowsize < 1){
-				printf("Argument for option -w must be a positive integer\n");
+		case 'a':
+			p_windowsize = atoi(optarg);
+			if(p_windowsize < 1){
+				printf("Argument for option --pitch_window must be a positive integer\n");
 				badargs = 1;
 			}
 			break;
-		case 's':
-			spacing = atoi(optarg);
-			if(spacing < 1){
-				printf("Argument for option -s must be a positive integer\n");
+		case 'b':
+			p_spacing = atoi(optarg);
+			if(p_spacing < 1){
+				printf("Argument for option --pitch_spacing must be a positive integer\n");
+				badargs = 1;
+			}
+			break;
+		case 'c':
+			p_Strategy = chooseStrategy(optarg);
+			if (p_Strategy == NULL){
+				printf("Argument for option --pitch_strategy must be a \"HPS\", \"BaNa\", or \"BaNaMusic\"\n");
 				badargs = 1;
 			}
 			break;
@@ -67,18 +86,10 @@ int main(int argc, char ** argv)
 		case 'p':
 			prefix = optarg;
 			break;
-		case 'd':
-			detectionStrategy = chooseStrategy(optarg);
-			if (detectionStrategy == NULL){
-				printf("Argument for option -d must be a \"HPS\", \"BaNa\", or \"BaNaMusic\"\n");
-				badargs = 1;
-			}
-			break;
 		case '?':
-			if (optopt == 'i' || optopt == 'o' || optopt == 'w' || optopt == 's' || optopt == 'h' || optopt == 'p' || optopt == 'd')
-				printf ("Option -%c requires an argument.\n", optopt);
-			else
-				printf ("Unknown option `-%c'.\n", optopt);
+			badargs = 1;
+			break;
+		default:
 			badargs = 1;
 			break;
 		}
@@ -93,7 +104,7 @@ int main(int argc, char ** argv)
 	}
 
 	if(!badargs){
-		ExtractMelody(inFile, outFile, windowsize, spacing, hpsOvertones, verbose, prefix, detectionStrategy);
+		ExtractMelody(inFile, outFile, p_windowsize, p_spacing, hpsOvertones, verbose, prefix, p_Strategy);
 	}
 
 	return 0;
