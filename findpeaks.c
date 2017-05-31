@@ -44,11 +44,7 @@ int findpeaks(double* x, double* y, long length,double slopeThreshold,
 	peakgroup = round(peakgroup);
 	double* d=fastsmooth(deriv(y,length),length, smoothwidth, smoothtype);
 	int n = (int)round(peakgroup/2 +1);
-	//int outIndex = 0;
-
-	//printf("%lf, %lf, %lf, %lf, %lf\n", d[20],d[21],d[22],d[23],d[24]);
-	//printf("peakgroup = %d\n",peakgroup);
-	
+		
 	long j, temp;
 	double curPeakX,curPeakY;
 
@@ -56,7 +52,6 @@ int findpeaks(double* x, double* y, long length,double slopeThreshold,
 
 	// Here we try to find the first peak
 	for (j=((long)smoothwidth)-1;j<(length-(long)smoothwidth);j++){
-		//printf("%lf, ", d[j]);
 		// check for zero-crossing
 		if (sign(d[j]) > sign(d[j+1])) {
 			// check if the slope of the derivative is greater than 
@@ -67,8 +62,6 @@ int findpeaks(double* x, double* y, long length,double slopeThreshold,
 				// ampThreshold
 				
 				if (y[j]>ampThreshold) {
-					//printf("%lf\n",d[j]);
-					
 					findpeaksHelper(x, y, length, peakgroup,
 							&curPeakX, &curPeakY,
 							j,n);
@@ -143,7 +136,6 @@ void findpeaksHelper(double* x, double* y, long length, int peakgroup,
 		// correct)
 		for (k=1;k<=peakgroup;k++){
 			groupindex = (j+(long)k-(long)n);
-			//printf("%li, ", groupindex);
 			if (groupindex < 0) {
 				groupindex = 0;
 			}
@@ -165,7 +157,6 @@ void findpeaksHelper(double* x, double* y, long length, int peakgroup,
 		// correct)
 		for (k=1;k<=peakgroup;k++){
 			groupindex = (j+(long)k-(long)n);
-			//printf("%li, ", groupindex);
 			if (groupindex < 0) {
 				groupindex = 0;
 			}
@@ -175,22 +166,10 @@ void findpeaksHelper(double* x, double* y, long length, int peakgroup,
 			xx[k-1]=x[groupindex];
 			yy[k-1]=log(fabs(y[groupindex]));
 		}
-		//printf("\nxx = [%lf", xx[0]);
-		//for (k=1; k<peakgroup;k++){
-		//	printf(", %lf", xx[k]);
-		//}
-		//printf("]\n");
-		//printf("\nyy = [%lf", yy[0]);
-		//for (k=1; k<peakgroup;k++){
-		//	printf(", %lf", yy[k]);
-		//}
-		//printf("]\n");
 		
 		// fit parabola to log10 of sub-group with centering and scaling
 		coef = quadFit(xx, yy, peakgroup, &mean, &std);
-		//printf("mean = %lf\n", mean);
-                //printf("std = %lf\n", std);
-		//printf("c1 =%lf, c2 =%lf, c3 =%lf\n", coef[0],coef[1],coef[2]);
+		
 		*peakX = -((std*coef[1]/(2.*coef[2]))-mean);
 		// check that we are correctly squaring
 		*peakY = exp(coef[0]-coef[2]*pow((coef[1]/(2.*coef[2])),2));
