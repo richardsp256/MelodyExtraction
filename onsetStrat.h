@@ -1,6 +1,7 @@
-typedef float* (*OnsetStrategyFunc)(double** AudioData, int size,
-					     int dftBlocksize, int hpsOvr,
-					     int fftSize, int samplerate);
+typedef void (*OnsetStrategyFunc)(float** AudioData, int size, int dftBlocksize,
+			int spacing, int samplerate);
+
 OnsetStrategyFunc chooseOnsetStrategy(char* name);
-float* OnsetsDSDetectionStrategy(double** AudioData, int size, int dftBlocksize,
-			  int hpsOvr, int fftSize, int samplerate);
+
+void OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize,
+			int spacing, int samplerate);
