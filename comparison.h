@@ -1,10 +1,14 @@
 #include "sndfile.h"
 #include "fftw3.h"
-#include "detectionStrat.h"
+#include "pitchStrat.h"
+#include "onsetStrat.h"
 
 void PrintAudioMetadata(SF_INFO * file);
 float* WindowFunction(int size);
-int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose, char* prefix, PitchDetectionStrategyFunc detectionStrategy);
+int ExtractMelody(char* inFile, char* outFile, 
+		int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
+		int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
+		int hpsOvr, int verbose, char* prefix);
 int STFT(double** input, SF_INFO info, int winSize, int interval, fftw_complex** dft_data);
 int STFTinverse(fftw_complex** input, SF_INFO info, int winSize, int interval, double** output);
 double* Magnitude(fftw_complex* arr, int size);

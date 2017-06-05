@@ -9,7 +9,8 @@
 #include "fftw3.h"
 #include "comparison.h"
 #include "midi.h"
-#include "detectionStrat.h"
+#include "pitchStrat.h"
+#include "onsetStrat.h"
 
 const char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
 const char* ERR_FILE_NOT_MONO = "Input file must be Mono."
@@ -37,7 +38,10 @@ float* WindowFunction(int size)
 	return buffer;
 }
 
-int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsOvr, int verbose, char* prefix, PitchDetectionStrategyFunc detectionStrategy)
+int ExtractMelody(char* inFile, char* outFile, 
+		int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
+		int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
+		int hpsOvr, int verbose, char* prefix)
 { 
 	//reads in .wav
 	SF_INFO info;
@@ -61,8 +65,8 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 	sf_close( f );
 
 	fftw_complex* fftData = NULL;
-	int size = STFT(&input, info, winSize, winInt, &fftData);
-	int numBlocks = size/(winSize/2);
+	int size = STFT(&input, info, p_winSize, p_winInt, &fftData);
+	int numBlocks = size/(p_winSize/2);
 	if(verbose){
 		printf("numblcks of STFT: %d\n", numBlocks);
 		fflush(NULL);
@@ -79,12 +83,12 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
 		strcpy(spectraFile,prefix);
 		strcat(spectraFile,"_original.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, size, winSize/2, info.samplerate, winSize);
+		SaveWeightsTxt(spectraFile, &spectrum, size, p_winSize/2, info.samplerate, p_winSize);
 		free(spectraFile);
 	}
 	
-	float* freq = detectionStrategy(&spectrum, size, winSize/2, hpsOvr,
-					winSize, info.samplerate);
+	float* freq = pitchStrategy(&spectrum, size, p_winSize/2, hpsOvr,
+					p_winSize, info.samplerate);
 
 	if(verbose){
 		printf("HPS complete\n");
@@ -98,7 +102,7 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
 		strcpy(spectraFile,prefix);
 		strcat(spectraFile,"_weighted.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, size, winSize/2, info.samplerate, winSize);
+		SaveWeightsTxt(spectraFile, &spectrum, size, p_winSize/2, info.samplerate, p_winSize);
 		free(spectraFile);
 	}
 	
@@ -134,7 +138,7 @@ int ExtractMelody(char* inFile, char* outFile, int winSize, int winInt, int hpsO
 
 
 	//double* output = NULL;
-	//STFTinverse(&fftData, info, winSize, winInt, &output);
+	//STFTinverse(&fftData, info, winSize, p_winInt, &output);
 	//if(verbose){
 	//	printf("STFTInverse complete\n");
 	//}

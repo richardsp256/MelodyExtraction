@@ -5,15 +5,15 @@
 #include <ctype.h>
 #include "BaNaDetection.h"
 #include "HPSDetection.h"
-#include "detectionStrat.h"
+#include "pitchStrat.h"
 
-PitchDetectionStrategyFunc chooseStrategy(char* name)
+PitchStrategyFunc choosePitchStrategy(char* name)
 {
 	// this function returns the fundamental detection strategy named name
 	// all names are case insensitive
 	// this function returns NULL if the name is invalid
 
-	PitchDetectionStrategyFunc detectionStrategy;
+	PitchStrategyFunc detectionStrategy;
 
 	// Lets make name lowercased
 	// https://stackoverflow.com/questions/2661766/c-convert-a-mixed-case-
