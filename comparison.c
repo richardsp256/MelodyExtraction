@@ -30,7 +30,6 @@ void PrintAudioMetadata(SF_INFO * file)
 float* WindowFunction(int size)
 {
 	//uses Hamming Window
-	//note: size = blocksize+1
 	float* buffer = malloc(sizeof(float) * size);
 	for(int i = 0; i < size; ++i) {
 		buffer[i] =(float) (0.54-(0.46*cos(2*M_PI*i/(size-1.0))));
@@ -166,7 +165,7 @@ int STFT(float** input, SF_INFO info, int winSize, int interval, fftwf_complex**
 
     fftwf_plan plan  = fftwf_plan_dft_r2c_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
 
-    float* window = WindowFunction(winSize+1);
+    float* window = WindowFunction(winSize);
  
     //malloc space for fft_data
 	int numBlocks = (int)ceil((info.frames - winSize) / (float)interval) + 1;
