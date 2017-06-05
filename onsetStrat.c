@@ -35,7 +35,8 @@ void OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, in
 	 original code by DanStowell. It returns a float array containing the timestamp in milliseconds of each onset
 	*/
 	 int numBlocks = size / dftBlocksize;
-	 float delta = (spacing * 1000) / samplerate; //time in ms between start of each block
+	 float delta = (spacing * 1000) / (float)samplerate; //time in ms between start of each block
+	 printf("onset delta %f\n", numBlocks, delta);
 	
 	// An instance of the OnsetsDS struct, declared/allocated somewhere in your code, however you want to do it.
 	OnsetsDS ods;
@@ -50,13 +51,15 @@ void OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, in
 	onsetsds_init(&ods, odsdata, ODS_FFT_FFTW3_HC, odftype, 512, 11, samplerate);
 
 	float* block = malloc(sizeof(float) * dftBlocksize);
-	for(int i = 0; i < numBlocks; i++){
-		// Grab your 512-point, 50%-overlap, nicely-windowed FFT data, into "fftdata"
-		memcpy(block, (*AudioData), sizeof(float) * dftBlocksize);
+	for(int i = 0; i < numBlocks; ++i){
+		// Grab your 512-point, 50%-overlap, nicely-windowed FFT data, into block
+		for (int j = 0; j < dftBlocksize; ++j){
+			block[j] = (*AudioData)[ (i * dftBlocksize) + j ];
+		}
 		
 		//will return true when there's an onset, false otherwise
 		if(onsetsds_process(&ods, block)){
-			printf("onset detected at %d", (int)(delta*i));
+			printf("onset detected at %d\n", (int)(delta*i));
 		}
 	}
 
