@@ -202,6 +202,7 @@ int STFT_r2c(float** input, SF_INFO info, int winSize, int interval, fftwf_compl
 		}	
 	}
 
+	free(window);
 	fftwf_destroy_plan( plan );
 	fftwf_free( fftw_in );
 	fftwf_free( fftw_out );
@@ -255,6 +256,7 @@ int STFT_r2r(float** input, SF_INFO info, int winSize, int interval, float** fft
 		}	
 	}
 
+	free(window);
 	fftwf_destroy_plan( plan );
 	fftwf_free( fftw_in );
 	fftwf_free( fftw_out );
