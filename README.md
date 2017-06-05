@@ -8,8 +8,14 @@ fftw-.3.4 and libsndfile-1.0.26
 
 INSTALLATION
 ------------
-Download and extract FFTW and Libsndfile project folder, then from both
-library directories run the commands:	
+Download and extract FFTW and Libsndfile to the project folder.
+
+From the FFTW folder run the commands:
+
+	./configure --enable-float
+	make
+
+From the Libsndfile folder run the commands:
 
 	./configure
 	make
