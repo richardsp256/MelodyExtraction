@@ -60,11 +60,11 @@ int ExtractMelody(char* inFile, char* outFile,
 		PrintAudioMetadata(&info);
 	}
 
-	double* input = malloc( sizeof(double) * info.frames);
-	sf_readf_double( f, input, info.frames );
+	float* input = malloc( sizeof(float) * info.frames);
+	sf_readf_float( f, input, info.frames );
 	sf_close( f );
 
-	fftw_complex* fftData = NULL;
+	fftwf_complex* fftData = NULL;
 	int size = STFT(&input, info, p_winSize, p_winInt, &fftData);
 	int numBlocks = size/(p_winSize/2);
 	if(verbose){
@@ -155,28 +155,28 @@ int ExtractMelody(char* inFile, char* outFile,
 	return info.frames;
 }
 
-//reads in .wav, returns FFT by reference through dft_data, returns size of dft_data
-int STFT(double** input, SF_INFO info, int winSize, int interval, fftw_complex** dft_data)
+//reads in .wav, returns FFT by reference through fft_data, returns size of fft_data
+int STFT(float** input, SF_INFO info, int winSize, int interval, fftwf_complex** fft_data)
 {
     int i;
     int j;
 
-    double* fftw_in = fftw_malloc( sizeof( double ) * winSize * info.channels );
-    fftw_complex* fftw_out = fftw_malloc( sizeof( fftw_complex ) * winSize );
+    float* fftw_in = fftwf_malloc( sizeof( float ) * winSize);
+    fftwf_complex* fftw_out = fftwf_malloc( sizeof( fftwf_complex ) * winSize );
 
-    fftw_plan plan  = fftw_plan_dft_r2c_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
+    fftwf_plan plan  = fftwf_plan_dft_r2c_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
 
     float* window = WindowFunction(winSize+1);
  
-    //malloc space for dft_data
-	int numBlocks = (int)ceil((info.frames - winSize) / (double)interval) + 1;
+    //malloc space for fft_data
+	int numBlocks = (int)ceil((info.frames - winSize) / (float)interval) + 1;
 	if(numBlocks < 1){
 		numBlocks = 1;
 	}
 	//allocate winsize/2 for each block, taking the real component 
 	//and dropping the complex component and nyquist frequency.
 	int realWinSize = winSize/2;
-    (*dft_data) = malloc( sizeof(fftw_complex) * numBlocks * realWinSize );
+    (*fft_data) = malloc( sizeof(fftwf_complex) * numBlocks * realWinSize );
  
 	int blockoffset;
     //run fft on each block
@@ -195,22 +195,22 @@ int STFT(double** input, SF_INFO info, int winSize, int interval, fftw_complex**
 			}
 		}
 
-		fftw_execute( plan );
+		fftwf_execute( plan );
 
 		for (j = 0; j < realWinSize; j++) {
-			(*dft_data)[i*realWinSize + j][0] = fftw_out[j][0];
-			(*dft_data)[i*realWinSize + j][1] = fftw_out[j][1];
+			(*fft_data)[i*realWinSize + j][0] = fftw_out[j][0];
+			(*fft_data)[i*realWinSize + j][1] = fftw_out[j][1];
 		}	
 	}
 
-	fftw_destroy_plan( plan );
-	fftw_free( fftw_in );
-	fftw_free( fftw_out );
+	fftwf_destroy_plan( plan );
+	fftwf_free( fftw_in );
+	fftwf_free( fftw_out );
 
 	return numBlocks * realWinSize;
 }
 
-int STFTinverse(fftw_complex** input, SF_INFO info, int winSize, int interval, double** output)
+int STFTinverse(fftwf_complex** input, SF_INFO info, int winSize, int interval, float** output)
 {
 	//length of input is numBlocks * (winSize/2 + 1)
     int i;
@@ -218,18 +218,18 @@ int STFTinverse(fftw_complex** input, SF_INFO info, int winSize, int interval, d
 	int inputoffset;
 	int outputoffset;
 
-    fftw_complex* fftw_in = fftw_malloc( sizeof( fftw_complex ) * winSize );
-	double* fftw_out = fftw_malloc( sizeof( double ) * winSize * info.channels );
+    fftwf_complex* fftw_in = fftwf_malloc( sizeof( fftwf_complex ) * winSize );
+	float* fftw_out = fftwf_malloc( sizeof( float ) * winSize );
 
-    fftw_plan plan  = fftw_plan_dft_c2r_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
+    fftwf_plan plan  = fftwf_plan_dft_c2r_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
 
     //float* window = WindowFunction(winSize+1);
 
  	//malloc space for output
-    (*output) = calloc( info.frames, sizeof(double));
+    (*output) = calloc( info.frames, sizeof(float));
 
 
-	int numBlocks = (int)ceil((info.frames - winSize) / (double)interval) + 1;
+	int numBlocks = (int)ceil((info.frames - winSize) / (float)interval) + 1;
 	if(numBlocks < 1){
 		numBlocks = 1;
 	}
@@ -244,25 +244,25 @@ int STFTinverse(fftw_complex** input, SF_INFO info, int winSize, int interval, d
 			fftw_in[j][1] = (*input)[inputoffset + j][1]; 
 		}
 
-		fftw_execute( plan );
+		fftwf_execute( plan );
 
 		outputoffset = i*interval;
 
 		for (j = 0; j < winSize; j++) {
 			if(outputoffset + j < info.frames) {
-				(*output)[outputoffset + j] += fftw_out[j] / (double)((winSize*winSize)/interval);
+				(*output)[outputoffset + j] += fftw_out[j] / (float)((winSize*winSize)/interval);
 			}
 		}	
 	}
 
-	fftw_destroy_plan( plan );
-	fftw_free( fftw_in );
-	fftw_free( fftw_out );
+	fftwf_destroy_plan( plan );
+	fftwf_free( fftw_in );
+	fftwf_free( fftw_out );
 
 	return info.frames;
 }
 
-double* Magnitude(fftw_complex* arr, int size)
+double* Magnitude(fftwf_complex* arr, int size)
 {
 	int i;
 	double* magArr = malloc( sizeof(double) * size);
