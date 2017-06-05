@@ -267,7 +267,7 @@ double* Magnitude(fftw_complex* arr, int size)
 	int i;
 	double* magArr = malloc( sizeof(double) * size);
 	for(i = 0; i < size; i++){
-		magArr[i] = (arr[i][0] * arr[i][0]) + (arr[i][1] * arr[i][1]);
+		magArr[i] = hypot(arr[i][0], arr[i][1]);
 	}
 	return magArr;
 }
