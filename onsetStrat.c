@@ -36,7 +36,7 @@ void OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, in
 	*/
 	 int numBlocks = size / dftBlocksize;
 	 float delta = (spacing * 1000) / (float)samplerate; //time in ms between start of each block
-	 printf("onset delta %f\n", numBlocks, delta);
+	 printf("onset delta %f\n", delta);
 	
 	// An instance of the OnsetsDS struct, declared/allocated somewhere in your code, however you want to do it.
 	OnsetsDS ods;
