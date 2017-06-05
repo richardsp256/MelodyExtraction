@@ -63,50 +63,74 @@ int ExtractMelody(char* inFile, char* outFile,
 	sf_readf_float( f, input, info.frames );
 	sf_close( f );
 
-	fftwf_complex* fftData = NULL;
-	int size = STFT_r2c(&input, info, p_winSize, p_winInt, &fftData);
-	int numBlocks = size/(p_winSize/2);
+	float* o_fftData = NULL;
+	int o_size = STFT_r2r(&input, info, o_winSize, o_winInt, &o_fftData);
+	int o_numBlocks = o_size/(o_winSize);
 	if(verbose){
-		printf("numblcks of FFT: %d\n", numBlocks);
+		printf("numblcks of onset FFT: %d\n", o_numBlocks);
 		fflush(NULL);
 	}
 
-	double* spectrum = Magnitude(fftData, size);
+	fftwf_complex* p_fftData = NULL;
+	int p_size = STFT_r2c(&input, info, p_winSize, p_winInt, &p_fftData);
+	int p_numBlocks = p_size/(p_winSize/2);
+	if(verbose){
+		printf("numblcks of pitch FFT: %d\n", p_numBlocks);
+		fflush(NULL);
+	}
+
+	double* spectrum = Magnitude(p_fftData, p_size);
 	if(verbose){
 		printf("Magnitude complete\n");
 		fflush(NULL);
 	}
+
+	//double* output = NULL;
+	//STFTinverse(&p_fftData, info, winSize, p_winInt, &output);
+	//if(verbose){
+	//	printf("STFTInverse complete\n");
+	//}
+	free(p_fftData);
+	//SaveAsWav(output, info, outFile);
+	//free( output );
 
 	if (prefix !=NULL){
 		// Here we save the original spectra
 		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
 		strcpy(spectraFile,prefix);
 		strcat(spectraFile,"_original.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, size, p_winSize/2, info.samplerate, p_winSize);
+		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_winSize);
 		free(spectraFile);
 	}
 	
-	float* freq = pitchStrategy(&spectrum, size, p_winSize/2, hpsOvr,
+	float* freq = pitchStrategy(&spectrum, p_size, p_winSize/2, hpsOvr,
 					p_winSize, info.samplerate);
 
 	if(verbose){
-		printf("HPS complete\n");
+		printf("Pitch detection complete\n");
 		fflush(NULL);
 	}
 
-	int* melodyMidi = malloc(sizeof(float) * numBlocks);
+	onsetStrategy(&o_fftData, o_size, o_winSize, o_winInt, info.samplerate);
+
+	if(verbose){
+		printf("Onset detection complete\n");
+		fflush(NULL);
+	}
+
+	int* melodyMidi = malloc(sizeof(float) * p_numBlocks);
 
 	if (prefix !=NULL){
 		// Here we save the processed spectra
 		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
 		strcpy(spectraFile,prefix);
 		strcat(spectraFile,"_weighted.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, size, p_winSize/2, info.samplerate, p_winSize);
+		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_winSize);
 		free(spectraFile);
 	}
 	
 	//get midi note values of pitch in each bin
-	for(int i = 0; i < numBlocks; ++i){
+	for(int i = 0; i < p_numBlocks; ++i){
 		if(verbose){
 			printf("block%d:", i);
 			fflush(NULL);
@@ -131,25 +155,12 @@ int ExtractMelody(char* inFile, char* outFile,
 	printf("printout complete\n");
 	fflush(NULL);
 
-	SaveMIDI(melodyMidi, numBlocks, outFile, verbose);
+	SaveMIDI(melodyMidi, p_numBlocks, outFile, verbose);
 
 	free(melodyMidi);
 
-
-	//double* output = NULL;
-	//STFTinverse(&fftData, info, winSize, p_winInt, &output);
-	//if(verbose){
-	//	printf("STFTInverse complete\n");
-	//}
-	free(fftData);
-
-	//SaveAsWav(output, info, outFile);
-
-	/*
-	 * if input is free before STFTinverse is called, result changes...
-	 */
+	//if input is free before STFTinverse is called, result changes...?
 	free( input );
-	//free( output );
 
 	return info.frames;
 }
