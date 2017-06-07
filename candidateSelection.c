@@ -9,7 +9,7 @@
 double costFunction(struct candidate cand1, struct candidate cand2)
 {
 	// calculate the cost for candidate 2 from candidate 1
-	return abs(log(cand1.frequency/cand2.frequency)/log(2.0))+(0.4/(double)cand1.confidence);
+	return fabs(log(cand1.frequency/cand2.frequency)/log(2.0))+(0.4/(double)cand1.confidence);
 }
 
 double* candidateSelection(struct candidateList **windowLists, long length)
@@ -98,11 +98,11 @@ void windowComparison(struct candidateList *l1, struct candidateList *l2)
 	for (j=0;j<(l2->length); j++){
 		cur = &(l2->array[j]);
 
-		minCost = costFunction(l1->array[0],*cur);
+		minCost = costFunction(l1->array[0],*cur)+(l1->array[0]).cost;
 		indexLowestCost = 0;
 
 		for (i=1; i<(l1->length); i++){
-			curCost = costFunction(l1->array[i],*cur);
+			curCost = costFunction(l1->array[i],*cur)+(l1->array[i]).cost;
 			if (curCost<minCost) {
 				minCost = curCost;
 				indexLowestCost = i;
