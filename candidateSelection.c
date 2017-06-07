@@ -12,74 +12,52 @@ double costFunction(struct candidate cand1, struct candidate cand2)
 	return abs(log(cand1.frequency/cand2.frequency)/log(2.0))+(0.4/(double)cand1.confidence);
 }
 
-double* candidateSelection(struct candidateList **windowLists, long length)
+double* candidateSelection(struct candidateList **windowList, long length)
 {
 	// selects the candidates that represent the fundamentals
 
 	double *fundamentals = malloc(sizeof(double)*length);
 
 	long i=0;
-	long start = 0;
-	struct candidateList *curWindowList;
-	struct candidateList *prevWindowList;
+	long start = -1;
+	long end = -1;
+	int curWindowListLen;
 
-	while (i<length){
-		// at this point in the loop, there are no candidates before
-		// hand. By default all of the candidates in windowLists[start]
-		// have a cost of zero and an indexLowestCost of zero
-		// iterate through candidate lists until we encounter a list
-		// with at least 1 element
-		for (i=start;i<length;i++){
-			curWindowList = windowLists[i];
-			if (curWindowList->length!=0) {
-				break;
-			} else {
-				fundamentals[i] = 0.0;
+	for ( i=0; i<length; i++){
+		curWindowListLen = windowList[i]->length;
+
+		if (curWindowListLen == 0){
+			//not currently in a block of sound, set fundamental to 0
+			fundamentals[i] = 0.0;
+		}
+
+		if (start == -1 && curWindowListLen != 0){
+			//reached start of a block of sound. mark position
+			start = i;
+		}
+
+		if (start != -1 && i == length-1){
+			//reached end of block of sound. mark position
+			end = i;
+		}
+		else if (start != -1 && curWindowListLen == 0){
+			//passed end of block of sound. mark position
+			end = i-1;
+		}
+
+		if(end != -1){
+			//process block of sound
+			if(start == end){
+				//block was only 1 window long
+				//for now we will just set the frequency to the first candidate
+				fundamentals[start] = ((windowList[start]->array[0]).frequency);
 			}
-		}
-		if (i == length) {
-			break;
-		}
-		start = i;
-		// Iterate through the frames and calculate costs
-		// stop when the last frame has been reached or when an empty
-		// list is encountered
-		for (i=start+1;i<length;i++){
-			prevWindowList = curWindowList;
-			curWindowList = windowLists[i];
-			if (curWindowList->length==0) {
-				break;
-			} else {
-				windowComparison(prevWindowList, curWindowList);
+			else{
+				chooseLowestCost(fundamentals, windowList,end,start);
 			}
+			start = -1;
+			end = -1;
 		}
-		
-		// at this point we have either iterated through the candidate
-		// lists for all windows OR we have hit an empty candidate list
-		if (i-start==1) {
-
-			// this is if window i has no candidates and it is
-			// preceeded by only 1 window with candidates. In other
-			// words, before the preceeding window there are no
-			// windows or there is a window with zero candidates
-			// alternatively, window i-1 was the last window and it
-			// is either the first window or was preceeded by a
-			// window with zero candidates
-
-			// for both cases we need to do the same thing for
-			// window i-1. for now we will just set the frequency
-			// to the first candidate
-			fundamentals[i-1] = ((prevWindowList->array[0]).frequency);
-
-			// for the scenario where window i has no candidates,
-			// the frequency will be set to 0 on the next loop
-			// through 
-		} else if (i -start > 1) {
-			// this is if window i has 0 candidates or window i-1
-			// was the last frame
-			chooseLowestCost(fundamentals, windowLists,i-1,start);
-		}
-		start = i;
 	}
 	return fundamentals;
 }
@@ -115,6 +93,13 @@ void windowComparison(struct candidateList *l1, struct candidateList *l2)
 void chooseLowestCost(double* fundamentals, struct candidateList **windowList,
 		      long final, long start)
 {
+	struct candidateList *curWindowList;
+	struct candidateList *prevWindowList;
+	for(int i = start + 1; i <= final; i++){
+		curWindowList = windowList[i];
+		prevWindowList = windowList[i-1];
+		windowComparison(prevWindowList, curWindowList);
+	}
 	// this function finds the lowest cost path from windowList[final] back
 	// to windowList[start] and fills in fundamentals with the frequency
 	// values first, find the lowest cost candidate in windowList[final]
