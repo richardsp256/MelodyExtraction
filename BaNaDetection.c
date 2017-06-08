@@ -42,20 +42,18 @@ float* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 	// preprocess each of the frames
 	BaNaPreprocessing(AudioData, size, dftBlocksize, p, f0Min, f0Max,
 			  frequencies);
-	//printf("Done Preprocessing\n");
+
 	// find the candidates for the fundamentals
 	windowCandidates = BaNaFindCandidates(AudioData, size, dftBlocksize,
 					      p, f0Min, f0Max, 0, 10.0,
 					      frequencies, fftSize, samplerate);
-	//printf("Done finding candidates\n");
+
 	// determine which candidate is the fundamental
 	temp = candidateSelection(windowCandidates, numBlocks);
 
-	//printf("Done determining fundamentals\n");
 	fundamentals = malloc(sizeof(float)*numBlocks);
 	
 	for (i=0;i<numBlocks;i++){
-		//printf("%lf\n", temp[i]);
 		fundamentals[i] = (float)temp[i];
 	}
 	
@@ -132,16 +130,25 @@ void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
 {
 	// set all frequencies outside of [f0Min, p * f0Max] to zero
 	int blockstart, i;
-	double temp;
 	double maxFreq = (((double)p)*f0Max);
+	// determine the index of the leftmost frequency value >= f0Min
+	int goodFreqStart = bisectLeft(frequencies, f0Min, 0, dftBlocksize);
+	// determine the index of the leftmost frequency value > maxFreq
+	int goodFreqStop = bisectLeft(frequencies, maxFreq, goodFreqStart,
+				      dftBlocksize);
+	if (goodFreqStop != dftBlocksize) {
+		if (frequencies[goodFreqStop] == maxFreq){
+			goodFreqStop++;
+		}
+	}
+
+	// set magnitudes for frequencies outside of [f0Min,maxFreq] to 0
 	for (blockstart = 0; blockstart < size; blockstart += dftBlocksize){
-		for (i=0; i<dftBlocksize; i++){
-			// use a better algorithm
-			// for now this is a placeholder
-			temp = frequencies[i];
-			if ((temp<f0Min)||(temp>maxFreq)){
-				(*AudioData)[blockstart + i] = 0;
-			}
+		for (i=0; i<goodFreqStart; i++){
+			(*AudioData)[blockstart + i] = 0;
+		}
+		for (i=goodFreqStop; i<dftBlocksize; i++){
+			(*AudioData)[blockstart + i] = 0;
 		}
 	}
 }
@@ -179,14 +186,14 @@ struct candidateList** BaNaFindCandidates(double **AudioData, int size,
 
 		// for now copy the magnitudes into a buffer. Fix this in the
 		// future
-		for(i = 0; i < dftBlocksize; ++i){
+		for(i = 0; i < dftBlocksize; i++){
 			magnitudes[i] = (*AudioData)[blockstart + i];
 		}
 
 		// determine slopeThreshold, ampThreshold, smoothwidth
 		// set ampThreshold to 1/15 th of largest magnitude
 		ampThreshold = magnitudes[0];
-		for (i=1; i < dftBlocksize; ++i){
+		for (i=1; i < dftBlocksize; i++){
 			temp = magnitudes[i];
 			if (temp>ampThreshold) {
 				ampThreshold = temp;
@@ -235,22 +242,6 @@ struct candidateList** BaNaFindCandidates(double **AudioData, int size,
 	free(peakMag);
 	free(magnitudes);
 	return windowCandidates;
-}
-
-int* FreqToBin(double* fundamentals, int fftSize, int samplerate, int size,
-	       int dftBlocksize)
-{
-	// converts the frequencies to the indicies of the FFT bins
-	// double check that when we type cast to int, we round correctly
-	// I think we are OK
-	int numBlocks = size / dftBlocksize;
-	int i;
-	int* bins = malloc(numBlocks*sizeof(int));
-	double ratio = (double)fftSize / samplerate;
-	for(i=0;i<numBlocks;i++){
-		bins[i] = (int)(fundamentals[i] * ratio);
-	}
-	return bins;
 }
 
 
