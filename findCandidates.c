@@ -41,24 +41,13 @@ double calcM(double f_i, double f_j){
 	// basically using algorithm from python's bisect left and then moving
 	// one index to the left. This could probably be improved
 
-	int low = 0;
-	int high = 15;
-	int mid;
+	int i = bisectLeft(ratioRanges,ratio,0,15);
 
-	while (low<high){
-		mid = (low+high)/2;
-		if (ratioRanges[mid]<ratio) {
-			low = mid+1;
-		} else {
-			high = mid;
-		}
-	}
-
-	if (low == 0) {
+	if (i == 0) {
 		return -1.;
 	}
 
-	int i= low - 1;
+	i= i - 1;
 
 	return mRanges[i];
 }

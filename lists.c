@@ -6,6 +6,34 @@
 // the user is responsible for making sure that the length of the list does
 // not exceed the maximum size
 
+// below is afunction generally associated with lists. It is specifically used
+// by orderedList
+
+int bisectLeft(double* l, double value, int low, int high){
+	// function to find the index of the leftmost value in l greater
+	// than or equal to value.
+
+	// We just use the algorithm used for python's bisect left function
+	// It is implemented here:
+	// https://github.com/python-git/python/blob/master/Lib/bisect.py
+
+	// This could probably be better optimized
+
+	// for integers >=0 integer division is floor division
+	int mid;
+	while (low<high){
+		mid = (low+high)/2;
+		if (l[mid]<value){
+			low = mid+1;
+		} else {
+			high = mid;
+		}
+	}
+	return low;
+}
+
+
+
 // Defining functions for orderedList
 
 struct orderedList orderedListCreate(int max_length)
@@ -31,25 +59,7 @@ int bisectInsertionSearch(struct orderedList list, double value){
 	// function to find the index of the leftmost value in list greater
 	// than or equal to value.
 
-	// We just use the algorithm used for python's bisect left function
-	// It is implemented here:
-	// https://github.com/python-git/python/blob/master/Lib/bisect.py
-
-	// This could probably be better optimized
-
-	// for integers >=0 integer division is floor division
-	int low = 0;
-	int high = list.length;
-	int mid;
-	while (low<high){
-		mid = (low+high)/2;
-		if (list.array[mid]<value){
-			low = mid+1;
-		} else {
-			high = mid;
-		}
-	}
-	return low;
+	return bisectLeft(list.array, value, 0, list.length);
 }
 
 void orderedListInsert(struct orderedList *list, double value)

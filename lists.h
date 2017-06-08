@@ -22,6 +22,7 @@ struct candidateList{
 
 #endif /*LISTS_H*/
 
+int bisectLeft(double* l, double value, int low, int high);
 struct orderedList orderedListCreate(int max_length);
 void orderedListDestroy(struct orderedList list);
 double orderedListGet(struct orderedList list, int index);
