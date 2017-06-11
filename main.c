@@ -14,11 +14,14 @@
  *   -o: output .wav file\n"
  * optional args:\n"
  *   -v: verbose output\n"
- *   -w: stft window size, def = 2048\n"
- *   -s: stft window interval spacing, def = 128\n"
- *   -h: number of harmonic product specturm overtones, def = 2\n";
+ *   --pitch_window: stft window size for pitch detection, def = 4096\n"
+ *   --pitch_spacing: stft window spacing for pitch detection, def = 2048\n"
+ *   --pitch_strategy: strategy for pitch detection, either HPS, BaNa, and BaNaMusic, def = HPS\n"
+ *   --onset_window: stft window size for onset detection, def = 512\n"
+ *   --onset_spacing: stft window spacing for onset detection, def = 256\n"
+ *   --onset_strategy: strategy for onset detection, only OnsetsDS, def = OnsetsDS\n"
+ *   -h: number of harmonic product specturm overtones, def = 2\n"
  *   -p: prefix for fname where spectral data is stored, def = NULL\n";
- *   -d: fundamental detection method - allowed arguments are HPS, BaNa, and BaNaMusic, def = HPS\n";
  */
 
 int main(int argc, char ** argv)
@@ -59,7 +62,7 @@ int main(int argc, char ** argv)
 	int opt = 0;
 	int badargs = 0;
 
-	while ((opt = getopt_long (argc, argv, "i:o:vh:p:d:", long_options, &option_index)) != -1) {
+	while ((opt = getopt_long (argc, argv, "i:o:vh:p:", long_options, &option_index)) != -1) {
 		switch (opt) {
 		case 'i':
 			inFile = optarg;
