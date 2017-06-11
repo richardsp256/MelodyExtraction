@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <float.h>
 #include "lists.h"
 #include "candidateSelection.h"
 
@@ -15,6 +16,7 @@ double costFunction(struct candidate cand1, struct candidate cand2)
 double* candidateSelection(struct candidateList **windowList, long length)
 {
 	// selects the candidates that represent the fundamentals
+	// finds blocks of candidates, and passes it to candidateSelectionSegment
 
 	double *fundamentals = malloc(sizeof(double)*length);
 
@@ -53,7 +55,7 @@ double* candidateSelection(struct candidateList **windowList, long length)
 				fundamentals[start] = ((windowList[start]->array[0]).frequency);
 			}
 			else{
-				chooseLowestCost(fundamentals, windowList,end,start);
+				candidateSelectionSegment(fundamentals, windowList,end,start);
 			}
 			start = -1;
 			end = -1;
@@ -62,66 +64,56 @@ double* candidateSelection(struct candidateList **windowList, long length)
 	return fundamentals;
 }
 
-void windowComparison(struct candidateList *l1, struct candidateList *l2)
+void candidateSelectionSegment(double* fundamentals, 
+				struct candidateList **windowList, long final, long start)
 {
-	// for each candidate in l2, calculate cost and indexLowestCost
+	// This function finds the lowest cost path from windowList[start]
+	// to windowList[final] and fills in fundamentals with the frequency values.
+	// Before calling this function ensure that all candidateLists from
+	// windowList[start] to windowList[final] have at least 1 candidate each
 
-	// before calling this function ensure that both lists have at least 1
-	// candidate each
-
-	struct candidate *cur;
+	struct candidateList *curWindowList;
+	struct candidateList *prevWindowList;
+	struct candidate *curcandidate;
+	long frame;
 	int i, j, indexLowestCost;
 	double curCost, minCost;
 
-	for (j=0;j<(l2->length); j++){
-		cur = &(l2->array[j]);
+	//calculate intermediate mincost paths from start to final, eventually
+	//finding lowest cost candidate in windowList[final]
+	int finalindex = -1;
+	double finalcost = DBL_MAX;
+	for(frame = start + 1; frame <= final; ++frame){
+		curWindowList = windowList[frame];
+		prevWindowList = windowList[frame-1];
 
-		minCost = costFunction(l1->array[0],*cur);
-		indexLowestCost = 0;
+		for (i = curWindowList->length - 1; i >= 0; --i){
+			curcandidate = &(curWindowList->array[i]);
 
-		for (i=1; i<(l1->length); i++){
-			curCost = costFunction(l1->array[i],*cur);
-			if (curCost<minCost) {
-				minCost = curCost;
-				indexLowestCost = i;
+			minCost = DBL_MAX;
+			indexLowestCost = -1;
+
+			for (j = prevWindowList->length - 1; j >= 0; --j){
+				curCost = costFunction(prevWindowList->array[j],*curcandidate);
+				if (curCost<=minCost) {
+					//<= bc we favor candidates at lower freq if cost is equal
+					minCost = curCost;
+					indexLowestCost = j;
+				}
 			}
-		}
-		candidateListAdjustCost(l2, j,minCost,indexLowestCost);
-	}
-}
-
-void chooseLowestCost(double* fundamentals, struct candidateList **windowList,
-		      long final, long start)
-{
-	struct candidateList *curWindowList;
-	struct candidateList *prevWindowList;
-	for(int i = start + 1; i <= final; i++){
-		curWindowList = windowList[i];
-		prevWindowList = windowList[i-1];
-		windowComparison(prevWindowList, curWindowList);
-	}
-	// this function finds the lowest cost path from windowList[final] back
-	// to windowList[start] and fills in fundamentals with the frequency
-	// values first, find the lowest cost candidate in windowList[final]
-	int index, indexLowestCost;
-	double minCost, curCost;
-	int numCandidates = windowList[final]->length;
-
-	minCost = (windowList[final]->array[0]).cost;
-	indexLowestCost = 0;
-	for (index=1;index<numCandidates;index++){
-		curCost = (windowList[final]->array[index]).cost;
-		if (curCost<minCost) {
-			minCost=curCost;
-			indexLowestCost = index;
+			candidateListAdjustCost(curWindowList, i,minCost,indexLowestCost);
+			if(frame == final && minCost <= finalcost){
+				finalcost = minCost;
+				finalindex = i;
+			}
 		}
 	}
 
 	// now trace the lowest cost path backwards
-	long i;
-	for (i=final;i>=start;i--){
-		fundamentals[i] = (windowList[i]->array[indexLowestCost]).frequency;
-		indexLowestCost = (windowList[i]->array[indexLowestCost]).indexLowestCost;
+	indexLowestCost = finalindex;
+	for (frame = final; frame >= start; frame--){
+		fundamentals[frame] = (windowList[frame]->array[indexLowestCost]).frequency;
+		indexLowestCost = (windowList[frame]->array[indexLowestCost]).indexLowestCost;
 	}
 }
 
