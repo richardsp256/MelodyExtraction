@@ -39,7 +39,7 @@ float* HPSDetectionStrategy(double** AudioData, int size, int dftBlocksize,
 			    int hpsOvr, int fftSize, int samplerate)
 {
 	return HarmonicProductSpectrum(AudioData, size, dftBlocksize, hpsOvr,
-				       fftSize, samplerate);
+				       samplerate);
 }
 
 float* BaNaDetectionStrategy(double** AudioData, int size, int dftBlocksize,
