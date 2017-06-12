@@ -408,7 +408,7 @@ void SaveWeightsTxt(char* fileName, double** AudioData, int size, int dftBlocksi
 	fprintf(fp, "#Window Size:\t%d\n", winSize);
 	fprintf(fp, "#Sample Rate:\t%d\n", samplerate);
 	// outer loop iterates over blocks
-	for(blockstart = 0; blockstart < (size - dftBlocksize); blockstart += dftBlocksize){
+	for(blockstart = 0; blockstart < size; blockstart += dftBlocksize){
 		//iterate over elements of a block
 		for(i = 0; i < dftBlocksize; ++i){
 			fprintf(fp, "%e\t", (*AudioData)[blockstart + i]);
