@@ -30,7 +30,6 @@ float* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 	// 3. Post-Processing. Selection of F0 from candidates
 
 
-	double *temp;
 	float *fundamentals;
 	struct candidateList **windowCandidates;
 	int numBlocks = size / dftBlocksize;
@@ -49,13 +48,7 @@ float* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 					      frequencies, fftSize, samplerate);
 
 	// determine which candidate is the fundamental
-	temp = candidateSelection(windowCandidates, numBlocks);
-
-	fundamentals = malloc(sizeof(float)*numBlocks);
-	
-	for (i=0;i<numBlocks;i++){
-		fundamentals[i] = (float)temp[i];
-	}
+	fundamentals = candidateSelection(windowCandidates, numBlocks);
 	
 	// clean up
 	for (i=0;i<numBlocks;i++){
@@ -64,7 +57,6 @@ float* BaNa(double **AudioData, int size, int dftBlocksize, int p,
   
 	free(windowCandidates);
 	free(frequencies);
-	free(temp);
 	return fundamentals;
 }
 
@@ -73,7 +65,6 @@ float* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 {
 	// Same as BaNa except that during determination of F0 candidates,
 	// retrieve the p peaks with the maximum amplitude
-	double *temp;
 	float *fundamentals;
 	struct candidateList **windowCandidates;
 	long numBlocks = size / dftBlocksize;
@@ -92,13 +83,8 @@ float* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 					      fftSize, samplerate);
 
 	// determine which candidate is the fundamental
-	temp = candidateSelection(windowCandidates, numBlocks);
-
-	fundamentals = malloc(sizeof(float)*numBlocks);
+	fundamentals = candidateSelection(windowCandidates, numBlocks);
 	
-	for (i=0;i<numBlocks;i++){
-		fundamentals[i] = (float)temp[i];
-	}
 	
 	// clean up
 	for (i=0;i<numBlocks;i++){
@@ -107,7 +93,6 @@ float* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 
 	free(windowCandidates);
 	free(frequencies);
-	free(temp);
 	return fundamentals;
 }
 
@@ -132,10 +117,10 @@ void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
 	int blockstart, i;
 	double maxFreq = (((double)p)*f0Max);
 	// determine the index of the leftmost frequency value >= f0Min
-	int goodFreqStart = bisectLeft(frequencies, f0Min, 0, dftBlocksize);
+	int goodFreqStart = bisectLeftD(frequencies, f0Min, 0, dftBlocksize);
 	// determine the index of the leftmost frequency value > maxFreq
-	int goodFreqStop = bisectLeft(frequencies, maxFreq, goodFreqStart,
-				      dftBlocksize);
+	int goodFreqStop = bisectLeftD(frequencies, maxFreq, goodFreqStart,
+				       dftBlocksize);
 	if (goodFreqStop != dftBlocksize) {
 		if (frequencies[goodFreqStop] == maxFreq){
 			goodFreqStop++;
@@ -156,7 +141,7 @@ void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
 struct candidateList** BaNaFindCandidates(double **AudioData, int size,
 					  int dftBlocksize, int p,
 					  double f0Min, double f0Max,
-					  int first, double xi,
+					  int first, float xi,
 					  double* frequencies, int fftSize,
 					  int samplerate)
 {
@@ -227,7 +212,8 @@ struct candidateList** BaNaFindCandidates(double **AudioData, int size,
 
 		struct candidateList* t = distinctCandidates(&candidates,
 							     (p-1)*(p-1)+2,
-							     xi,f0Min,f0Max);
+							     xi,(float)f0Min,
+							     (float)f0Max);
 		//candidateListPrintFreq(*t);
 		// determine the distinctive candidates and add them to
 		windowCandidates[blockstart/dftBlocksize] = t;

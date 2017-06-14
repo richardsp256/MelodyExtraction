@@ -9,7 +9,30 @@
 // below is afunction generally associated with lists. It is specifically used
 // by orderedList
 
-int bisectLeft(double* l, double value, int low, int high){
+int bisectLeft(float* l, float value, int low, int high){
+	// function to find the index of the leftmost value in l greater
+	// than or equal to value.
+
+	// We just use the algorithm used for python's bisect left function
+	// It is implemented here:
+	// https://github.com/python-git/python/blob/master/Lib/bisect.py
+
+	// This could probably be better optimized
+
+	// for integers >=0 integer division is floor division
+	int mid;
+	while (low<high){
+		mid = (low+high)/2;
+		if (l[mid]<value){
+			low = mid+1;
+		} else {
+			high = mid;
+		}
+	}
+	return low;
+}
+
+int bisectLeftD(double* l, double value, int low, int high){
 	// function to find the index of the leftmost value in l greater
 	// than or equal to value.
 
@@ -59,7 +82,7 @@ int bisectInsertionSearch(struct orderedList list, double value){
 	// function to find the index of the leftmost value in list greater
 	// than or equal to value.
 
-	return bisectLeft(list.array, value, 0, list.length);
+	return bisectLeftD(list.array, value, 0, list.length);
 }
 
 void orderedListInsert(struct orderedList *list, double value)
@@ -137,7 +160,7 @@ struct candidate candidateListGet(struct candidateList list, int index)
 	return list.array[index];
 }
 
-void candidateListAdd(struct candidateList *list, double frequency,
+void candidateListAdd(struct candidateList *list, float frequency,
 		      int confidence)
 {
 	struct candidate temp;
@@ -188,7 +211,7 @@ void candidateListResize(struct candidateList *list)
 }
 
 void candidateListAdjustCost(struct candidateList *list, int index,
-			     double cost, int indexLowestCost)
+			     float cost, int indexLowestCost)
 {
 	// adjust values of cost and indexLowestCost for list[index]
 	struct candidate* tmp;

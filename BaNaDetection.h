@@ -8,6 +8,6 @@ void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
 		       double f0Min, double f0Max, double* frequencies);
 struct candidateList** BaNaFindCandidates(double **AudioData, int size,
 					int dftBlocksize, int p, double f0Min,
-					double f0Max, int first, double xi,
+					double f0Max, int first, float xi,
 					double* frequencies, int fftSize,
 					int samplerate);

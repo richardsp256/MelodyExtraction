@@ -8,9 +8,9 @@ struct orderedList{
 };
 
 struct candidate{
-  double frequency;
+  float frequency;
   int confidence;
-  double cost;
+  float cost;
   int indexLowestCost;
 };
 
@@ -22,7 +22,8 @@ struct candidateList{
 
 #endif /*LISTS_H*/
 
-int bisectLeft(double* l, double value, int low, int high);
+int bisectLeftD(double* l, double value, int low, int high);
+int bisectLeft(float* l, float value, int low, int high);
 struct orderedList orderedListCreate(int max_length);
 void orderedListDestroy(struct orderedList list);
 double orderedListGet(struct orderedList list, int index);
@@ -34,10 +35,10 @@ void orderedListPrint(struct orderedList list);
 struct candidateList* candidateListCreate(int max_length);
 void candidateListDestroy(struct candidateList* list);
 struct candidate candidateListGet(struct candidateList list, int index);
-void candidateListAdd(struct candidateList *list, double frequency,
+void candidateListAdd(struct candidateList *list, float frequency,
 		      int confidence);
 void candidateListResize(struct candidateList *list);
 void candidateListAdjustCost(struct candidateList *list, int index,
-			     double cost, int indexLowestCost);
+			     float cost, int indexLowestCost);
 void candidateListPrintFreq(struct candidateList list);
 void candidateListPrintConfidence(struct candidateList list);

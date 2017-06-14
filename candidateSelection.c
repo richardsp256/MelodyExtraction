@@ -7,18 +7,18 @@
 
 
 
-double costFunction(struct candidate cand1, struct candidate cand2)
+float costFunction(struct candidate cand1, struct candidate cand2)
 {
 	// calculate the cost for candidate 2 from candidate 1
-	return fabs(log(cand1.frequency/cand2.frequency)/log(2.0))+(0.4/(double)cand1.confidence);
+	return (float)fabs(log(cand1.frequency/cand2.frequency)/log(2.0))+(0.4/(double)cand1.confidence);
 }
 
-double* candidateSelection(struct candidateList **windowList, long length)
+float* candidateSelection(struct candidateList **windowList, long length)
 {
 	// selects the candidates that represent the fundamentals
 	// finds blocks of candidates, and passes it to candidateSelectionSegment
 
-	double *fundamentals = malloc(sizeof(double)*length);
+	float *fundamentals = malloc(sizeof(float)*length);
 
 	long i=0;
 	long start = -1;
@@ -52,7 +52,7 @@ double* candidateSelection(struct candidateList **windowList, long length)
 			if(start == end){
 				//block was only 1 window long
 				//for now we will just set the frequency to the first candidate
-				fundamentals[start] = ((windowList[start]->array[0]).frequency);
+				fundamentals[start] = (float)((windowList[start]->array[0]).frequency);
 			}
 			else{
 				candidateSelectionSegment(fundamentals, windowList,end,start);
@@ -64,7 +64,7 @@ double* candidateSelection(struct candidateList **windowList, long length)
 	return fundamentals;
 }
 
-void candidateSelectionSegment(double* fundamentals, 
+void candidateSelectionSegment(float* fundamentals, 
 				struct candidateList **windowList, long final, long start)
 {
 	// This function finds the lowest cost path from windowList[start]
@@ -77,12 +77,12 @@ void candidateSelectionSegment(double* fundamentals,
 	struct candidate *curcandidate;
 	long frame;
 	int i, j, indexLowestCost;
-	double curCost, minCost;
+	float curCost, minCost;
 
 	//calculate intermediate mincost paths from start to final, eventually
 	//finding lowest cost candidate in windowList[final]
 	int finalindex = -1;
-	double finalcost = DBL_MAX;
+	float finalcost = FLT_MAX;
 	for(frame = start + 1; frame <= final; ++frame){
 		curWindowList = windowList[frame];
 		prevWindowList = windowList[frame-1];
@@ -90,7 +90,7 @@ void candidateSelectionSegment(double* fundamentals,
 		for (i = curWindowList->length - 1; i >= 0; --i){
 			curcandidate = &(curWindowList->array[i]);
 
-			minCost = DBL_MAX;
+			minCost = FLT_MAX;
 			indexLowestCost = -1;
 
 			for (j = prevWindowList->length - 1; j >= 0; --j){
@@ -113,7 +113,7 @@ void candidateSelectionSegment(double* fundamentals,
 	// now trace the lowest cost path backwards
 	indexLowestCost = finalindex;
 	for (frame = final; frame >= start; frame--){
-		fundamentals[frame] = (windowList[frame]->array[indexLowestCost]).frequency;
+		fundamentals[frame] = (float)(windowList[frame]->array[indexLowestCost]).frequency;
 		indexLowestCost = (windowList[frame]->array[indexLowestCost]).indexLowestCost;
 	}
 }
