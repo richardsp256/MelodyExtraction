@@ -139,11 +139,11 @@ void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
 }
 
 struct distinctList** BaNaFindCandidates(double **AudioData, int size,
-					  int dftBlocksize, int p,
-					  double f0Min, double f0Max,
-					  int first, float xi,
-					  double* frequencies, int fftSize,
-					  int samplerate)
+					 int dftBlocksize, int p,
+					 double f0Min, double f0Max,
+					 int first, float xi,
+					 double* frequencies, int fftSize,
+					 int samplerate)
 {
 	// this finds all of the f0 candiates
 	// windowCandidates is an array of pointers that point to the list of
@@ -206,7 +206,7 @@ struct distinctList** BaNaFindCandidates(double **AudioData, int size,
 		candidates = calcCandidates(peakFreq, numPeaks);
 		//printf("Done finding candidates\n");
 		// add the lowest frequency peak fundamental candidate
-		orderedListInsert(&candidates, firstFreqPeak);
+		orderedListInsert(&candidates, (float)firstFreqPeak);
 		//printf("Inserted lowest frequency candidate\n");
 		// add the cepstrum fundamental candidate
 

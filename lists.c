@@ -62,7 +62,7 @@ int bisectLeftD(double* l, double value, int low, int high){
 struct orderedList orderedListCreate(int max_length)
 {
 	struct orderedList list;
-	list.array = malloc(max_length*sizeof(double));
+	list.array = malloc(max_length*sizeof(float));
 	list.max_length = max_length;
 	list.length = 0;
 	return list;
@@ -73,19 +73,19 @@ void orderedListDestroy(struct orderedList list)
 	free(list.array);
 }
 
-double orderedListGet(struct orderedList list, int index)
+float orderedListGet(struct orderedList list, int index)
 {
 	return list.array[index];
 }
 
-int bisectInsertionSearch(struct orderedList list, double value){
+int bisectInsertionSearch(struct orderedList list, float value){
 	// function to find the index of the leftmost value in list greater
 	// than or equal to value.
 
-	return bisectLeftD(list.array, value, 0, list.length);
+	return bisectLeft(list.array, value, 0, list.length);
 }
 
-void orderedListInsert(struct orderedList *list, double value)
+void orderedListInsert(struct orderedList *list, float value)
 {
 	// insert value into list
 	if (list->length == 0){
@@ -127,11 +127,11 @@ void orderedListPrint(struct orderedList list)
 {
 	printf("[");
 	if (list.length != 0){
-		printf("%lf",list.array[0]);
+		printf("%f",list.array[0]);
 	}
 	int i;
 	for (i=1; i<list.length; i++){
-		printf(", %lf",list.array[i]);
+		printf(", %f",list.array[i]);
 	}
 	printf("]\n");
 }

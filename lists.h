@@ -2,7 +2,7 @@
 #define LISTS_H
 
 struct orderedList{
-	double *array;
+	float *array;
 	int max_length;
 	int length;
 };
@@ -26,9 +26,9 @@ int bisectLeftD(double* l, double value, int low, int high);
 int bisectLeft(float* l, float value, int low, int high);
 struct orderedList orderedListCreate(int max_length);
 void orderedListDestroy(struct orderedList list);
-double orderedListGet(struct orderedList list, int index);
-int bisectInsertionSearch(struct orderedList list, double value);
-void orderedListInsert(struct orderedList *list, double value);
+float orderedListGet(struct orderedList list, int index);
+int bisectInsertionSearch(struct orderedList list, float value);
+void orderedListInsert(struct orderedList *list, float value);
 void orderedListDeleteEntries(struct orderedList *list, int start, int stop);
 void orderedListPrint(struct orderedList list);
 

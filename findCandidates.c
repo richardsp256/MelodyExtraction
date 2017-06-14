@@ -18,7 +18,7 @@ static float mRanges[15] = { 4,  3,  2,  3,
 struct orderedList calcCandidates(double* peaks, int numPeaks)
 {
 	int i,j;
-	double m;
+	float m;
 	struct orderedList candidates = orderedListCreate(2+((numPeaks-1) *
 							     (numPeaks-1)));
 
@@ -26,14 +26,15 @@ struct orderedList calcCandidates(double* peaks, int numPeaks)
 		for (j=i+1; j<numPeaks; j++){
 			m = calcM((float)peaks[i],(float)peaks[j]);
 			if (m>0) {
-				orderedListInsert(&candidates,peaks[i]/m);
+				orderedListInsert(&candidates,
+						  ((float)(peaks[i]))/m);
 			}				
 		}
 	}
 	return candidates;
 }
  
-double calcM(float f_i, float f_j){
+float calcM(float f_i, float f_j){
 	// find the index, i, of the right most value in ratioRanges less than
         // f_j/f_i. it returns mRanges[i]
 	float ratio = f_j/f_i;
@@ -61,27 +62,26 @@ struct distinctList* distinctCandidates(struct orderedList* candidates,
         // done by selecting the candidate with the most other candidates
         // within xi Hz
 	
-	int first, last, i,j,maxIndex;
-	double* confidence, maxConfidence;
+	int first, last, i,j,maxIndex, *confidence, maxConfidence;
 	struct distinctList *distinct;
 	distinct = (distinctListCreate(max_length));
 
-	confidence = malloc(sizeof(double) * (candidates->length));
+	confidence = malloc(sizeof(int) * (candidates->length));
 
 	first = -1;
 
 	while (candidates->length !=0){	        
 		// set entries of confidence to 1
 		for (i=0;i<(candidates->length);i++){
-			confidence[i] = 1.0;
+			confidence[i] = 1;
 		}
 		// determine confidence values for each index
 		for (i=0;i<(candidates->length)-1;i++){
 			for (j=i+1;j<(candidates->length);j++){
 				if ((candidates->array[j] -
 				     candidates->array[i])<=xi) { 
-					confidence[i]+=1.0;
-					confidence[j]+=1.0;
+					confidence[i]+=1;
+					confidence[j]+=1;
 				} else {
 					break;
 				}
@@ -103,8 +103,8 @@ struct distinctList* distinctCandidates(struct orderedList* candidates,
 		if ((candidates->array[maxIndex] >= f0Min) &&
 		    (candidates->array[maxIndex] <= f0Max)){
 			distinctListAdd(distinct,
-					 (float)(candidates->array[maxIndex]),
-					 confidence[maxIndex]);
+					(candidates->array[maxIndex]),
+					confidence[maxIndex]);
 		}
 		// determine first: index of first entry in candidates that is
 		// within xi Hz of the candidate with the highest confidence
