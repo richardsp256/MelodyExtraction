@@ -7,13 +7,14 @@
 
 
 
-float costFunction(struct candidate cand1, struct candidate cand2)
+float costFunction(struct distinctCandidate cand1,
+		   struct distinctCandidate cand2)
 {
 	// calculate the cost for candidate 2 from candidate 1
 	return (float)fabs(log(cand1.frequency/cand2.frequency)/log(2.0))+(0.4/(double)cand1.confidence);
 }
 
-float* candidateSelection(struct candidateList **windowList, long length)
+float* candidateSelection(struct distinctList **windowList, long length)
 {
 	// selects the candidates that represent the fundamentals
 	// finds blocks of candidates, and passes it to candidateSelectionSegment
@@ -65,16 +66,17 @@ float* candidateSelection(struct candidateList **windowList, long length)
 }
 
 void candidateSelectionSegment(float* fundamentals, 
-				struct candidateList **windowList, long final, long start)
+			       struct distinctList **windowList, long final,
+			       long start)
 {
 	// This function finds the lowest cost path from windowList[start]
 	// to windowList[final] and fills in fundamentals with the frequency values.
-	// Before calling this function ensure that all candidateLists from
+	// Before calling this function ensure that all distinctLists from
 	// windowList[start] to windowList[final] have at least 1 candidate each
 
-	struct candidateList *curWindowList;
-	struct candidateList *prevWindowList;
-	struct candidate *curcandidate;
+	struct distinctList *curWindowList;
+	struct distinctList *prevWindowList;
+	struct distinctCandidate *curcandidate;
 	long frame;
 	int i, j, indexLowestCost;
 	float curCost, minCost;
@@ -102,7 +104,7 @@ void candidateSelectionSegment(float* fundamentals,
 					indexLowestCost = j;
 				}
 			}
-			candidateListAdjustCost(curWindowList, i,minCost,indexLowestCost);
+			distinctListAdjustCost(curWindowList, i,minCost,indexLowestCost);
 			if(frame == final && minCost <= finalcost){
 				finalcost = minCost;
 				finalindex = i;

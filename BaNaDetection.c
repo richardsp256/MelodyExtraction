@@ -31,7 +31,7 @@ float* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 
 
 	float *fundamentals;
-	struct candidateList **windowCandidates;
+	struct distinctList **windowCandidates;
 	int numBlocks = size / dftBlocksize;
 	long i;
 
@@ -52,7 +52,7 @@ float* BaNa(double **AudioData, int size, int dftBlocksize, int p,
 	
 	// clean up
 	for (i=0;i<numBlocks;i++){
-		candidateListDestroy(windowCandidates[i]);
+		distinctListDestroy(windowCandidates[i]);
 	}
   
 	free(windowCandidates);
@@ -66,7 +66,7 @@ float* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 	// Same as BaNa except that during determination of F0 candidates,
 	// retrieve the p peaks with the maximum amplitude
 	float *fundamentals;
-	struct candidateList **windowCandidates;
+	struct distinctList **windowCandidates;
 	long numBlocks = size / dftBlocksize;
 	long i;
 
@@ -88,7 +88,7 @@ float* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 	
 	// clean up
 	for (i=0;i<numBlocks;i++){
-		candidateListDestroy(windowCandidates[i]);
+		distinctListDestroy(windowCandidates[i]);
 	}
 
 	free(windowCandidates);
@@ -138,7 +138,7 @@ void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
 	}
 }
 
-struct candidateList** BaNaFindCandidates(double **AudioData, int size,
+struct distinctList** BaNaFindCandidates(double **AudioData, int size,
 					  int dftBlocksize, int p,
 					  double f0Min, double f0Max,
 					  int first, float xi,
@@ -163,8 +163,8 @@ struct candidateList** BaNaFindCandidates(double **AudioData, int size,
 
 	struct orderedList candidates;
 
-	struct candidateList **windowCandidates;
-	windowCandidates = malloc(sizeof(struct candidateList*) * numBlocks);
+	struct distinctList **windowCandidates;
+	windowCandidates = malloc(sizeof(struct distinctList*) * numBlocks);
 
 	// outer loop iterates over blocks
 	for (blockstart = 0; blockstart < size; blockstart += dftBlocksize){
@@ -210,11 +210,11 @@ struct candidateList** BaNaFindCandidates(double **AudioData, int size,
 		//printf("Inserted lowest frequency candidate\n");
 		// add the cepstrum fundamental candidate
 
-		struct candidateList* t = distinctCandidates(&candidates,
+		struct distinctList* t = distinctCandidates(&candidates,
 							     (p-1)*(p-1)+2,
 							     xi,(float)f0Min,
 							     (float)f0Max);
-		//candidateListPrintFreq(*t);
+		//distinctListPrintFreq(*t);
 		// determine the distinctive candidates and add them to
 		windowCandidates[blockstart/dftBlocksize] = t;
 		//windowCandidates[i] = distinctCandidates(&candidates,

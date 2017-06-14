@@ -7,15 +7,15 @@ struct orderedList{
 	int length;
 };
 
-struct candidate{
+struct distinctCandidate{
   float frequency;
   int confidence;
   float cost;
   int indexLowestCost;
 };
 
-struct candidateList{
-  struct candidate *array;
+struct distinctList{
+  struct distinctCandidate *array;
   int max_length;
   int length;
 };
@@ -32,13 +32,13 @@ void orderedListInsert(struct orderedList *list, double value);
 void orderedListDeleteEntries(struct orderedList *list, int start, int stop);
 void orderedListPrint(struct orderedList list);
 
-struct candidateList* candidateListCreate(int max_length);
-void candidateListDestroy(struct candidateList* list);
-struct candidate candidateListGet(struct candidateList list, int index);
-void candidateListAdd(struct candidateList *list, float frequency,
+struct distinctList* distinctListCreate(int max_length);
+void distinctListDestroy(struct distinctList* list);
+struct distinctCandidate distinctListGet(struct distinctList list, int index);
+void distinctListAdd(struct distinctList *list, float frequency,
 		      int confidence);
-void candidateListResize(struct candidateList *list);
-void candidateListAdjustCost(struct candidateList *list, int index,
+void distinctListResize(struct distinctList *list);
+void distinctListAdjustCost(struct distinctList *list, int index,
 			     float cost, int indexLowestCost);
-void candidateListPrintFreq(struct candidateList list);
-void candidateListPrintConfidence(struct candidateList list);
+void distinctListPrintFreq(struct distinctList list);
+void distinctListPrintConfidence(struct distinctList list);

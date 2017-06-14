@@ -6,8 +6,8 @@ float* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
 double* calcFrequencies(int dftBlocksize, int fftSize, int samplerate);
 void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
 		       double f0Min, double f0Max, double* frequencies);
-struct candidateList** BaNaFindCandidates(double **AudioData, int size,
-					int dftBlocksize, int p, double f0Min,
-					double f0Max, int first, float xi,
-					double* frequencies, int fftSize,
-					int samplerate);
+struct distinctList** BaNaFindCandidates(double **AudioData, int size,
+					 int dftBlocksize, int p, double f0Min,
+					 double f0Max, int first, float xi,
+					 double* frequencies, int fftSize,
+					 int samplerate);

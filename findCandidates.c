@@ -53,7 +53,7 @@ double calcM(float f_i, float f_j){
 }
 
 
-struct candidateList* distinctCandidates(struct orderedList* candidates,
+struct distinctList* distinctCandidates(struct orderedList* candidates,
 					 int max_length, float xi,
 					 float f0Min, float f0Max)
 {	
@@ -63,8 +63,8 @@ struct candidateList* distinctCandidates(struct orderedList* candidates,
 	
 	int first, last, i,j,maxIndex;
 	double* confidence, maxConfidence;
-	struct candidateList *distinct;
-	distinct = (candidateListCreate(max_length));
+	struct distinctList *distinct;
+	distinct = (distinctListCreate(max_length));
 
 	confidence = malloc(sizeof(double) * (candidates->length));
 
@@ -102,7 +102,7 @@ struct candidateList* distinctCandidates(struct orderedList* candidates,
 		// add that candidate to distinct
 		if ((candidates->array[maxIndex] >= f0Min) &&
 		    (candidates->array[maxIndex] <= f0Max)){
-			candidateListAdd(distinct,
+			distinctListAdd(distinct,
 					 (float)(candidates->array[maxIndex]),
 					 confidence[maxIndex]);
 		}
