@@ -38,8 +38,8 @@ float* WindowFunction(int size)
 }
 
 int ExtractMelody(char* inFile, char* outFile, 
-		int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
-		int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
+		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
+		int o_unpaddedSize, int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
 		int hpsOvr, int verbose, char* prefix)
 { 
 	//reads in .wav
@@ -64,15 +64,15 @@ int ExtractMelody(char* inFile, char* outFile,
 	sf_close( f );
 
 	float* o_fftData = NULL;
-	int o_size = STFT_r2r(&input, info, o_winSize, o_winInt, &o_fftData);
-	int o_numBlocks = o_size/(o_winSize);
+	int o_size = STFT_r2r(&input, info, o_unpaddedSize, o_winInt, &o_fftData);
+	int o_numBlocks = o_size/(o_unpaddedSize);
 	if(verbose){
 		printf("numblcks of onset FFT: %d\n", o_numBlocks);
 		fflush(NULL);
 	}
 
 	fftwf_complex* p_fftData = NULL;
-	int p_size = STFT_r2c(&input, info, p_winSize, p_winInt, &p_fftData);
+	int p_size = STFT_r2c(&input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
 	int p_numBlocks = p_size/(p_winSize/2);
 	if(verbose){
 		printf("numblcks of pitch FFT: %d\n", p_numBlocks);
@@ -99,7 +99,7 @@ int ExtractMelody(char* inFile, char* outFile,
 		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
 		strcpy(spectraFile,prefix);
 		strcat(spectraFile,"_original.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_winSize);
+		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
 		free(spectraFile);
 	}
 	
@@ -111,7 +111,7 @@ int ExtractMelody(char* inFile, char* outFile,
 		fflush(NULL);
 	}
 
-	onsetStrategy(&o_fftData, o_size, o_winSize, o_winInt, info.samplerate);
+	onsetStrategy(&o_fftData, o_size, o_unpaddedSize, o_winInt, info.samplerate);
 
 	if(verbose){
 		printf("Onset detection complete\n");
@@ -125,7 +125,7 @@ int ExtractMelody(char* inFile, char* outFile,
 		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
 		strcpy(spectraFile,prefix);
 		strcat(spectraFile,"_weighted.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_winSize);
+		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
 		free(spectraFile);
 	}
 	
@@ -166,7 +166,7 @@ int ExtractMelody(char* inFile, char* outFile,
 }
 
 //reads in .wav, returns FFT by reference through fft_data, returns size of fft_data
-int STFT_r2c(float** input, SF_INFO info, int winSize, int interval, fftwf_complex** fft_data)
+int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data)
 {
     int i;
     int j;
@@ -179,12 +179,12 @@ int STFT_r2c(float** input, SF_INFO info, int winSize, int interval, fftwf_compl
     float* window = WindowFunction(winSize);
  
     //malloc space for fft_data
-	int numBlocks = (int)ceil((info.frames - winSize) / (float)interval) + 1;
+	int numBlocks = (int)ceil((info.frames - unpaddedSize) / (float)interval) + 1;
 	if(numBlocks < 1){
 		numBlocks = 1;
 	}
-	//allocate winsize/2 for each block, taking the real component 
-	//and dropping the complex component and nyquist frequency.
+	//allocate winSize/2 for each block, taking the real component 
+	//and dropping the symetrical component and nyquist frequency.
 	int realWinSize = winSize/2;
     (*fft_data) = malloc( sizeof(fftwf_complex) * numBlocks * realWinSize );
  
@@ -196,11 +196,11 @@ int STFT_r2c(float** input, SF_INFO info, int winSize, int interval, fftwf_compl
 		blockoffset = i*interval;
 		for(j = 0; j < winSize; j++) {
 
-			if(blockoffset + j < info.frames) {
+			if(j < unpaddedSize && blockoffset + j < info.frames) {
 				fftw_in[j] = (*input)[blockoffset + j] * window[j]; 
 			} else {
-				//reached end of input
-				//Pad with 0 so fft is same size as other blocks
+				//reached end of non-padded input
+				//Pad the rest with 0
 				fftw_in[j] = 0.0; 
 			}
 		}
@@ -399,13 +399,14 @@ void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
 	fclose(file);
 }
 
-void SaveWeightsTxt(char* fileName, double** AudioData, int size, int dftBlocksize, int samplerate, int winSize){
-        // Saves the weights of each frequency bin to a text file
-        FILE *fp;
+void SaveWeightsTxt(char* fileName, double** AudioData, int size, int dftBlocksize, int samplerate, int unpaddedSize, int winSize){
+	// Saves the weights of each frequency bin to a text file
+	FILE *fp;
 	int blockstart, i;
 	fp = fopen(fileName,"w");
 
 	fprintf(fp, "#Window Size:\t%d\n", winSize);
+	fprintf(fp, "#Window Size Before Zero Padding:\t%d\n", unpaddedSize);
 	fprintf(fp, "#Sample Rate:\t%d\n", samplerate);
 	// outer loop iterates over blocks
 	for(blockstart = 0; blockstart < size; blockstart += dftBlocksize){

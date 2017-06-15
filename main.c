@@ -8,20 +8,29 @@
 #include "onsetStrat.h"
 
 
-/* Usage is as follows:\n"
- * mandatory args:\n"
- *   -i: Input .wav file\n"
- *   -o: output .wav file\n"
- * optional args:\n"
- *   -v: verbose output\n"
- *   --pitch_window: stft window size for pitch detection, def = 4096\n"
- *   --pitch_spacing: stft window spacing for pitch detection, def = 2048\n"
- *   --pitch_strategy: strategy for pitch detection, either HPS, BaNa, and BaNaMusic, def = HPS\n"
- *   --onset_window: stft window size for onset detection, def = 512\n"
- *   --onset_spacing: stft window spacing for onset detection, def = 256\n"
- *   --onset_strategy: strategy for onset detection, only OnsetsDS, def = OnsetsDS\n"
- *   -h: number of harmonic product specturm overtones, def = 2\n"
- *   -p: prefix for fname where spectral data is stored, def = NULL\n";
+/* Usage is as follows:
+ * mandatory args:
+ *   -i: Input .wav file
+ *   -o: output .wav file
+ * optional args:
+ *   -v: verbose output
+ *
+ *   --pitch_window: number of frames of audiodata taken for each stft window for pitch detection. def = 4096
+ *   --pitch_padded: final size of stft window for pitch detection after zero padding. 
+ *                    if not set, the window size will be --pitch_window.
+ *                    cannot be set to less than --pitch_window. def = -1
+ *   --pitch_spacing: stft window spacing for pitch detection, def = 2048
+ *   --pitch_strategy: strategy for pitch detection, either HPS, BaNa, and BaNaMusic, def = HPS
+ *
+ *   --onset_window: number of frames of audiodata taken for each stft window for onset detection. def = 512
+ *   --onset_padded: final size of stft window for onset detection after zero padding. 
+ *                    if not set, the window size will be --onset_window.
+ *                    cannot be set to less than --onset_window. def = -1
+ *   --onset_spacing: stft window spacing for onset detection, def = 256
+ *   --onset_strategy: strategy for onset detection, only OnsetsDS, def = OnsetsDS
+ *
+ *   -h: number of harmonic product specturm overtones, def = 2
+ *   -p: prefix for fname where spectral data is stored, def = NULL;
  */
 
 int main(int argc, char ** argv)
@@ -31,11 +40,13 @@ int main(int argc, char ** argv)
 
 	//args for pitch detection
 	int p_windowsize = 4096;
+	int p_paddedsize = -1; //-1 means no zero padding
 	int p_spacing = 2048;
 	PitchStrategyFunc p_Strategy = &HPSDetectionStrategy; //HPS is default strategy
 	
 	//args for onset detection
 	int o_windowsize = 512;
+	int o_paddedsize = -1; //-1 means no zero padding
 	int o_spacing = 256;
 	OnsetStrategyFunc o_Strategy = &OnsetsDSDetectionStrategy; //HPS is default strategy
 
@@ -47,10 +58,12 @@ int main(int argc, char ** argv)
 	static struct option long_options[] =
 		{
 			{"pitch_window", required_argument, 0, 'a'},
+			{"pitch_padded", required_argument, 0, 'x'},
 			{"pitch_spacing", required_argument, 0, 'b'},
 			{"pitch_strategy", required_argument, 0, 'c'},
 
 			{"onset_window", required_argument, 0, 'd'},
+			{"onset_padded", required_argument, 0, 'y'},
 			{"onset_spacing", required_argument, 0, 'e'},
 			{"onset_strategy", required_argument, 0, 'f'},
 
@@ -80,6 +93,13 @@ int main(int argc, char ** argv)
 				badargs = 1;
 			}
 			break;
+		case 'x':
+			p_paddedsize = atoi(optarg);
+			if(p_paddedsize < 1){
+				printf("Argument for option --pitch_padded must be a positive integer\n");
+				badargs = 1;
+			}
+			break;
 		case 'b':
 			p_spacing = atoi(optarg);
 			if(p_spacing < 1){
@@ -98,6 +118,13 @@ int main(int argc, char ** argv)
 			o_windowsize = atoi(optarg);
 			if(o_windowsize < 1){
 				printf("Argument for option --onset_window must be a positive integer\n");
+				badargs = 1;
+			}
+			break;
+		case 'y':
+			o_paddedsize = atoi(optarg);
+			if(o_paddedsize < 1){
+				printf("Argument for option --onset_padded must be a positive integer\n");
 				badargs = 1;
 			}
 			break;
@@ -141,9 +168,26 @@ int main(int argc, char ** argv)
 		printf("Mandatory Argument -o not set\n");
 		badargs = 1;
 	}
+	if(p_paddedsize == -1){
+		p_paddedsize = p_windowsize;
+	}
+	if(p_paddedsize < p_windowsize){
+		printf("--pitch_padded cannot be set less than --pitch_windowsize, whose value is %d\n", p_windowsize);
+		badargs = 1;
+	}
+	if(o_paddedsize == -1){
+		o_paddedsize = o_windowsize;
+	}
+	if(o_paddedsize < o_windowsize){
+		printf("--onset_padded cannot be set less than --onset_windowsize, whose value is %d\n", o_windowsize);
+		badargs = 1;
+	}
 
 	if(!badargs){
-		ExtractMelody(inFile, outFile, p_windowsize, p_spacing, p_Strategy, o_windowsize, o_spacing, o_Strategy, hpsOvertones, verbose, prefix);
+		ExtractMelody(inFile, outFile, 
+				p_windowsize, p_paddedsize, p_spacing, p_Strategy, 
+				o_windowsize, o_paddedsize, o_spacing, o_Strategy, 
+				hpsOvertones, verbose, prefix);
 	}
 
 	return 0;
