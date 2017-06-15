@@ -12,10 +12,6 @@
 #include "pitchStrat.h"
 #include "onsetStrat.h"
 
-const char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
-const char* ERR_FILE_NOT_MONO = "Input file must be Mono."
-                          " Multi-channel audio currently not supported.\n";
-
 void PrintAudioMetadata(SF_INFO * file)
 {
 	//this is only for printing information for debugging purposes
@@ -37,34 +33,17 @@ float* WindowFunction(int size)
 	return buffer;
 }
 
-int ExtractMelody(char* inFile, char* outFile, 
+int ExtractMelody(float** input, SF_INFO info, char* outFile, 
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int o_unpaddedSize, int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
 		int hpsOvr, int verbose, char* prefix)
 { 
-	//reads in .wav
-	SF_INFO info;
-	SNDFILE * f = sf_open(inFile, SFM_READ, &info);
-	if( !f ){
-		printf("%s", ERR_INVALID_FILE);
-		return -1;
-	}
-	if(info.channels != 1){
-		printf("%s", ERR_FILE_NOT_MONO);
-		sf_close( f );
-		return -1;
-	}
-	
 	if(verbose){
 		PrintAudioMetadata(&info);
 	}
 
-	float* input = malloc( sizeof(float) * info.frames);
-	sf_readf_float( f, input, info.frames );
-	sf_close( f );
-
 	float* o_fftData = NULL;
-	int o_size = STFT_r2r(&input, info, o_unpaddedSize, o_winInt, &o_fftData);
+	int o_size = STFT_r2r(input, info, o_unpaddedSize, o_winInt, &o_fftData);
 	int o_numBlocks = o_size/(o_unpaddedSize);
 	if(verbose){
 		printf("numblcks of onset FFT: %d\n", o_numBlocks);
@@ -72,7 +51,7 @@ int ExtractMelody(char* inFile, char* outFile,
 	}
 
 	fftwf_complex* p_fftData = NULL;
-	int p_size = STFT_r2c(&input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
+	int p_size = STFT_r2c(input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
 	int p_numBlocks = p_size/(p_winSize/2);
 	if(verbose){
 		printf("numblcks of pitch FFT: %d\n", p_numBlocks);
@@ -158,9 +137,6 @@ int ExtractMelody(char* inFile, char* outFile,
 	SaveMIDI(melodyMidi, p_numBlocks, outFile, verbose);
 
 	free(melodyMidi);
-
-	//if input is free before STFTinverse is called, result changes...?
-	free( input );
 
 	return info.frames;
 }

@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <getopt.h>
+#include "sndfile.h"
 #include "comparison.h"
 #include "pitchStrat.h"
 #include "onsetStrat.h"
@@ -33,6 +34,29 @@
  *   -p: prefix for fname where spectral data is stored, def = NULL;
  */
 
+const char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
+const char* ERR_FILE_NOT_MONO = "Input file must be Mono."
+                          " Multi-channel audio currently not supported.\n";
+
+int ReadAudioFile(char* inFile, float** buf, SF_INFO* info){
+	SNDFILE * f = sf_open(inFile, SFM_READ, info);
+	if( !f ){
+		printf("%s", ERR_INVALID_FILE);
+		return 0;
+	}
+	if((*info).channels != 1){
+		printf("%s", ERR_FILE_NOT_MONO);
+		sf_close( f );
+		return 0;
+	}
+
+	(*buf) = malloc( sizeof(float) * (*info).frames);
+	sf_readf_float( f, (*buf), (*info).frames );
+	sf_close( f );
+
+	return 1;
+}
+
 int main(int argc, char ** argv)
 {
 	char* inFile = NULL;
@@ -53,6 +77,9 @@ int main(int argc, char ** argv)
 	int hpsOvertones = 2;
 	int verbose = 0; 
 	char* prefix = NULL;
+
+	SF_INFO info;
+	float* input;
 	
 	//check command line arguments
 	static struct option long_options[] =
@@ -184,10 +211,17 @@ int main(int argc, char ** argv)
 	}
 
 	if(!badargs){
-		ExtractMelody(inFile, outFile, 
+		//reads in .wav
+		if(!ReadAudioFile(inFile, &input, &info)){
+			return -1;
+		}
+
+		ExtractMelody(&input, info, outFile, 
 				p_windowsize, p_paddedsize, p_spacing, p_Strategy, 
 				o_windowsize, o_paddedsize, o_spacing, o_Strategy, 
 				hpsOvertones, verbose, prefix);
+
+		free(input);
 	}
 
 	return 0;
