@@ -3,20 +3,20 @@
 #include <assert.h>
 #include "HPSDetection.h"
 
-float* HarmonicProductSpectrum(double** AudioData, int size, int dftBlocksize, int hpsOvr, int fftSize, int samplerate)
+float* HarmonicProductSpectrum(float** AudioData, int size, int dftBlocksize, int hpsOvr, int fftSize, int samplerate)
 {
 	//for now, doesn't attempt to distinguish if a note is or isnt playing.
 	//if no note is playing, the dominant tone will just be from the noise.
 
 	int i,j,limit, numBlocks, loudestIndex;
-	double loudestOfBlock;
+	float loudestOfBlock;
 	assert(size % dftBlocksize == 0);
 	numBlocks = size / dftBlocksize;
 
 	float* loudestFreq = malloc( sizeof(float) * numBlocks );
 
 	//create a copy of AudioData
-	double* AudioDataCopy = malloc( sizeof(double) * dftBlocksize );
+	float* AudioDataCopy = malloc( sizeof(float) * dftBlocksize );
 	printf("size: %d\n", size);
 	printf("dftblocksize: %d\n", dftBlocksize);
 

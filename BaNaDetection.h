@@ -1,13 +1,13 @@
 #include "lists.h"
-float* BaNa(double **AudioData, int size, int dftBlocksize, int p,
-	     double f0Min, double f0Max, int fftSize, int samplerate);
-float* BaNaMusic(double **AudioData, int size, int dftBlocksize, int p,
-		  double f0Min, double f0Max, int fftSize, int samplerate);
-double* calcFrequencies(int dftBlocksize, int fftSize, int samplerate);
-void BaNaPreprocessing(double **AudioData, int size, int dftBlocksize, int p,
-		       double f0Min, double f0Max, double* frequencies);
-struct distinctList** BaNaFindCandidates(double **AudioData, int size,
-					 int dftBlocksize, int p, double f0Min,
-					 double f0Max, int first, float xi,
-					 double* frequencies, int fftSize,
+float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
+	    float f0Min, float f0Max, int fftSize, int samplerate);
+float* BaNaMusic(float **AudioData, int size, int dftBlocksize, int p,
+		 float f0Min, float f0Max, int fftSize, int samplerate);
+float* calcFrequencies(int dftBlocksize, int fftSize, int samplerate);
+void BaNaPreprocessing(float **AudioData, int size, int dftBlocksize, int p,
+		       float f0Min, float f0Max, float* frequencies);
+struct distinctList** BaNaFindCandidates(float **AudioData, int size,
+					 int dftBlocksize, int p, float f0Min,
+					 float f0Max, int first, float xi,
+					 float* frequencies, int fftSize,
 					 int samplerate);

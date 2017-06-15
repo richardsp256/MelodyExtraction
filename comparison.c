@@ -79,7 +79,7 @@ int ExtractMelody(char* inFile, char* outFile,
 		fflush(NULL);
 	}
 
-	double* spectrum = Magnitude(p_fftData, p_size);
+	float* spectrum = Magnitude(p_fftData, p_size);
 	if(verbose){
 		printf("Magnitude complete\n");
 		fflush(NULL);
@@ -327,10 +327,10 @@ int STFTinverse_c2r(fftwf_complex** input, SF_INFO info, int winSize, int interv
 	return info.frames;
 }
 
-double* Magnitude(fftwf_complex* arr, int size)
+float* Magnitude(fftwf_complex* arr, int size)
 {
 	int i;
-	double* magArr = malloc( sizeof(double) * size);
+	float* magArr = malloc( sizeof(float) * size);
 	for(i = 0; i < size; i++){
 		magArr[i] = hypot(arr[i][0], arr[i][1]);
 	}
@@ -399,7 +399,8 @@ void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
 	fclose(file);
 }
 
-void SaveWeightsTxt(char* fileName, double** AudioData, int size, int dftBlocksize, int samplerate, int winSize){
+void SaveWeightsTxt(char* fileName, float** AudioData, int size,
+		    int dftBlocksize, int samplerate, int winSize){
         // Saves the weights of each frequency bin to a text file
         FILE *fp;
 	int blockstart, i;

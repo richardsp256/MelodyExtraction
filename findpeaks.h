@@ -1,8 +1,8 @@
 #ifndef FINDPEAKS_H
 #define FINDPEAKS_H
 struct peak {
-	double peakX;
-	double peakY;
+	float peakX;
+	float peakY;
 };
 
 struct peakQueue{
@@ -13,17 +13,17 @@ struct peakQueue{
 
 #endif /*FINDPEAKS_H*/
 
-int findpeaks(double* x, double* y, long length,double slopeThreshold, 
-	      double ampThreshold, double smoothwidth, int peakgroup,
-	      int smoothtype, int N, int first, double* peakX, double* peakY,
-	      double* firstPeakX);
-int sign(double x);
-void findpeaksHelper(double* x, double* y, long length, int peakgroup, 
-		     double* peakX, double* peakY, long j, int n);
-double* quadFit(double* x, double* y, long length, double* mean, double *std);
-double* deriv(double* a, long length);
-double* fastsmooth(double* y, long length, double w, int type);
-double* sa(double* y, long length, double smoothwidth);
+int findpeaks(float* x, float* y, long length,float slopeThreshold, 
+	      float ampThreshold, float smoothwidth, int peakgroup,
+	      int smoothtype, int N, int first, float* peakX, float* peakY,
+	      float* firstPeakX);
+int sign(float x);
+void findpeaksHelper(float* x, float* y, long length, int peakgroup, 
+		     float* peakX, float* peakY, long j, int n);
+float* quadFit(float* x, float* y, long length, float* mean, float *std);
+float* deriv(float* a, long length);
+float* fastsmooth(float* y, long length, float w, int type);
+float* sa(float* y, long length, float smoothwidth);
 
 struct peakQueue peakQueueNew(int max_size);
 void peakQueueDestroy(struct peakQueue peakQ);
@@ -32,6 +32,6 @@ void peakQueueBubbleUp(struct peakQueue *peakQ,int index);
 void peakQueueBubbleDown(struct peakQueue *peakQ, int index);
 void peakQueueInsert(struct peakQueue *peakQ, struct peak newPeak);
 struct peak peakQueuePop(struct peakQueue *peakQ);
-void peakQueueAddNewPeak(struct peakQueue *peakQ, double peakX, double peakY);
-int peakQueueToArrays(struct peakQueue *peakQ, double* peakX, double* peakY);
+void peakQueueAddNewPeak(struct peakQueue *peakQ, float peakX, float peakY);
+int peakQueueToArrays(struct peakQueue *peakQ, float* peakX, float* peakY);
 void peakQueuePrint(struct peakQueue *peakQ);

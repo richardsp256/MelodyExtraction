@@ -15,7 +15,7 @@ static float mRanges[15] = { 4,  3,  2,  3,
 			    -1,  1, -1};
 
 
-struct orderedList calcCandidates(double* peaks, int numPeaks)
+struct orderedList calcCandidates(float* peaks, int numPeaks)
 {
 	int i,j;
 	float m;
@@ -24,10 +24,9 @@ struct orderedList calcCandidates(double* peaks, int numPeaks)
 
 	for (i=0; i<numPeaks-1;i++){
 		for (j=i+1; j<numPeaks; j++){
-			m = calcM((float)peaks[i],(float)peaks[j]);
+			m = calcM(peaks[i],peaks[j]);
 			if (m>0) {
-				orderedListInsert(&candidates,
-						  ((float)(peaks[i]))/m);
+				orderedListInsert(&candidates, peaks[i]/m);
 			}				
 		}
 	}
