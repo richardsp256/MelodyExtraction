@@ -41,7 +41,7 @@ double log2(double x){
 void SaveMIDI(int* noteArr, int size, char* path, int verbose){
 	//MIDI files are big-endian, so reverse byte order of all ints and shorts
 	int trackCapacity = 1000;
-	unsigned char* trackData = malloc(sizeof(char) * trackCapacity); //experiment with size or more dynamic allocation
+	unsigned char* trackData = malloc(sizeof(char) * trackCapacity);
 	int tracklength = MakeTrack(&trackData, trackCapacity, noteArr, size);
 	if(tracklength < 0){
 		printf("track generation failed\n");
@@ -71,12 +71,12 @@ void SaveMIDI(int* noteArr, int size, char* path, int verbose){
 void AddHeader(FILE** f, short format, short tracks, short division){
 	unsigned char* headerBuf = calloc(14, sizeof(char));
 
-	char* descriptor = "MThd";
+	char* descriptor = "MThd"; //all midi headers start with MThd so it knows its a midi file
 	memcpy( &headerBuf[0], &descriptor[0], 4 * sizeof(char) );
 
 	unsigned char* tmp;
 
-	BigEndianInteger(&tmp, 6);
+	BigEndianInteger(&tmp, 6); //length of the rest of the header, always 6
 	memcpy( &headerBuf[4], &tmp[0], 4 * sizeof(char) );
 	free(tmp);
 
@@ -274,7 +274,7 @@ unsigned char* MessageNoteOn(int pitch, int velocity) {
 
 unsigned char* MessageNoteOff(int pitch, int velocity) {
 	unsigned char* message = malloc(sizeof(unsigned char) * 3);
-	message[0] = (unsigned char)128; //code for NoteOn event on channel 1
+	message[0] = (unsigned char)128; //code for NoteOff event on channel 1
 	message[1] = (unsigned char)pitch;
 	message[2] = (unsigned char)velocity;
 	return message;
