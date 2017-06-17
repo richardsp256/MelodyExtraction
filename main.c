@@ -7,6 +7,7 @@
 #include <limits.h>
 #include "sndfile.h"
 #include "comparison.h"
+#include "midi.h"
 #include "pitchStrat.h"
 #include "onsetStrat.h"
 
@@ -272,10 +273,14 @@ int main(int argc, char ** argv)
 
 	if(!badargs){
 
-		ExtractMelody(&input, info, outFile, 
+		int* melody;
+
+		int melodySize = ExtractMelody(&input, &melody, info, 
 				p_windowsize, p_paddedsize, p_spacing, p_Strategy, 
 				o_windowsize, o_paddedsize, o_spacing, o_Strategy, 
 				hpsOvertones, verbose, prefix);
+
+		SaveMIDI(melody, melodySize, outFile, verbose);
 	}
 	if(readFile){
 		free(input);

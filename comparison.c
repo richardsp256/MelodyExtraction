@@ -33,7 +33,7 @@ float* WindowFunction(int size)
 	return buffer;
 }
 
-int ExtractMelody(float** input, SF_INFO info, char* outFile, 
+int ExtractMelody(float** input, int** melodyMidi, SF_INFO info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int o_unpaddedSize, int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
 		int hpsOvr, int verbose, char* prefix)
@@ -90,15 +90,6 @@ int ExtractMelody(float** input, SF_INFO info, char* outFile,
 		fflush(NULL);
 	}
 
-	onsetStrategy(&o_fftData, o_size, o_unpaddedSize, o_winInt, info.samplerate);
-
-	if(verbose){
-		printf("Onset detection complete\n");
-		fflush(NULL);
-	}
-
-	int* melodyMidi = malloc(sizeof(float) * p_numBlocks);
-
 	if (prefix !=NULL){
 		// Here we save the processed spectra
 		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
@@ -107,6 +98,17 @@ int ExtractMelody(float** input, SF_INFO info, char* outFile,
 		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
 		free(spectraFile);
 	}
+
+	onsetStrategy(&o_fftData, o_size, o_unpaddedSize, o_winInt, info.samplerate);
+
+	if(verbose){
+		printf("Onset detection complete\n");
+		fflush(NULL);
+	}
+
+	(*melodyMidi) = malloc(sizeof(float) * p_numBlocks);
+
+
 	
 	//get midi note values of pitch in each bin
 	for(int i = 0; i < p_numBlocks; ++i){
@@ -117,13 +119,13 @@ int ExtractMelody(float** input, SF_INFO info, char* outFile,
 			fflush(NULL);
 		}
 		
-		melodyMidi[i] = FrequencyToNote(freq[i]);
+		(*melodyMidi)[i] = FrequencyToNote(freq[i]);
 		if(verbose){
-			printf("   midi: %d", melodyMidi[i]);
+			printf("   midi: %d", (*melodyMidi)[i]);
 			fflush(NULL);
 		}
 		char* noteName = calloc(5, sizeof(char));
-		NoteToName(melodyMidi[i], &noteName);
+		NoteToName((*melodyMidi)[i], &noteName);
 		if(verbose){
 			printf("   name: %s \n", noteName);
 			fflush(NULL);
@@ -134,11 +136,7 @@ int ExtractMelody(float** input, SF_INFO info, char* outFile,
 	printf("printout complete\n");
 	fflush(NULL);
 
-	SaveMIDI(melodyMidi, p_numBlocks, outFile, verbose);
-
-	free(melodyMidi);
-
-	return info.frames;
+	return p_numBlocks;
 }
 
 //reads in .wav, returns FFT by reference through fft_data, returns size of fft_data

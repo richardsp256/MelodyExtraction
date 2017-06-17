@@ -5,7 +5,7 @@
 
 void PrintAudioMetadata(SF_INFO * file);
 float* WindowFunction(int size);
-int ExtractMelody(float** input, SF_INFO info, char* outFile, 
+int ExtractMelody(float** input, int** melodyMidi, SF_INFO info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int o_unpaddedSize, int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
 		int hpsOvr, int verbose, char* prefix);
