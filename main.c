@@ -273,14 +273,10 @@ int main(int argc, char ** argv)
 
 	if(!badargs){
 
-		int* melody;
-
-		int melodySize = ExtractMelody(&input, &melody, info, 
+		struct Midi* midi  = ExtractMelody(&input, info, 
 				p_windowsize, p_paddedsize, p_spacing, p_Strategy, 
 				o_windowsize, o_paddedsize, o_spacing, o_Strategy, 
 				hpsOvertones, verbose, prefix);
-
-		struct Midi* midi = GenerateMIDI(melody, melodySize, verbose);
 
 		SaveMIDI(midi, outFile, verbose);
 
