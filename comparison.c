@@ -42,74 +42,23 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 		PrintAudioMetadata(&info);
 	}
 
-	float* o_fftData = NULL;
-	int o_size = STFT_r2r(input, info, o_unpaddedSize, o_winInt, &o_fftData);
-	int o_numBlocks = o_size/(o_unpaddedSize);
-	if(verbose){
-		printf("numblcks of onset FFT: %d\n", o_numBlocks);
-		fflush(NULL);
-	}
-
-	fftwf_complex* p_fftData = NULL;
-	int p_size = STFT_r2c(input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
-	int p_numBlocks = p_size/(p_winSize/2);
-	if(verbose){
-		printf("numblcks of pitch FFT: %d\n", p_numBlocks);
-		fflush(NULL);
-	}
-
-	double* spectrum = Magnitude(p_fftData, p_size);
-	if(verbose){
-		printf("Magnitude complete\n");
-		fflush(NULL);
-	}
-
-	//double* output = NULL;
-	//STFTinverse(&p_fftData, info, winSize, p_winInt, &output);
-	//if(verbose){
-	//	printf("STFTInverse complete\n");
-	//}
-	free(p_fftData);
-	//SaveAsWav(output, info, outFile);
-	//free( output );
-
-	if (prefix !=NULL){
-		// Here we save the original spectra
-		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
-		strcpy(spectraFile,prefix);
-		strcat(spectraFile,"_original.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
-		free(spectraFile);
-	}
-	
-	float* freq = pitchStrategy(&spectrum, p_size, p_winSize/2, hpsOvr,
-					p_winSize, info.samplerate);
-
+	float* freq;
+	int freqSize = ExtractPitch(input, &freq, info, p_unpaddedSize, p_winSize,
+	                          p_winInt, pitchStrategy, hpsOvr, verbose, prefix);
 	if(verbose){
 		printf("Pitch detection complete\n");
 		fflush(NULL);
 	}
-
-	if (prefix !=NULL){
-		// Here we save the processed spectra
-		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
-		strcpy(spectraFile,prefix);
-		strcat(spectraFile,"_weighted.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
-		free(spectraFile);
-	}
-
-	onsetStrategy(&o_fftData, o_size, o_unpaddedSize, o_winInt, info.samplerate);
-
+	ExtractOnset(input, info, o_unpaddedSize, o_winSize, o_winInt, 
+	             onsetStrategy, verbose);
 	if(verbose){
 		printf("Onset detection complete\n");
 		fflush(NULL);
 	}
 
-	int* melodyMidi = malloc(sizeof(float) * p_numBlocks);
-
 	//get midi note values of pitch in each bin
-	for(int i = 0; i < p_numBlocks; ++i){
+	int* melodyMidi = malloc(sizeof(float) * freqSize);
+	for(int i = 0; i < freqSize; ++i){
 		if(verbose){
 			printf("block%d:", i);
 			fflush(NULL);
@@ -130,13 +79,78 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 		}
 		free(noteName);
 	}
-
 	printf("printout complete\n");
 	fflush(NULL);
 
-	struct Midi* midi = GenerateMIDI(melodyMidi, p_numBlocks, verbose);
-
+	struct Midi* midi = GenerateMIDI(melodyMidi, freqSize, verbose);
 	return midi;
+}
+
+int ExtractPitch(float** input, float** pitches, SF_INFO info,
+		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
+		int hpsOvr, int verbose, char* prefix)
+{
+	fftwf_complex* p_fftData = NULL;
+	int p_size = STFT_r2c(input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
+	int p_numBlocks = p_size/(p_winSize/2);
+	if(verbose){
+		printf("numblcks of pitch FFT: %d\n", p_numBlocks);
+		fflush(NULL);
+	}
+
+	double* spectrum = Magnitude(p_fftData, p_size);
+	if(verbose){
+		printf("Magnitude complete\n");
+		fflush(NULL);
+	}
+
+	//double* output = NULL;
+	//STFTinverse(&p_fftData, info, winSize, p_winInt, &output);
+	//if(verbose){
+	//	printf("STFTInverse complete\n");
+	//}
+	free(p_fftData);
+	//SaveAsWav(output, info, stftInverse.wav);
+	//free( output );
+
+	if (prefix !=NULL){
+		// Here we save the original spectra
+		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
+		strcpy(spectraFile,prefix);
+		strcat(spectraFile,"_original.txt");
+		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
+		free(spectraFile);
+	}
+	
+	(*pitches) = pitchStrategy(&spectrum, p_size, p_winSize/2, hpsOvr,
+					p_winSize, info.samplerate);
+
+	if (prefix !=NULL){
+		// Here we save the processed spectra
+		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
+		strcpy(spectraFile,prefix);
+		strcat(spectraFile,"_weighted.txt");
+		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
+		free(spectraFile);
+	}
+
+	return p_numBlocks;
+}
+
+void ExtractOnset(float** input, SF_INFO info, int o_unpaddedSize, int o_winSize, 
+                  int o_winInt, OnsetStrategyFunc onsetStrategy, int verbose)
+{
+	float* o_fftData = NULL;
+	int o_size = STFT_r2r(input, info, o_unpaddedSize, o_winInt, &o_fftData);
+	int o_numBlocks = o_size/(o_unpaddedSize);
+	if(verbose){
+		printf("numblcks of onset FFT: %d\n", o_numBlocks);
+		fflush(NULL);
+	}
+
+	onsetStrategy(&o_fftData, o_size, o_unpaddedSize, o_winInt, info.samplerate);
+
+	free(o_fftData);
 }
 
 //reads in .wav, returns FFT by reference through fft_data, returns size of fft_data
