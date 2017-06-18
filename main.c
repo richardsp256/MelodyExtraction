@@ -280,7 +280,11 @@ int main(int argc, char ** argv)
 				o_windowsize, o_paddedsize, o_spacing, o_Strategy, 
 				hpsOvertones, verbose, prefix);
 
-		SaveMIDI(melody, melodySize, outFile, verbose);
+		struct Midi* midi = GenerateMIDI(melody, melodySize, verbose);
+
+		SaveMIDI(midi, outFile, verbose);
+
+		freeMidi(midi);
 	}
 	if(readFile){
 		free(input);

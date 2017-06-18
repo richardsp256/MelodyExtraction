@@ -38,7 +38,10 @@ double log2(double x){
 	return log(x)/log(2);
 }
 
-void SaveMIDI(int* noteArr, int size, char* path, int verbose){
+struct Track* GenerateTrack(int* noteArr, int size, int verbose){
+	struct Track *track;
+	track = malloc(sizeof(struct Track));
+
 	//MIDI files are big-endian, so reverse byte order of all ints and shorts
 	int trackCapacity = 1000;
 	unsigned char* trackData = malloc(sizeof(char) * trackCapacity);
@@ -46,26 +49,63 @@ void SaveMIDI(int* noteArr, int size, char* path, int verbose){
 	if(tracklength < 0){
 		printf("track generation failed\n");
 		free(trackData);
+		return NULL;
+	}
+
+	track->len = tracklength;
+	track->data = trackData;
+	return track;
+}
+
+struct Midi* GenerateMIDI(int* noteArr, int size, int verbose){
+	//MIDI files are big-endian, so reverse byte order of all ints and shorts
+	struct Track* track;
+	track = GenerateTrack(noteArr, size, verbose);
+	if(!track){
+		printf("track generation failed\n");
+		return NULL;
 	}
 	else{
-		FILE* f = fopen(path, "wb+");
+		struct Midi* midi;
+		midi = malloc(sizeof(struct Midi));
+		midi->tracks = malloc(sizeof(struct Track*) * 1);
+		midi->tracks[0] = track;
+		midi->format = 1;
+		midi->numTracks = 1; //note: multiple tracks not currently supported
+		midi->division = 24; //note: in the future dont hardcode
+		return midi;
+	}
+}
 
-		AddHeader(&f, 0, 1, 24); //first 
-		if(verbose){
-			printf("header added\n");
-			fflush(NULL);
-		}
+void freeMidi(struct Midi* midi){
+	for(int i = 0; i < midi->numTracks; ++i){
+		struct Track* track = midi->tracks[i];
+		free(track->data);
+		free(track);
+	}
+	free(midi->tracks);
+	free(midi);
+}
 
+void SaveMIDI(struct Midi* midi, char* path, int verbose){
+	//MIDI files are big-endian, so reverse byte order of all ints and shorts
+	FILE* f = fopen(path, "wb+");
 
-		AddTrack(&f, trackData, tracklength);
+	AddHeader(&f, midi->format, midi->numTracks, midi->division); //first 
+	if(verbose){
+		printf("header added\n");
+		fflush(NULL);
+	}
+ 
+	for(int i = 0; i < midi->numTracks; ++i){
+		struct Track* track = midi->tracks[i];
+		AddTrack(&f, track->data, track->len);
 		if(verbose){
 			printf("track added\n");
 			fflush(NULL);
 		}
-		free(trackData);
-
-		fclose(f);
 	}
+	fclose(f);
 }
 
 void AddHeader(FILE** f, short format, short tracks, short division){
