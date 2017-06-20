@@ -198,6 +198,32 @@ void distinctListPrintConfidence(struct distinctList list)
 	printf("]\n");
 }
 
+void distinctListPrintCost(struct distinctList list)
+{
+	printf("[");
+	if (list.length != 0){
+		printf("%.10f",list.array[0].cost);
+	}
+	int i;
+	for (i=1; i<list.length; i++){
+		printf(", %.10f",list.array[i].cost);
+	}
+	printf("]\n");
+}
+
+void distinctListPrintIndexLowestCost(struct distinctList list)
+{
+	printf("[");
+	if (list.length != 0){
+		printf("%d",list.array[0].indexLowestCost);
+	}
+	int i;
+	for (i=1; i<list.length; i++){
+		printf(", %d",list.array[i].indexLowestCost);
+	}
+	printf("]\n");
+}
+
 void distinctListResize(struct distinctList *list)
 {
 	// resizes the list to be the current size of the candidate list

@@ -42,3 +42,5 @@ void distinctListAdjustCost(struct distinctList *list, int index,
 			     float cost, int indexLowestCost);
 void distinctListPrintFreq(struct distinctList list);
 void distinctListPrintConfidence(struct distinctList list);
+void distinctListPrintCost(struct distinctList list);
+void distinctListPrintIndexLowestCost(struct distinctList list);
