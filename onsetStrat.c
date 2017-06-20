@@ -48,7 +48,7 @@ void OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, in
 	float* odsdata = (float*) malloc( onsetsds_memneeded(odftype, 512, 11) );
 
 	// Now initialise the OnsetsDS struct and its associated memory
-	onsetsds_init(&ods, odsdata, ODS_FFT_FFTW3_HC, odftype, 512, 11, samplerate);
+	onsetsds_init(&ods, odsdata, ODS_FFT_FFTW3_R2C, odftype, 512, 11, samplerate);
 
 	float* block = malloc(sizeof(float) * dftBlocksize);
 	for(int i = 0; i < numBlocks; ++i){

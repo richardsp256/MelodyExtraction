@@ -140,15 +140,16 @@ int ExtractPitch(float** input, float** pitches, SF_INFO info,
 void ExtractOnset(float** input, SF_INFO info, int o_unpaddedSize, int o_winSize, 
                   int o_winInt, OnsetStrategyFunc onsetStrategy, int verbose)
 {
-	float* o_fftData = NULL;
-	int o_size = STFT_r2r(input, info, o_unpaddedSize, o_winInt, &o_fftData);
-	int o_numBlocks = o_size/(o_unpaddedSize);
+	fftwf_complex* o_fftData = NULL;
+	int o_size = STFT_r2c(input, info, o_unpaddedSize, o_winSize, o_winInt, &o_fftData);
+	int o_numBlocks = o_size/(o_winSize/2);
 	if(verbose){
-		printf("numblcks of onset FFT: %d\n", o_numBlocks);
+		printf("numblcks of pitch FFT: %d\n", o_numBlocks);
 		fflush(NULL);
 	}
+	float* o_fftData_float = (float*)o_fftData;
 
-	onsetStrategy(&o_fftData, o_size, o_unpaddedSize, o_winInt, info.samplerate);
+	onsetStrategy(&o_fftData_float, o_size*2, o_winSize, o_winInt, info.samplerate);
 
 	free(o_fftData);
 }
@@ -207,60 +208,6 @@ int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int int
 	fftwf_free( fftw_out );
 
 	return numBlocks * realWinSize;
-}
-
-//reads in .wav, returns FFT by reference through fft_data, returns size of fft_data
-int STFT_r2r(float** input, SF_INFO info, int winSize, int interval, float** fft_data)
-{
-    int i;
-    int j;
-
-    float* fftw_in = fftwf_malloc( sizeof( float ) * winSize);
-    float* fftw_out = fftwf_malloc( sizeof( fftwf_complex ) * winSize );
-
-    fftwf_plan plan  = fftwf_plan_r2r_1d( winSize, fftw_in, fftw_out, FFTW_R2HC, FFTW_MEASURE );
-
-    float* window = WindowFunction(winSize);
- 
-    //malloc space for fft_data
-	int numBlocks = (int)ceil((info.frames - winSize) / (float)interval) + 1;
-	if(numBlocks < 1){
-		numBlocks = 1;
-	}
-
-	//allocate winsize for each block, storing the real and imaginary components up to the nyquist
-    (*fft_data) = malloc( sizeof(float) * numBlocks * winSize );
- 
-	int blockoffset;
-    //run fft on each block
-    for(i = 0; i < numBlocks; i++){
-
-		// Copy the chunk into our buffer
-		blockoffset = i*interval;
-		for(j = 0; j < winSize; j++) {
-
-			if(blockoffset + j < info.frames) {
-				fftw_in[j] = (*input)[blockoffset + j] * window[j]; 
-			} else {
-				//reached end of input
-				//Pad with 0 so fft is same size as other blocks
-				fftw_in[j] = 0.0; 
-			}
-		}
-
-		fftwf_execute( plan );
-
-		for (j = 0; j < winSize; j++) {
-			(*fft_data)[i*winSize + j] = fftw_out[j];
-		}	
-	}
-
-	free(window);
-	fftwf_destroy_plan( plan );
-	fftwf_free( fftw_in );
-	fftwf_free( fftw_out );
-
-	return numBlocks * winSize;
 }
 
 int STFTinverse_c2r(fftwf_complex** input, SF_INFO info, int winSize, int interval, float** output)
