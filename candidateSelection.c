@@ -110,18 +110,6 @@ void candidateSelectionSegment(float* fundamentals,
 				finalindex = i;
 			}
 		}
-		if (frame == 15||frame==16){
-			printf("\nFrame %li:\n", frame);
-			printf("Frequencies: ");
-			distinctListPrintFreq(*curWindowList);
-			printf("Confidence: ");
-			distinctListPrintConfidence(*curWindowList);
-			printf("Cost: ");
-			distinctListPrintCost(*curWindowList);
-			printf("LowestCostIndices: ");
-			distinctListPrintIndexLowestCost(*curWindowList);
-			printf("\n");
-		}
 	}
 
 	// now trace the lowest cost path backwards
