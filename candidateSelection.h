@@ -1,6 +1,8 @@
 #include "lists.h"
 
-double costFunction(struct candidate cand1, struct candidate cand2);
-double* candidateSelection(struct candidateList **windowList, long length);
-void candidateSelectionSegment(double* fundamentals, 
-				struct candidateList **windowList, long final, long start);
+float costFunction(struct distinctCandidate cand1,
+		   struct distinctCandidate cand2);
+float* candidateSelection(struct distinctList **windowList, long length);
+void candidateSelectionSegment(float* fundamentals,
+			       struct distinctList **windowList, long final,
+			       long start);

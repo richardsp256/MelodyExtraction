@@ -9,7 +9,30 @@
 // below is afunction generally associated with lists. It is specifically used
 // by orderedList
 
-int bisectLeft(double* l, double value, int low, int high){
+int bisectLeft(float* l, float value, int low, int high){
+	// function to find the index of the leftmost value in l greater
+	// than or equal to value.
+
+	// We just use the algorithm used for python's bisect left function
+	// It is implemented here:
+	// https://github.com/python-git/python/blob/master/Lib/bisect.py
+
+	// This could probably be better optimized
+
+	// for integers >=0 integer division is floor division
+	int mid;
+	while (low<high){
+		mid = (low+high)/2;
+		if (l[mid]<value){
+			low = mid+1;
+		} else {
+			high = mid;
+		}
+	}
+	return low;
+}
+
+int bisectLeftD(double* l, double value, int low, int high){
 	// function to find the index of the leftmost value in l greater
 	// than or equal to value.
 
@@ -39,7 +62,7 @@ int bisectLeft(double* l, double value, int low, int high){
 struct orderedList orderedListCreate(int max_length)
 {
 	struct orderedList list;
-	list.array = malloc(max_length*sizeof(double));
+	list.array = malloc(max_length*sizeof(float));
 	list.max_length = max_length;
 	list.length = 0;
 	return list;
@@ -50,19 +73,19 @@ void orderedListDestroy(struct orderedList list)
 	free(list.array);
 }
 
-double orderedListGet(struct orderedList list, int index)
+float orderedListGet(struct orderedList list, int index)
 {
 	return list.array[index];
 }
 
-int bisectInsertionSearch(struct orderedList list, double value){
+int bisectInsertionSearch(struct orderedList list, float value){
 	// function to find the index of the leftmost value in list greater
 	// than or equal to value.
 
 	return bisectLeft(list.array, value, 0, list.length);
 }
 
-void orderedListInsert(struct orderedList *list, double value)
+void orderedListInsert(struct orderedList *list, float value)
 {
 	// insert value into list
 	if (list->length == 0){
@@ -104,43 +127,43 @@ void orderedListPrint(struct orderedList list)
 {
 	printf("[");
 	if (list.length != 0){
-		printf("%lf",list.array[0]);
+		printf("%f",list.array[0]);
 	}
 	int i;
 	for (i=1; i<list.length; i++){
-		printf(", %lf",list.array[i]);
+		printf(", %f",list.array[i]);
 	}
 	printf("]\n");
 }
 
-// Defining functions for candidateList (which is an unordered list containing
+// Defining functions for distinctList (which is an unordered list containing
 // candidate structs
 
-struct candidateList* candidateListCreate(int max_length)
+struct distinctList* distinctListCreate(int max_length)
 {
-	struct candidateList* list;
-	list = malloc(sizeof(struct candidateList));
-	list->array = malloc(max_length * sizeof(struct candidate));
+	struct distinctList* list;
+	list = malloc(sizeof(struct distinctList));
+	list->array = malloc(max_length * sizeof(struct distinctCandidate));
 	list->max_length = max_length;
 	list->length = 0;
 	return list;
 }
 
-void candidateListDestroy(struct candidateList* list)
+void distinctListDestroy(struct distinctList* list)
 {
 	free(list->array);
 	free(list);
 }
 
-struct candidate candidateListGet(struct candidateList list, int index)
+struct distinctCandidate distinctListGet(struct distinctList list, int index)
 {
 	return list.array[index];
 }
 
-void candidateListAdd(struct candidateList *list, double frequency,
+void distinctListAdd(struct distinctList *list, float frequency,
 		      int confidence)
 {
-	struct candidate temp;
+	struct distinctCandidate temp;
 	temp.frequency = frequency;
 	temp.confidence = confidence;
 	temp.cost = 0.0;
@@ -149,7 +172,7 @@ void candidateListAdd(struct candidateList *list, double frequency,
 	(list->length)++;
 }
 
-void candidateListPrintFreq(struct candidateList list)
+void distinctListPrintFreq(struct distinctList list)
 {
 	printf("[");
 	if (list.length != 0) {
@@ -162,7 +185,7 @@ void candidateListPrintFreq(struct candidateList list)
 	printf("]\n");
 }
 
-void candidateListPrintConfidence(struct candidateList list)
+void distinctListPrintConfidence(struct distinctList list)
 {
 	printf("[");
 	if (list.length != 0){
@@ -175,11 +198,38 @@ void candidateListPrintConfidence(struct candidateList list)
 	printf("]\n");
 }
 
-void candidateListResize(struct candidateList *list)
+void distinctListPrintCost(struct distinctList list)
+{
+	printf("[");
+	if (list.length != 0){
+		printf("%.10f",list.array[0].cost);
+	}
+	int i;
+	for (i=1; i<list.length; i++){
+		printf(", %.10f",list.array[i].cost);
+	}
+	printf("]\n");
+}
+
+void distinctListPrintIndexLowestCost(struct distinctList list)
+{
+	printf("[");
+	if (list.length != 0){
+		printf("%d",list.array[0].indexLowestCost);
+	}
+	int i;
+	for (i=1; i<list.length; i++){
+		printf(", %d",list.array[i].indexLowestCost);
+	}
+	printf("]\n");
+}
+
+void distinctListResize(struct distinctList *list)
 {
 	// resizes the list to be the current size of the candidate list
-	struct candidate* tmp;
-	tmp = realloc(list->array,(list->length)*sizeof(struct candidate));
+	struct distinctCandidate* tmp;
+	tmp = realloc(list->array, (list->length) *
+		      sizeof(struct distinctCandidate));
 	if (tmp == NULL){
 		// this means there was a failure here, we should do something
 	}
@@ -187,11 +237,11 @@ void candidateListResize(struct candidateList *list)
 	list->max_length = list->length;
 }
 
-void candidateListAdjustCost(struct candidateList *list, int index,
-			     double cost, int indexLowestCost)
+void distinctListAdjustCost(struct distinctList *list, int index,
+			     float cost, int indexLowestCost)
 {
 	// adjust values of cost and indexLowestCost for list[index]
-	struct candidate* tmp;
+	struct distinctCandidate* tmp;
 	tmp = &(list->array[index]);
 	tmp->cost = cost;
 	tmp->indexLowestCost = indexLowestCost;
@@ -224,45 +274,45 @@ int main(int argc, char*argv[])
 	orderedListPrint(l);
 	orderedListDestroy(l);
 
-	struct candidateList* lptr = candidateListCreate(18);
-	struct candidateList l = *lptr;
-	candidateListAdd(&l, 190.0,7);
-	candidateListAdd(&l, 96.,2);
-	candidateListAdd(&l, 121,1);
-	candidateListAdd(&l, 242,1);
-	candidateListAdd(&l, 391,1);
+	struct distinctList* lptr = distinctListCreate(18);
+	struct distinctList l = *lptr;
+	distinctListAdd(&l, 190.0,7);
+	distinctListAdd(&l, 96.,2);
+	distinctListAdd(&l, 121,1);
+	distinctListAdd(&l, 242,1);
+	distinctListAdd(&l, 391,1);
 
-	candidateListPrintFreq(l);
-	candidateListPrintConfidence(l);
+	distinctListPrintFreq(l);
+	distinctListPrintConfidence(l);
 	printf("%d\n",(l.max_length));
-	candidateListResize(&l);
-	candidateListPrintFreq(l);
-	candidateListPrintConfidence(l);
+	distinctListResize(&l);
+	distinctListPrintFreq(l);
+	distinctListPrintConfidence(l);
 	printf("%d\n",(l.max_length));
 
 	printf("cost = %lf  indexLowestCost = %d\n", l.array[2].cost,
 	       l.array[2].indexLowestCost);
 
-	candidateListAdjustCost(&l, 2, 56.4, 1);
+	distinctListAdjustCost(&l, 2, 56.4, 1);
 	printf("cost = %lf  indexLowestCost = %d\n", l.array[2].cost,
 	       l.array[2].indexLowestCost);
 
 
-	struct candidateList *l2ptr = candidateListCreate(18);
-	struct candidateList l2 = *l2ptr;
-	candidateListAdd(&l2, 532.24,2);
-	candidateListAdd(&l2, 68.1,1);
-	candidateListResize(&l2);
+	struct distinctList *l2ptr = distinctListCreate(18);
+	struct distinctList l2 = *l2ptr;
+	distinctListAdd(&l2, 532.24,2);
+	distinctListAdd(&l2, 68.1,1);
+	distinctListResize(&l2);
 
-	struct candidateList **windowLists = malloc(sizeof(struct candidateList*)*2);
+	struct distinctList **windowLists = malloc(sizeof(struct distinctList*)*2);
 	windowLists[0] = &l;
 	windowLists[1] = &l2;
 
-	candidateListPrintFreq(*windowLists[1]);
-	candidateListPrintFreq(*windowLists[0]);
+	distinctListPrintFreq(*windowLists[1]);
+	distinctListPrintFreq(*windowLists[0]);
 	free(windowLists);
-	candidateListDestroy(lptr);
-	candidateListDestroy(l2ptr);
+	distinctListDestroy(lptr);
+	distinctListDestroy(l2ptr);
 
 }
 */

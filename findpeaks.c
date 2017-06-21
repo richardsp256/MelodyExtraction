@@ -25,10 +25,10 @@ SOFTWARE.
 
 
 
-int findpeaks(double* x, double* y, long length,double slopeThreshold, 
-	      double ampThreshold, double smoothwidth, int peakgroup,
-	      int smoothtype, int N, int first, double* peakX,
-	      double* peakY, double* firstPeakX)
+int findpeaks(float* x, float* y, long length,float slopeThreshold, 
+	      float ampThreshold, float smoothwidth, int peakgroup,
+	      int smoothtype, int N, int first, float* peakX,
+	      float* peakY, float* firstPeakX)
 {
 	// This function has been transcribed from T. C. O'Haver's findpeaks
 	// function.
@@ -62,11 +62,11 @@ int findpeaks(double* x, double* y, long length,double slopeThreshold,
 
 	smoothwidth = round(smoothwidth);
 	peakgroup = round(peakgroup);
-	double* d=fastsmooth(deriv(y,length),length, smoothwidth, smoothtype);
+	float* d=fastsmooth(deriv(y,length),length, smoothwidth, smoothtype);
 	int n = (int)round(peakgroup/2 +1);
 		
 	long j, temp;
-	double curPeakX,curPeakY;
+	float curPeakX,curPeakY;
 
 	struct peakQueue peakQ=peakQueueNew(N);
 
@@ -132,7 +132,7 @@ int findpeaks(double* x, double* y, long length,double slopeThreshold,
 	return out;
 }
 
-int sign(double x)
+int sign(float x)
 {
 	if (x > 0){
 		return 1;
@@ -143,8 +143,8 @@ int sign(double x)
 	}
 }
 
-void findpeaksHelper(double* x, double* y, long length, int peakgroup,
-		     double* peakX, double* peakY, long j, int n)
+void findpeaksHelper(float* x, float* y, long length, int peakgroup,
+		     float* peakX, float* peakY, long j, int n)
 {
 	// Helper Function
 	int k;
@@ -168,10 +168,10 @@ void findpeaksHelper(double* x, double* y, long length, int peakgroup,
 			}
 		}
 	} else {
-		double* xx = malloc(sizeof(double)*peakgroup);
-		double* yy = malloc(sizeof(double)*peakgroup);
-		double mean, std;
-		double *coef;
+		float* xx = malloc(sizeof(float)*peakgroup);
+		float* yy = malloc(sizeof(float)*peakgroup);
+		float mean, std;
+		float *coef;
 		// At a glance the following for loop seems wrong (especiall
 		// in comparison to the matlab code), but I think its actually
 		// correct)
@@ -184,7 +184,7 @@ void findpeaksHelper(double* x, double* y, long length, int peakgroup,
 				groupindex = length-1;
 			}
 			xx[k-1]=x[groupindex];
-			yy[k-1]=log(fabs(y[groupindex]));
+			yy[k-1]=(float)log(fabs((double)(y[groupindex])));
 		}
 		
 		// fit parabola to log10 of sub-group with centering and scaling
@@ -192,14 +192,15 @@ void findpeaksHelper(double* x, double* y, long length, int peakgroup,
 		
 		*peakX = -((std*coef[1]/(2.*coef[2]))-mean);
 		// check that we are correctly squaring
-		*peakY = exp(coef[0]-coef[2]*pow((coef[1]/(2.*coef[2])),2));
+		*peakY = (float)exp((double)(coef[0] - coef[2] *
+					     pow((coef[1]/(2.*coef[2])),2)));
 		free(xx);
 		free(yy);
 		free(coef);
 	}
 }
 
-double* quadFit(double* x, double* y, long length, double* mean, double *std)
+float* quadFit(float* x, float* y, long length, float* mean, float *std)
 {
 	// Fits a Quadratic to data using least square fitting, like matlab's
 	// polyfit function
@@ -210,26 +211,26 @@ double* quadFit(double* x, double* y, long length, double* mean, double *std)
 	// xp = (x-mean)/std
 	// Here mean is the average x value and std is the stamdard deviation
 
-	double* coef = malloc(sizeof(double)*3);
+	float* coef = malloc(sizeof(float)*3);
 	long i;
 	*mean=0.0;
 	for (i=0;i<length;i++){
 		*mean+=x[i];
 	}
-	*mean/=(double)length;
+	*mean/=(float)length;
 
-	double temp;
+	float temp;
 	// assuming that all values of x are real
 	*std=0.0;
 	for (i=0;i<length;i++){
 		temp=(x[i]-*mean);
 		*std+=temp*temp;
 	}
-	*std = sqrt(*std/((double)(length-1)));
+	*std = sqrtf(*std/((float)(length-1)));
 
 	// now determine xp
 
-	double* xp = malloc(sizeof(double)*length);
+	float* xp = malloc(sizeof(float)*length);
 	for (i=0;i<length;i++){
 		xp[i]=(x[i]-*mean) / *std;
 	}
@@ -247,8 +248,8 @@ double* quadFit(double* x, double* y, long length, double* mean, double *std)
 	// S_22 -> sx2x2
 	// S_y1 -> sxy
 	// S_y2 -> sx2y
-	double sxx, sxx2, sx2x2, sxy, sx2y, sumx, sumx2, sumy, cur_x, cur_x2;
-	double cur_y;
+	float sxx, sxx2, sx2x2, sxy, sx2y, sumx, sumx2, sumy, cur_x, cur_x2;
+	float cur_y;
 	sumx = 0;
 	sumx2 = 0;
 	sumy = 0;
@@ -270,29 +271,29 @@ double* quadFit(double* x, double* y, long length, double* mean, double *std)
 		sx2y += (cur_x2 * cur_y);
 	}
 
-	sxx = sumx2 - ((sumx*sumx)/((double)length));
-	sxx2 -= ((sumx*sumx2)/((double)length));
-	sx2x2 -= ((sumx2*sumx2)/((double)length));
-	sxy -= ((sumx*sumy)/((double)length));
-	sx2y -= ((sumx2*sumy)/((double)length));
+	sxx = sumx2 - ((sumx*sumx)/((float)length));
+	sxx2 -= ((sumx*sumx2)/((float)length));
+	sx2x2 -= ((sumx2*sumx2)/((float)length));
+	sxy -= ((sumx*sumy)/((float)length));
+	sx2y -= ((sumx2*sumy)/((float)length));
 
 	coef[2] = ((sx2y * sxx)-(sxy * sxx2))/((sxx * sx2x2)-(sxx2 * sxx2));
 	coef[1] = ((sxy * sx2x2)-(sx2y * sxx2))/((sxx * sx2x2)-(sxx2 * sxx2));
-	coef[0] = (sumy - (coef[1]*sumx)-(coef[2]*sumx2))/((double)length);
+	coef[0] = (sumy - (coef[1]*sumx)-(coef[2]*sumx2))/((float)length);
 
 	free(xp);
 	return coef;
 }
 
 
-double* deriv(double* a, long length)
+float* deriv(float* a, long length)
 {
 	// First derivative of vector using 2-point central difference.
 	// Transcribed from matlab code of T. C. O'Haver, 1988.
 	// I am very confident that I transcribed the indices of the 
 	// arrays properly
 	long i;
-	double* d = malloc( sizeof(double) * length);
+	float* d = malloc( sizeof(float) * length);
 	d[0] = a[1]-a[0];
 	d[length-1] = a[length-1]-a[length-2];
 	for(i=1;i<length-1;i++){
@@ -301,7 +302,7 @@ double* deriv(double* a, long length)
 	return d;
 }
 
-double* fastsmooth(double* y, long length, double w, int type)
+float* fastsmooth(float* y, long length, float w, int type)
 {
 	// Transcribed from matlab code of T. C. O'Haver, 1988 Version 2.0, 
 	// May 2008.
@@ -309,7 +310,7 @@ double* fastsmooth(double* y, long length, double w, int type)
 	//  If type=1, rectangular (sliding-average or boxcar)
 	//  If type=2, triangular (2 passes of sliding-average)
 	//  If type=3, pseudo-Gaussian (3 passes of sliding-average)
-	double* smoothY;
+	float* smoothY;
 	switch (type){
 	case 1 :
 		smoothY = sa(y,length,w);
@@ -324,7 +325,7 @@ double* fastsmooth(double* y, long length, double w, int type)
 	return smoothY;
 }
 
-double* sa(double* y, long length, double smoothwidth)
+float* sa(float* y, long length, float smoothwidth)
 {
 	// should probably check that smooth width is>=1
 
@@ -338,21 +339,21 @@ double* sa(double* y, long length, double smoothwidth)
 	// round function returns a int data type. If that is 
 	// the case, then this function is wrong.
 	long w = (long)round(smoothwidth);
-	double sumPoints = 0;
+	float sumPoints = 0;
 	long k;
 	for(k=0;k<w;k++){
 		sumPoints += y[k];
 	}
 
 	// create s which is an array of zeros
-	double* s = malloc(sizeof(double)*length);
+	float* s = malloc(sizeof(float)*length);
 	for(k=0;k<length;k++){
 		s[k]=0;
 	}
 
-	long halfw = (long)round(((double)w)/2.);
+	long halfw = (long)round(((float)w)/2.);
 	for(k=0;k<length-w;k++){
-		s[k+halfw-1]=sumPoints/((double)w);
+		s[k+halfw-1]=sumPoints/((float)w);
 		sumPoints = sumPoints-y[k]+y[k+w];
 	}
 
@@ -361,7 +362,7 @@ double* sa(double* y, long length, double smoothwidth)
 	for (i=(length-w);i<length;i++){
 		s[k] += y[i];
 	}
-	s[k]/=((double)w);
+	s[k]/=((float)w);
 	return s;
 }
 
@@ -490,8 +491,8 @@ struct peak peakQueuePop(struct peakQueue *peakQ)
 	}
 }
 
-void peakQueueAddNewPeak(struct peakQueue *peakQ, double peakX, 
-			 double peakY)
+void peakQueueAddNewPeak(struct peakQueue *peakQ, float peakX, 
+			 float peakY)
 {
 	// mutator method to the peakQ
 	// This function is in charge of adding new peak data to the peakQ
@@ -523,7 +524,7 @@ void peakQueueAddNewPeak(struct peakQueue *peakQ, double peakX,
 	}
 }
 
-int peakQueueToArrays(struct peakQueue *peakQ, double* peakX, double* peakY)
+int peakQueueToArrays(struct peakQueue *peakQ, float* peakX, float* peakY)
 {
 	// this removes the data from array struct format and places it in
 	// arrays this function returns the number of entries in the arrays

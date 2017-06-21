@@ -35,14 +35,14 @@ PitchStrategyFunc choosePitchStrategy(char* name)
 	return detectionStrategy;
 }
 
-float* HPSDetectionStrategy(double** AudioData, int size, int dftBlocksize,
+float* HPSDetectionStrategy(float** AudioData, int size, int dftBlocksize,
 			    int hpsOvr, int fftSize, int samplerate)
 {
 	return HarmonicProductSpectrum(AudioData, size, dftBlocksize, hpsOvr,
 				       fftSize, samplerate);
 }
 
-float* BaNaDetectionStrategy(double** AudioData, int size, int dftBlocksize,
+float* BaNaDetectionStrategy(float** AudioData, int size, int dftBlocksize,
 			   int hpsOvr, int fftSize, int samplerate)
 {
 	
@@ -50,7 +50,7 @@ float* BaNaDetectionStrategy(double** AudioData, int size, int dftBlocksize,
 		    fftSize, samplerate);
 }
 
-float* BaNaMusicDetectionStrategy(double** AudioData, int size,
+float* BaNaMusicDetectionStrategy(float** AudioData, int size,
 				  int dftBlocksize, int hpsOvr, int fftSize,
 				  int samplerate)
 {

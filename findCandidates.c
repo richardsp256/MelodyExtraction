@@ -4,21 +4,21 @@
 #include "findCandidates.h"
 
 // https://stackoverflow.com/questions/6514651/declare-large-global-array
-static double ratioRanges[15] = {1.15, 1.29, 1.42, 1.59,  
-				  1.8,  1.9,  2.1,  2.4,
-				  2.6,  2.8,  3.2,  3.8,
-				  4.2,  4.8,  5.2};
+static float ratioRanges[15] = {1.15, 1.29, 1.42, 1.59,  
+				1.8,  1.9,  2.1,  2.4,
+				2.6,  2.8,  3.2,  3.8,
+				4.2,  4.8,  5.2};
 
-static double mRanges[15] = { 4,  3,  2,  3,  
-			     -1,  1, -1,  2,
-			     -1,  1, -1,  1,  
-			     -1,  1, -1};
+static float mRanges[15] = { 4,  3,  2,  3,  
+			    -1,  1, -1,  2,
+			    -1,  1, -1,  1,  
+			    -1,  1, -1};
 
 
-struct orderedList calcCandidates(double* peaks, int numPeaks)
+struct orderedList calcCandidates(float* peaks, int numPeaks)
 {
 	int i,j;
-	double m;
+	float m;
 	struct orderedList candidates = orderedListCreate(2+((numPeaks-1) *
 							     (numPeaks-1)));
 
@@ -26,17 +26,17 @@ struct orderedList calcCandidates(double* peaks, int numPeaks)
 		for (j=i+1; j<numPeaks; j++){
 			m = calcM(peaks[i],peaks[j]);
 			if (m>0) {
-				orderedListInsert(&candidates,peaks[i]/m);
+				orderedListInsert(&candidates, peaks[i]/m);
 			}				
 		}
 	}
 	return candidates;
 }
  
-double calcM(double f_i, double f_j){
+float calcM(float f_i, float f_j){
 	// find the index, i, of the right most value in ratioRanges less than
         // f_j/f_i. it returns mRanges[i]
-	double ratio = f_j/f_i;
+	float ratio = f_j/f_i;
 
 	// basically using algorithm from python's bisect left and then moving
 	// one index to the left. This could probably be improved
@@ -53,35 +53,34 @@ double calcM(double f_i, double f_j){
 }
 
 
-struct candidateList* distinctCandidates(struct orderedList* candidates,
-					 int max_length, double xi,
-					 double f0Min, double f0Max)
+struct distinctList* distinctCandidates(struct orderedList* candidates,
+					 int max_length, float xi,
+					 float f0Min, float f0Max)
 {	
 	// Finds the distinct candidates from the list of candidates. This is
         // done by selecting the candidate with the most other candidates
         // within xi Hz
 	
-	int first, last, i,j,maxIndex;
-	double* confidence, maxConfidence;
-	struct candidateList *distinct;
-	distinct = (candidateListCreate(max_length));
+	int first, last, i,j,maxIndex, *confidence, maxConfidence;
+	struct distinctList *distinct;
+	distinct = (distinctListCreate(max_length));
 
-	confidence = malloc(sizeof(double) * (candidates->length));
+	confidence = malloc(sizeof(int) * (candidates->length));
 
 	first = -1;
 
 	while (candidates->length !=0){	        
 		// set entries of confidence to 1
 		for (i=0;i<(candidates->length);i++){
-			confidence[i] = 1.0;
+			confidence[i] = 1;
 		}
 		// determine confidence values for each index
 		for (i=0;i<(candidates->length)-1;i++){
 			for (j=i+1;j<(candidates->length);j++){
 				if ((candidates->array[j] -
 				     candidates->array[i])<=xi) { 
-					confidence[i]+=1.0;
-					confidence[j]+=1.0;
+					confidence[i]+=1;
+					confidence[j]+=1;
 				} else {
 					break;
 				}
@@ -102,8 +101,9 @@ struct candidateList* distinctCandidates(struct orderedList* candidates,
 		// add that candidate to distinct
 		if ((candidates->array[maxIndex] >= f0Min) &&
 		    (candidates->array[maxIndex] <= f0Max)){
-			candidateListAdd(distinct, candidates->array[maxIndex],
-					 confidence[maxIndex]);
+			distinctListAdd(distinct,
+					(candidates->array[maxIndex]),
+					confidence[maxIndex]);
 		}
 		// determine first: index of first entry in candidates that is
 		// within xi Hz of the candidate with the highest confidence
