@@ -14,7 +14,7 @@
 // NOTE: modify use of doubles to represent frequency to floats for consistency
 
 float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
-	    float f0Min, float f0Max, int fftSize, int samplerate)
+	    float f0Min, float f0Max, float xi, int fftSize, int samplerate)
 {
 	// Implements the BaNa fundamental pitch detection algorithm
 	// This algorithm is split into 3 parts:
@@ -44,7 +44,7 @@ float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
 
 	// find the candidates for the fundamentals
 	windowCandidates = BaNaFindCandidates(AudioData, size, dftBlocksize,
-					      p, f0Min, f0Max, 0, 10.0,
+					      p, f0Min, f0Max, 0, xi,
 					      frequencies, fftSize, samplerate);
 
 	// determine which candidate is the fundamental
@@ -55,42 +55,6 @@ float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
 		distinctListDestroy(windowCandidates[i]);
 	}
   
-	free(windowCandidates);
-	free(frequencies);
-	return fundamentals;
-}
-
-float* BaNaMusic(float **AudioData, int size, int dftBlocksize, int p,
-		 float f0Min, float f0Max, int fftSize, int samplerate)
-{
-	// Same as BaNa except that during determination of F0 candidates,
-	// retrieve the p peaks with the maximum amplitude
-	float *fundamentals;
-	struct distinctList **windowCandidates;
-	long numBlocks = size / dftBlocksize;
-	long i;
-
-	float *frequencies = calcFrequencies(dftBlocksize, fftSize,
-					      samplerate);
-
-	// preprocess each of the frames
-	BaNaPreprocessing(AudioData, size, dftBlocksize, p, f0Min, f0Max,
-			  frequencies);
-
-	// find the candidates for the fundamentals
-	windowCandidates = BaNaFindCandidates(AudioData, size, dftBlocksize, p,
-					      f0Min, f0Max, 0, 3.0, frequencies,
-					      fftSize, samplerate);
-
-	// determine which candidate is the fundamental
-	fundamentals = candidateSelection(windowCandidates, numBlocks);
-	
-	
-	// clean up
-	for (i=0;i<numBlocks;i++){
-		distinctListDestroy(windowCandidates[i]);
-	}
-
 	free(windowCandidates);
 	free(frequencies);
 	return fundamentals;
