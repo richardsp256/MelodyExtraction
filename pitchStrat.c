@@ -46,7 +46,7 @@ float* BaNaDetectionStrategy(float** AudioData, int size, int dftBlocksize,
 			   int hpsOvr, int fftSize, int samplerate)
 {
 	return BaNa(AudioData, size, dftBlocksize, 5, 50, 600, 10.0,
-		    fftSize, samplerate);
+		    fftSize, samplerate, 1);
 }
 
 float* BaNaMusicDetectionStrategy(float** AudioData, int size,
@@ -54,5 +54,5 @@ float* BaNaMusicDetectionStrategy(float** AudioData, int size,
 				  int samplerate)
 {
 	return BaNa(AudioData, size, dftBlocksize, 5, 50, 3000, 3.0,
-			 fftSize, samplerate);
+		    fftSize, samplerate, 0);
 }

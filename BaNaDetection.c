@@ -14,7 +14,8 @@
 // NOTE: modify use of doubles to represent frequency to floats for consistency
 
 float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
-	    float f0Min, float f0Max, float xi, int fftSize, int samplerate)
+	    float f0Min, float f0Max, float xi, int fftSize, int samplerate,
+	    int first)
 {
 	// Implements the BaNa fundamental pitch detection algorithm
 	// This algorithm is split into 3 parts:
@@ -44,7 +45,7 @@ float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
 
 	// find the candidates for the fundamentals
 	windowCandidates = BaNaFindCandidates(AudioData, size, dftBlocksize,
-					      p, f0Min, f0Max, 0, xi,
+					      p, f0Min, f0Max, first, xi,
 					      frequencies, fftSize, samplerate);
 
 	// determine which candidate is the fundamental
