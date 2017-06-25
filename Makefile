@@ -18,6 +18,12 @@ onsetStrat.o: onsetStrat.c
 onsetsds.o: onsetsds.c
 	${CC} ${CFLAGS} -c $< -o onsetsds.o
 
+fVADsd.o: fVADsd.c
+	${CC} ${CFLAGS} -c $< -o fVADsd.o
+
+silenceStrat.o: silenceStrat.c
+	${CC} ${CFLAGS} -c $< -o silenceStrat.o
+
 HPSDetection.o: HPSDetection.c
 	${CC} ${CFLAGS} -c $< -o HPSDetection.o
 
