@@ -13,7 +13,7 @@ fvad.h is installed in /usr/local/include
 
 int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 			 int frameLength, int spacing, int length,
-			 int* activityRanges)
+			 int** activityRanges)
 {
 	// this function determines the entries of activityRanges and returns
 	// the length of activityRanges
@@ -26,7 +26,7 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 	// spacing has units of milliseconds
 
 	int activityRangesLength;
-	
+
 	// Here we will check the sample_rate
 	// The only allowed sample_rate values are 8000,16000,32000,48000
 	
@@ -76,7 +76,6 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 					      frameLength, spacing, length,
 					      activityRanges);
 	}
-
 	return activityRangesLength;
 }
 
@@ -111,7 +110,7 @@ int posIntCeilDiv(int x,int y){
 
 
 int vadHelper(float* data,int sample_rate, int mode, int frameLength,
-	      int spacing, int length, int* activityRanges){
+	      int spacing, int length, int** activityRanges){
 	// this function actually runs VAD
 	// conver should be converted to number of samples
 
@@ -141,7 +140,7 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 	activityRangesLength = 2 * posIntCeilDiv(posIntCeilDiv(length,
 							       spacingSamples),
 						 2);
-	activityRanges = malloc(sizeof(int)*activityRangesLength);
+	(*activityRanges) = malloc(sizeof(int)*activityRangesLength);
 	
 	// in activityRanges, the values at even indices are indices of frame
 	// where a region of contiguous voice activity starts and the following
@@ -171,7 +170,7 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 			// this means that either voice activity started or
 			// ended between the current frame and the previous
 			// frame
-			activityRanges[j] = i;
+			(*activityRanges)[j] = i;
 			j++;
 		}
 		prevResult = vadResult;
@@ -179,7 +178,7 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 
 	// now we just need to handle the last frame
 	if (prevResult == 1){
-		activityRanges[j] = i;
+		*activityRanges[j] = i;
 		j++;
 	}
 

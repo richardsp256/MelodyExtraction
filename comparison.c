@@ -11,6 +11,7 @@
 #include "midi.h"
 #include "pitchStrat.h"
 #include "onsetStrat.h"
+#include "silenceStrat.h"
 
 void PrintAudioMetadata(SF_INFO * file)
 {
@@ -36,10 +37,27 @@ float* WindowFunction(int size)
 struct Midi* ExtractMelody(float** input, SF_INFO info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int o_unpaddedSize, int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
+		int s_winSize, int s_winInt, int s_mode, SilenceStrategyFunc silenceStrategy,
 		int hpsOvr, int verbose, char* prefix)
 { 
 	if(verbose){
 		PrintAudioMetadata(&info);
+	}
+
+	int *activityRanges = NULL;
+	int a_size = silenceStrategy(input, info.frames, s_winSize, s_winInt,
+				     info.samplerate, s_mode,
+				     &activityRanges);
+	for (int i =0; i<a_size;i++){
+		printf("Activity Range: %d up to %d\n", activityRanges[i],
+		       activityRanges[i+1]);
+		i++;
+	}
+	free(activityRanges);
+
+	if(verbose){
+		printf("Silence detection complete\n");
+		fflush(NULL);
 	}
 
 	float* o_fftData = NULL;
@@ -99,7 +117,7 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 		free(spectraFile);
 	}
 
-	onsetStrategy(&o_fftData, o_size, o_unpaddedSize, o_winInt, info.samplerate);
+	onsetStrategy(&o_fftData, o_size, o_unpaddedSize, o_winInt, info.samplerate);	
 
 	if(verbose){
 		printf("Onset detection complete\n");

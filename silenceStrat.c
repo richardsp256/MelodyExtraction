@@ -29,7 +29,7 @@ SilenceStrategyFunc chooseSilenceStrategy(char* name){
 
 int fVADDetectionStrategy(float** AudioData, int length, int frameLength,
 			  int spacing, int samplerate, int mode,
-			  int* activityRanges){
+			  int** activityRanges){
 	return fVADSilenceDetection(AudioData, samplerate, mode, frameLength,
 				    spacing, length, activityRanges);
 }

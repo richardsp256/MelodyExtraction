@@ -10,6 +10,7 @@
 #include "midi.h"
 #include "pitchStrat.h"
 #include "onsetStrat.h"
+#include "silenceStrat.h"
 
 
 /* Usage is as follows:
@@ -32,6 +33,17 @@
  *                    cannot be set to less than --onset_window. def = -1
  *   --onset_spacing: stft window spacing for onset detection, def = 256
  *   --onset_strategy: strategy for onset detection, only OnsetsDS, def = OnsetsDS
+ *
+ *   --silence_window: number of milliseconds of audio data in a frame 
+ *                      considered for silence detection. The only allowed 
+ *                      values are 10ms, 20ms, and 30ms, def=10ms
+ *   --silence_spacing: spacing between windows considered for silence 
+ *                       detection. This must be in units of ms. If this is -1, 
+ *                       it is set to the value of --silence_window, def = -1 
+ *   --silence_strategy: strategy for silence detection, only fVAD, def = fVAD
+ *   --silence_mode: The mode to run fVAD in. The valid values are 0 
+ *                    ("quality"), 1 ("low bitrate"), 2 ("aggressive"), and 3
+ *                    ("very aggressive"), def = 0
  *
  *   -h: number of harmonic product specturm overtones, def = 2
  *   -p: prefix for fname where spectral data is stored, def = NULL;
@@ -69,9 +81,10 @@ int msToFrames(int ms, int samplerate){
 	return (samplerate * ms) / 1000; //integer division
 }
 
-int ConvertToFrames(char* buf, int samplerate){
+int numParser(char* buf, int* num){
+	// returns 1 if buffer is in units of ms. Otherwise returns 0
 	char* endptr;
-	int num;
+        *num = 0;
 	long longnum = strtol(buf, &endptr, 10);
 	if (endptr == buf){
 		return 0;
@@ -79,16 +92,25 @@ int ConvertToFrames(char* buf, int samplerate){
 	if (longnum > INT_MAX || longnum < INT_MIN){
 		return 0;
 	}
-	num = longnum;
+	*num = longnum;
 	if (*endptr!= '\0'){ //characters exist after the parsed number
 		if(strcmp(endptr, "ms") == 0){ //proper millisecond format
-			num = msToFrames(num, samplerate);
+			return 1;
 		}
 		else{ //invalid format
-			return 0;
+			*num = 0;
 		}
 	}
+	return 0;
+}
 
+
+int ConvertToFrames(char* buf, int samplerate){
+	
+	int num;
+	if (numParser(buf, &num) == 1){
+		num = msToFrames(num, samplerate);
+	}
 	return num;
 }
 
@@ -111,6 +133,15 @@ int main(int argc, char ** argv)
 	int o_windowsize, o_paddedsize, o_spacing;
 	OnsetStrategyFunc o_Strategy = &OnsetsDSDetectionStrategy; //HPS is default strategy
 
+	//args for silence detection
+	char* s_windowsizeBuf = "10ms";
+	char* s_spacingBuf = "none"; //-1 means to set equal to s_windowsize
+	int  s_spacing;
+	int s_windowsize = 10;
+	int s_mode = 0;
+	SilenceStrategyFunc s_Strategy = &fVADDetectionStrategy;
+	// strategy
+	
 	int hpsOvertones = 2;
 	int verbose = 0; 
 	char* prefix = NULL;
@@ -132,6 +163,11 @@ int main(int argc, char ** argv)
 			{"onset_padded", required_argument, 0, 'y'},
 			{"onset_spacing", required_argument, 0, 'e'},
 			{"onset_strategy", required_argument, 0, 'f'},
+
+			{"silence_window", required_argument, 0, 'g'},
+			{"silence_spacing", required_argument, 0, 'j'},
+			{"silence_strategy", required_argument, 0, 'k'},
+			{"silence_mode", required_argument, 0, 'l'},
 
 			{0,0,0,0},
 		};
@@ -181,6 +217,27 @@ int main(int argc, char ** argv)
 			o_Strategy = chooseOnsetStrategy(optarg);
 			if (o_Strategy == NULL){
 				printf("Argument for option --onset_strategy must be \"OnsetsDS\"\n");
+				badargs = 1;
+			}
+			break;
+
+		case 'g':		
+			s_windowsizeBuf = strdup(optarg);
+			break;
+		case 'j':
+			s_spacingBuf = strdup(optarg);
+			break;
+		case 'k':
+		        s_Strategy = chooseSilenceStrategy(optarg);
+			if (o_Strategy == NULL){
+				printf("Argument for option --silence_strategy must be \"fVAD\"\n");
+				badargs = 1;
+			}
+			break;
+		case 'l':
+			s_mode = atoi(optarg);
+			if (s_mode<0 || s_mode>3){
+				printf("Argument for option --silence_mode must be 0, 1, 2, or 3\n");
 				badargs = 1;
 			}
 			break;
@@ -268,6 +325,33 @@ int main(int argc, char ** argv)
 			printf("--onset_padded cannot be set less than --onset_windowsize, whose value is %d\n", o_windowsize);
 			badargs = 1;
 		}
+
+		//determine values for s_windowsize and s_spacing
+		if (strcmp(s_windowsizeBuf,"10ms") == 0){
+			s_windowsize = 10;
+		} else if (strcmp(s_windowsizeBuf,"20ms") == 0){
+			s_windowsize = 20;
+		} else if (strcmp(s_windowsizeBuf,"30ms") == 0){
+			s_windowsize = 30;
+		} else {
+			printf("--silence_window can only be \"10ms\", \"20ms\", or \"30ms\"\n");
+			badargs = 1;
+		}
+
+		if (strcmp(s_spacingBuf,"none") == 0){
+			s_spacing = s_windowsize;
+		} else {
+			if (numParser(s_spacingBuf, &s_spacing)==0) {
+				badargs = 1;
+				printf("--silence_spacing must be in units of ms\n");
+			}
+		}
+
+		if(s_spacing < 1){
+			printf("Invalid arg for option --onset_spacing\n");
+			badargs = 1;
+		}
+		
 	}
 
 
@@ -275,7 +359,8 @@ int main(int argc, char ** argv)
 
 		struct Midi* midi  = ExtractMelody(&input, info, 
 				p_windowsize, p_paddedsize, p_spacing, p_Strategy, 
-				o_windowsize, o_paddedsize, o_spacing, o_Strategy, 
+				o_windowsize, o_paddedsize, o_spacing, o_Strategy,
+				s_windowsize, s_spacing, s_mode, s_Strategy,
 				hpsOvertones, verbose, prefix);
 
 		SaveMIDI(midi, outFile, verbose);
