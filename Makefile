@@ -7,7 +7,7 @@ all: comparison.c comparison.h midi.c midi.h main.c pitchStrat.o onsetStrat.o on
 	gcc -Wall -O3 -c midi.c -o midi.o
 	gcc -I./libsndfile-1.0.26/src -I./fftw-3.3.4/api -Wall -O3 -c comparison.c -o comparison.o
 	gcc -I./libsndfile-1.0.26/src -I./fftw-3.3.4/api -Wall -O3 -c main.c -o main.o
-	gcc midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o main.o -o extract -L./fftw-3.3.4/.libs -lfftw3f -L./libsndfile-1.0.26/src/.libs -lsndfile -lm -L/usr/local/lib -lfvad -lsamplerate
+	gcc midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o main.o -o extract -L./fftw-3.3.4/.libs -lfftw3f -L./libsndfile-1.0.26/src/.libs -lsndfile -lm -lfvad -lsamplerate
 
 pitchStrat.o: pitchStrat.c
 	${CC} ${CFLAGS} -c $< -o pitchStrat.o
