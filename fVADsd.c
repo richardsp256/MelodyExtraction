@@ -5,6 +5,7 @@ fvad.h is installed in /usr/local/include
 */
 
 #include <stdlib.h>
+#include <math.h>
 #include <stdio.h>
 #include <fvad.h>
 #include <samplerate.h>
@@ -57,16 +58,23 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 		// quality
 		int success_code;
 		success_code = src_simple(resampleData, 0, 1);
-		
+
 		if (success_code != 0){
 			printf("libsamplerate Error:\n %s\n",
 			       src_strerror(success_code));
 			activityRangesLength = -1;
 		} else {
+			printf("\nOriginal Sample Rate: %d Hz\n", sample_rate);
+			printf("Original Length: %d (# of samples)\n",
+			       length);
+			printf("New Sample Rate: %d Hz\n", 8000);
+			printf("New Length: %li (# of samples)\n\n",
+			       resampleData->output_frames_gen);
+			
 			activityRangesLength=vadHelper(resampleData -> data_out,
 						    8000, mode, frameLength,
 						    spacing,
-						    resampleData->output_frames,
+						    resampleData->output_frames_gen,
 						    activityRanges);
 		}
 		free(resampleData -> data_out);
@@ -76,6 +84,10 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 					      frameLength, spacing, length,
 					      activityRanges);
 	}
+	
+	WindowsToSamples(*activityRanges, activityRangesLength,
+			 spacing, sample_rate);
+	
 	return activityRangesLength;
 }
 
@@ -127,6 +139,12 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 
 	// likewise, spacingSamples is just spacing in units of samples
 	spacingSamples = (spacing * sample_rate)/1000;
+	printf("length: %d\n", length);
+	printf("samplerate: %d\n", sample_rate);
+	printf("frameLength: %d ms\n", frameLength);
+	printf("spacing: %d ms\n", spacing);
+	printf("frameLengthSamples: %d (# of samples)\n", frameLengthSamples);
+	printf("spacingSamples: %d (# of samples)\n", spacingSamples);
 	
 	buffer = malloc(sizeof(int16_t) * frameLengthSamples);
 
@@ -156,9 +174,13 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 
 	prevResult = 0;
 	j = 0;
-	for (i=0; i<length; i+=spacingSamples){
+
+	int max_num_intervals = posIntCeilDiv(length,spacingSamples);
+	printf("max number of intervals: %d\n", max_num_intervals);
+	for (i=0; i<max_num_intervals; i++){
+		
 		// copy to buffer and convert to int16
-		convertSamples(data, i, frameLengthSamples,buffer, length);
+		convertSamples(data, i*spacingSamples, frameLengthSamples,buffer, length);
 		
 		// process the data in the buffer
 		vadResult = fvad_process(vad, buffer, frameLengthSamples);
@@ -170,10 +192,12 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 			// this means that either voice activity started or
 			// ended between the current frame and the previous
 			// frame
+			printf("Different index: %d\n",i);
 			(*activityRanges)[j] = i;
 			j++;
 		}
 		prevResult = vadResult;
+		
 	}
 
 	// now we just need to handle the last frame
@@ -207,4 +231,19 @@ int reallocActivityRanges(int* activityRanges, int acLength, int length){
 	// 1 + ((x-1) / y)
 	// this works since we will always have non-zero sizes
 	return 0;
+}
+
+void WindowsToSamples(int* windows, int length, int winInt,
+		      int sample_rate)
+{
+	// converts an array of indices of windows to the index of the first
+	// sample in each window in place
+	
+	// winInt is in terms of ms
+	// we round down to the whole number of samples
+	double temp;
+	for (int i = 0; i <length;i++){
+		temp = ((double)winInt/1000.) * (double)windows[i]*sample_rate;
+		windows[i] = (int)floor(temp);
+	}
 }

@@ -8,3 +8,4 @@ void convertSamples(float *inputData, int start, int frameLengthSamples,
 int posIntCeilDiv(int x, int y);
 int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 	      int spacing, int length, int** activityRanges);
+void WindowsToSamples(int* windows, int length, int winInt, int sample_rate);
