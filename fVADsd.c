@@ -84,10 +84,11 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 					      frameLength, spacing, length,
 					      activityRanges);
 	}
-	
-	WindowsToSamples(*activityRanges, activityRangesLength,
-			 spacing, sample_rate);
-	
+	if (activityRangesLength!=-1){
+		// this scenario occurs if resizing *activityRanges succeeded
+		WindowsToSamples(*activityRanges, activityRangesLength,
+				 spacing, sample_rate);
+	}
 	return activityRangesLength;
 }
 
@@ -133,7 +134,7 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 	int16_t *buffer;
 	int i, j, vadResult, prevResult, activityRangesLength;
 	int frameLengthSamples, spacingSamples;
-
+	int *temp;
 	// frameLengthSamples is just the frameLength in units of samples
 	frameLengthSamples = (frameLength * sample_rate)/1000;
 
@@ -206,11 +207,20 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 		j++;
 	}
 
-	// resize activityRanges down to length j
-	
 	// clean up
 	fvad_free(vad);
 	free(buffer);
+
+	// resize activityRanges down to length j
+	temp = realloc(*activityRanges,j);
+	if (temp!=NULL){
+		*activityRanges=temp;
+	} else {
+		printf("Resizing activityRanges failed. Exitting.\n");
+		free(*activityRanges);
+		return -1;
+	}
+	
 	return j;
 }
 
