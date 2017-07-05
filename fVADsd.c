@@ -7,8 +7,8 @@ fvad.h is installed in /usr/local/include
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
-#include <fvad.h>
-#include <samplerate.h>
+#include "fvad.h"
+#include "samplerate.h"
 #include "fVADsd.h"
 
 

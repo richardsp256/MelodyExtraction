@@ -40,6 +40,9 @@
 # Ignore libraries
 fftw*/*
 libsndfile*/*
+libsamplerate*/*
+libfvad-master/*
+master.zip
 
 # Text editor related files
 *.c~
