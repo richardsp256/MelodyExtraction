@@ -64,12 +64,12 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 			       src_strerror(success_code));
 			activityRangesLength = -1;
 		} else {
-			printf("\nOriginal Sample Rate: %d Hz\n", sample_rate);
-			printf("Original Length: %d (# of samples)\n",
-			       length);
-			printf("New Sample Rate: %d Hz\n", 8000);
-			printf("New Length: %li (# of samples)\n\n",
-			       resampleData->output_frames_gen);
+			//printf("\nOriginal Sample Rate: %d Hz\n", sample_rate);
+			//printf("Original Length: %d (# of samples)\n",
+			//       length);
+			//printf("New Sample Rate: %d Hz\n", 8000);
+			//printf("New Length: %li (# of samples)\n\n",
+			//      resampleData->output_frames_gen);
 			
 			activityRangesLength=vadHelper(resampleData -> data_out,
 						    8000, mode, frameLength,
@@ -86,6 +86,8 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 	}
 	if (activityRangesLength!=-1){
 		// this scenario occurs if resizing *activityRanges succeeded
+		// here we convert from the indices of the windows that were used
+		// for VAD to the indices of the first samples in each window
 		WindowsToSamples(*activityRanges, activityRangesLength,
 				 spacing, sample_rate);
 	}
@@ -133,38 +135,37 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 	Fvad *vad;
 	int16_t *buffer;
 	int i, j, vadResult, prevResult, activityRangesLength;
-	int frameLengthSamples, spacingSamples;
+	int frameLengthSamples, spacingSamples, numFrames;
 	int *temp;
+
 	// frameLengthSamples is just the frameLength in units of samples
 	frameLengthSamples = (frameLength * sample_rate)/1000;
 
 	// likewise, spacingSamples is just spacing in units of samples
 	spacingSamples = (spacing * sample_rate)/1000;
-	printf("length: %d\n", length);
-	printf("samplerate: %d\n", sample_rate);
-	printf("frameLength: %d ms\n", frameLength);
-	printf("spacing: %d ms\n", spacing);
-	printf("frameLengthSamples: %d (# of samples)\n", frameLengthSamples);
-	printf("spacingSamples: %d (# of samples)\n", spacingSamples);
 	
-	buffer = malloc(sizeof(int16_t) * frameLengthSamples);
+	//printf("length: %d\n", length);
+	//printf("samplerate: %d\n", sample_rate);
+	//printf("frameLength: %d ms\n", frameLength);
+	//printf("spacing: %d ms\n", spacing);
+	//printf("frameLengthSamples: %d (# of samples)\n", frameLengthSamples);
+	//printf("spacingSamples: %d (# of samples)\n", spacingSamples);
 
+	// calculate the number of Frames evaluated by VAD
+	numFrames = posIntCeilDiv(length,spacingSamples);
+	//printf("number of Frames: %d\n", numFrames);
 
-	// for now will set activityRangesLength to the maximum possible length
-	// - in future we will grow the arrays
+	// allocate memory for the buffer that will be processed by VAD
+	buffer = malloc(sizeof(int16_t) * frameLengthSamples);	
 
-	// the maximum possible length of activityRanges is
-	// 2 * ceil(number of frames/2)
-	// and number of fames is ceil(length/spacingSamples)
-	activityRangesLength = 2 * posIntCeilDiv(posIntCeilDiv(length,
-							       spacingSamples),
-						 2);
-	(*activityRanges) = malloc(sizeof(int)*activityRangesLength);
-	
-	// in activityRanges, the values at even indices are indices of frame
-	// where a region of contiguous voice activity starts and the following
-	// values are always the index of the frame after the final frame in
-	// the contiguous voice activity region
+	// allocate memory for activityRanges
+	activityRangesLength = mallocActivityRanges(activityRanges, numFrames);
+
+	// in activityRanges, the values at an even index is the index of the
+	// frame where a region of contiguous voice activity begins and the
+	// values at the following odd index of activityRanges is always the
+	// index of the frame after the final frame in the contiguous voice
+	// activity region
 	
 	// intialize a vad instance
 	vad = fvad_new();
@@ -176,9 +177,8 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 	prevResult = 0;
 	j = 0;
 
-	int max_num_intervals = posIntCeilDiv(length,spacingSamples);
-	printf("max number of intervals: %d\n", max_num_intervals);
-	for (i=0; i<max_num_intervals; i++){
+	
+	for (i=0; i<numFrames; i++){
 		
 		// copy to buffer and convert to int16
 		convertSamples(data, i*spacingSamples, frameLengthSamples,buffer, length);
@@ -186,14 +186,27 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 		// process the data in the buffer
 		vadResult = fvad_process(vad, buffer, frameLengthSamples);
 		
-		// might want to check that vadResult is 0 or 1 until we are
-		// confident that we have ironed out all the kinks
 		
 		if (vadResult != prevResult){
 			// this means that either voice activity started or
 			// ended between the current frame and the previous
 			// frame
-			printf("Different index: %d\n",i);
+
+			// we need to check if we have enough room in
+			// activityRanges
+			if (j>=activityRangesLength){
+				// we need to allocate more space
+				activityRangesLength = reallocActivityRanges(activityRanges, activityRangesLength, numFrames);
+				// we need to check that reallocating memory
+				// was succesful
+				if (activityRangesLength == -1){
+					// clean up
+					fvad_free(vad);
+					free(buffer);
+					return -1;
+				}
+			}
+
 			(*activityRanges)[j] = i;
 			j++;
 		}
@@ -203,6 +216,11 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 
 	// now we just need to handle the last frame
 	if (prevResult == 1){
+
+		// we don't need to check if we have enough room in
+		// activityRanges since it always has an even length and
+		// there will always be an odd number of entries when we add this
+		// last value
 		*activityRanges[j] = i;
 		j++;
 	}
@@ -224,23 +242,62 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 	return j;
 }
 
+int mallocActivityRanges(int** activityRanges, int numFrames){
+	// here we allocate memory for activityRanges and return the size
+	// we will start with 1/20th of maximum size.
+	
+	// the maximum possible length of activityRanges is:
+	// 2 * ceil(numFrames/2)
+	// thus, the starting size will be: ceil(numFrames/2)/10
 
-int reallocActivityRanges(int* activityRanges, int acLength, int length){
+	int acLength;
+	
+	acLength = posIntCeilDiv(numFrames,2)/10;
+	// we want acLength to be a positive even integer
+	if (acLength == 0){
+		acLength = 2;
+	} else if (acLength % 2 == 1) {
+		acLength++;
+	}
+
+	// now we actually allocate the memory
+	*activityRanges = malloc(sizeof(int)*acLength);
+	return acLength;
+}
+
+int reallocActivityRanges(int** activityRanges, int acLength, int numFrames){
 	// we will increase the size of activityRanges and return the new
 	// length size of activityRanges
 
-	// the max number of silence ranges is ceil(length/2)
-	// thus, the max length of activityRanges is 2*ceil(length/2)
+	// activityRanges is initially set to be 1/20th of the maximum size
+	// as we need more space, we double the size of activityRanges until it
+	// exceeds the maximum size - at this point we set activityRanges to
+	// the maximum size
 
-	// lets initially start with an array of size ceil(length/2)/5
-	// then we double size until we hit 8 * ceil(length/2)/5 at which point,
-	// we jump to 2*ceil(length/2)
-	
-	
-	// you can do ceiling division for integers >0 ceil(x/y) with
-	// 1 + ((x-1) / y)
-	// this works since we will always have non-zero sizes
-	return 0;
+	int *temp;
+	int newAcLength, maxAcLength;
+
+	// First, we calculate the maximum possible length of activityRanges
+	// the maximum possible length of activityRanges is:
+	// 2 * ceil(numFrames/2)
+	maxAcLength = 2 * posIntCeilDiv(numFrames,2);
+
+	// next we set newAcLength to min(acLength*2, maxAcLength)
+	newAcLength = acLength *2;
+	if (newAcLength >= maxAcLength){
+		newAcLength = maxAcLength;
+	}
+
+	temp = realloc(*activityRanges,acLength);
+	if (temp!=NULL){
+		*activityRanges=temp;
+	} else {
+		printf("Resizing activityRanges failed. Exitting.\n");
+		free(*activityRanges);
+		return -1;
+	}
+
+	return newAcLength;
 }
 
 void WindowsToSamples(int* windows, int length, int winInt,
