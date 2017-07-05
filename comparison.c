@@ -45,14 +45,8 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	}
 
 	int *activityRanges = NULL;
-	int a_size = silenceStrategy(input, info.frames, s_winSize, s_winInt,
-				     info.samplerate, s_mode,
-				     &activityRanges);
-	for (int i =0; i<a_size;i++){
-		printf("Activity Range: %d up to %d\n", activityRanges[i],
-		       activityRanges[i+1]);
-		i++;
-	}
+	int a_size = ExtractSilence(input, &activityRanges, info, s_winSize,
+				    s_winInt, s_mode, silenceStrategy);
 	free(activityRanges);
 	if(verbose){
 		printf("Silence detection complete\n");
@@ -151,6 +145,20 @@ int ExtractPitch(float** input, float** pitches, SF_INFO info,
 	}
 
 	return p_numBlocks;
+}
+
+int ExtractSilence(float** input, int** activityRanges, SF_INFO info,
+		   int s_winSize, int s_winInt, int s_mode,
+		   SilenceStrategyFunc silenceStrategy){
+	int a_size = silenceStrategy(input, info.frames, s_winSize, s_winInt,
+				     info.samplerate, s_mode,
+				     activityRanges);
+	for (int i =0; i<a_size;i++){
+		printf("Activity Range: %d up to %d\n", (*activityRanges)[i],
+		       (*activityRanges)[i+1]);
+		i++;
+	}
+	return a_size;
 }
 
 void ExtractOnset(float** input, SF_INFO info, int o_unpaddedSize, int o_winSize, 
