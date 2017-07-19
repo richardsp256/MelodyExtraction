@@ -19,7 +19,7 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 	// this function determines the entries of activityRanges and returns
 	// the length of activityRanges
 
-	// mode can only be 0, 1, 2, or 3
+	// mode can only be 0, 1, 2, or 3. higher is more restricted in reporting speech
 
 	// frameLength has units of milliseconds - it can only be set to:
 	// 10, 20, or 30
@@ -89,8 +89,9 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 		// here we convert from the indices of the windows that were used
 		// for VAD to the indices of the first samples in each window
 		WindowsToSamples(*activityRanges, activityRangesLength,
-				 spacing, sample_rate);
+				sample_rate);
 	}
+
 	return activityRangesLength;
 }
 
@@ -126,6 +127,14 @@ int posIntCeilDiv(int x,int y){
 
 int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 	      int spacing, int length, int** activityRanges){
+	//data - array holding the audio data
+	//samplerate - the samplerate of data
+	//mode - mode of the vad, from 0 to 3, higher = more strict, more likely to say there is silence
+	//framelength - the length of one frame, in milliseconds
+	//spacing - the spacing between frames, in milliseconds
+	//length - length of data
+	//activityRanges - where the resulting silence info will be stored
+
 	// this function actually runs VAD
 	// conver should be converted to number of samples
 
@@ -143,17 +152,17 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 
 	// likewise, spacingSamples is just spacing in units of samples
 	spacingSamples = (spacing * sample_rate)/1000;
-	
-	//printf("length: %d\n", length);
-	//printf("samplerate: %d\n", sample_rate);
-	//printf("frameLength: %d ms\n", frameLength);
-	//printf("spacing: %d ms\n", spacing);
-	//printf("frameLengthSamples: %d (# of samples)\n", frameLengthSamples);
-	//printf("spacingSamples: %d (# of samples)\n", spacingSamples);
 
 	// calculate the number of Frames evaluated by VAD
 	numFrames = posIntCeilDiv(length,spacingSamples);
-	//printf("number of Frames: %d\n", numFrames);
+	
+	printf("length: %d\n", length);
+	printf("number of Frames: %d\n", numFrames);
+	printf("samplerate: %d\n", sample_rate);
+	printf("frameLength: %d ms\n", frameLength);
+	printf("frameLengthSamples: %d\n", frameLengthSamples);
+	printf("spacing: %d ms\n", spacing);
+	printf("spacingSamples: %d\n", spacingSamples);
 
 	// allocate memory for the buffer that will be processed by VAD
 	buffer = malloc(sizeof(int16_t) * frameLengthSamples);	
@@ -181,7 +190,7 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 	for (i=0; i<numFrames; i++){
 		
 		// copy to buffer and convert to int16
-		convertSamples(data, i*spacingSamples, frameLengthSamples,buffer, length);
+		convertSamples(data, i*spacingSamples, frameLengthSamples, buffer, length);
 		
 		// process the data in the buffer
 		vadResult = fvad_process(vad, buffer, frameLengthSamples);
@@ -201,13 +210,14 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 				// was succesful
 				if (activityRangesLength == -1){
 					// clean up
+					printf("reallocActivityRanges failed. Exitting.\n");
 					fvad_free(vad);
 					free(buffer);
 					return -1;
 				}
 			}
 
-			(*activityRanges)[j] = i;
+			(*activityRanges)[j] = i*spacingSamples;
 			j++;
 		}
 		prevResult = vadResult;
@@ -221,7 +231,7 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 		// activityRanges since it always has an even length and
 		// there will always be an odd number of entries when we add this
 		// last value
-		*activityRanges[j] = i;
+		(*activityRanges)[j] = i*spacingSamples;
 		j++;
 	}
 
@@ -230,7 +240,7 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 	free(buffer);
 
 	// resize activityRanges down to length j
-	temp = realloc(*activityRanges,j);
+	temp = realloc(*activityRanges,j*sizeof(int));
 	if (temp!=NULL){
 		*activityRanges=temp;
 	} else {
@@ -288,7 +298,7 @@ int reallocActivityRanges(int** activityRanges, int acLength, int numFrames){
 		newAcLength = maxAcLength;
 	}
 
-	temp = realloc(*activityRanges,acLength);
+	temp = realloc(*activityRanges,newAcLength*sizeof(int));
 	if (temp!=NULL){
 		*activityRanges=temp;
 	} else {
@@ -300,8 +310,7 @@ int reallocActivityRanges(int** activityRanges, int acLength, int numFrames){
 	return newAcLength;
 }
 
-void WindowsToSamples(int* windows, int length, int winInt,
-		      int sample_rate)
+void WindowsToSamples(int* windows, int length, int sample_rate)
 {
 	// converts an array of indices of windows to the index of the first
 	// sample in each window in place
@@ -310,7 +319,7 @@ void WindowsToSamples(int* windows, int length, int winInt,
 	// we round down to the whole number of samples
 	double temp;
 	for (int i = 0; i <length;i++){
-		temp = ((double)winInt/1000.) * (double)windows[i]*sample_rate;
+		temp = (double)windows[i]*sample_rate / 8000.0;
 		windows[i] = (int)floor(temp);
 	}
 }
