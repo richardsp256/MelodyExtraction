@@ -30,10 +30,7 @@ int winStartRepSampleIndex(int winInt, int winSize, int numSamples, int winInd){
 		int start_index = winStartSampleIndex(winInt, winInd);
 
 		start_index += ((winSize-winInt)/2);
-		// the following if statement might be unnecessary
-		if (start_index<numSamples){
-			start_index++;
-		}
+		
 		return start_index;
 	}
 }

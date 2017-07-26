@@ -10,7 +10,7 @@ fvad.h is installed in /usr/local/include
 #include "fvad.h"
 #include "samplerate.h"
 #include "fVADsd.h"
-
+#include "winSampleConv.h"
 
 int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 			 int frameLength, int spacing, int length,
@@ -89,7 +89,7 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 		// here we convert from the indices of the windows that were used
 		// for VAD to the indices of the first samples in each window
 		WindowsToSamples(*activityRanges, activityRangesLength,
-				sample_rate);
+				 sample_rate, length, frameLength, spacing);
 	}
 
 	return activityRangesLength;
@@ -217,7 +217,7 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 				}
 			}
 
-			(*activityRanges)[j] = i*spacingSamples;
+			(*activityRanges)[j] = i;
 			j++;
 		}
 		prevResult = vadResult;
@@ -231,7 +231,7 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 		// activityRanges since it always has an even length and
 		// there will always be an odd number of entries when we add this
 		// last value
-		(*activityRanges)[j] = i*spacingSamples;
+		(*activityRanges)[j] = i;
 		j++;
 	}
 
@@ -310,16 +310,32 @@ int reallocActivityRanges(int** activityRanges, int acLength, int numFrames){
 	return newAcLength;
 }
 
-void WindowsToSamples(int* windows, int length, int sample_rate)
+void WindowsToSamples(int* windows, int length, int sample_rate,
+		      int numSamples, int frameLength, int spacing)
 {
 	// converts an array of indices of windows to the index of the first
 	// sample in each window in place
+
+	// convert frameLength into units of samples
+	int winSize =  (frameLength * sample_rate)/1000;
+
+	// likewise, convert spacing into units of samples
+	int winInt = (spacing * sample_rate)/1000;
 	
 	// winInt is in terms of ms
 	// we round down to the whole number of samples
 	double temp;
 	for (int i = 0; i <length;i++){
-		temp = (double)windows[i]*sample_rate / 8000.0;
-		windows[i] = (int)floor(temp);
+		printf("Window Index: %d", windows[i]);
+		if ((i %2) ==0){
+			windows[i] = winStartRepSampleIndex(winInt, winSize,
+							    numSamples,
+							    windows[i]);
+		} else {
+			windows[i] = winStopRepSampleIndex(winInt, winSize,
+							   numSamples,
+							   windows[i]-1);
+		}
+		printf(", Sample Index: %d\n",windows[i]);
 	}
 }
