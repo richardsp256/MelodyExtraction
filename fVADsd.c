@@ -79,18 +79,21 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 		}
 		free(resampleData -> data_out);
 		free(resampleData);
+
+		if (activityRangesLength!=-1){
+			// this scenario occurs if resizing *activityRanges
+			// succeeded here we convert from the indices of the
+			// samples at 8000 Hz to the indices of the samples at
+			// the original rate.
+		WindowsToSamples(*activityRanges, activityRangesLength,
+				 sample_rate);
+		}
 	} else {
 		activityRangesLength = vadHelper((*AudioData), sample_rate, mode,
 					      frameLength, spacing, length,
 					      activityRanges);
 	}
-	if (activityRangesLength!=-1){
-		// this scenario occurs if resizing *activityRanges succeeded
-		// here we convert from the indices of the windows that were used
-		// for VAD to the indices of the first samples in each window
-		WindowsToSamples(*activityRanges, activityRangesLength,
-				 sample_rate);
-	}
+	
 
 	return activityRangesLength;
 }
