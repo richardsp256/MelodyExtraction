@@ -10,5 +10,4 @@ int vadHelper(float* data,int sample_rate, int mode, int frameLength,
 	      int spacing, int length, int** activityRanges);
 int mallocActivityRanges(int** activityRanges, int numFrames);
 int reallocActivityRanges(int** activityRanges, int acLength, int numFrames);
-void WindowsToSamples(int* windows, int length, int sample_rate,
-		      int numSamples, int frameLength, int spacing);
+void WindowsToSamples(int* windows, int length, int sample_rate);
