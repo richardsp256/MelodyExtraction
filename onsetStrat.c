@@ -29,41 +29,67 @@ OnsetStrategyFunc chooseOnsetStrategy(char* name){
 	return detectionStrategy;
 }
 
-void OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, int spacing, int samplerate){
-	/*
-	 this function was added for this project, and not poart of the 
-	 original code by DanStowell. It returns a float array containing the timestamp in milliseconds of each onset
-	*/
-	 int numBlocks = size / dftBlocksize;
-	 float delta = (spacing * 1000) / (float)samplerate; //time in ms between start of each block
-	 printf("onset delta %f\n", delta);
+int OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, int samplerate, int** onsets){
+	int numBlocks = size / dftBlocksize;
+
+	OnsetsDS ods; // An instance of the OnsetsDS struct
+	float* block = malloc(sizeof(float) * dftBlocksize); //hold a block of data from AudioData to process
+	int onsets_size = 10; //initial size for onsets array. we will realloc for more space as needed
+	int onsets_index = 0;
+
+	enum onsetsds_odf_types odftype = ODS_ODF_RCOMPLEX; //various onset detectors available, ODS_ODF_RCOMPLEX should be the best
+	float* odsdata = (float*) malloc(onsetsds_memneeded(odftype, 512, 11)); // Allocate contiguous memory ods needs for processing onset
+	onsetsds_init(&ods, odsdata, ODS_FFT_FFTW3_R2C, odftype, 512, 11, samplerate);//initialise the OnsetsDS struct and its associated memory
+
+	(*onsets) = malloc(sizeof(int)*onsets_size);
 	
-	// An instance of the OnsetsDS struct, declared/allocated somewhere in your code, however you want to do it.
-	OnsetsDS ods;
-
-	// There are various types of onset detector available, we must choose one
-	enum onsetsds_odf_types odftype = ODS_ODF_RCOMPLEX;
-
-	// Allocate contiguous memory using malloc or whatever is reasonable.
-	float* odsdata = (float*) malloc( onsetsds_memneeded(odftype, 512, 11) );
-
-	// Now initialise the OnsetsDS struct and its associated memory
-	onsetsds_init(&ods, odsdata, ODS_FFT_FFTW3_R2C, odftype, 512, 11, samplerate);
-
-	float* block = malloc(sizeof(float) * dftBlocksize);
 	for(int i = 0; i < numBlocks; ++i){
 		// Grab your 512-point, 50%-overlap, nicely-windowed FFT data, into block
 		for (int j = 0; j < dftBlocksize; ++j){
 			block[j] = (*AudioData)[ (i * dftBlocksize) + j ];
 		}
 		
-		//will return true when there's an onset, false otherwise
 		if(onsetsds_process(&ods, block)){
-			printf("onset detected at %d\n", (int)(delta*i));
+			printf("new onset\n");
+			AddOnsetAt(onsets, &onsets_size, i, onsets_index);
+			if(onsets_size == -1){ //resize failed
+				printf("Resizing onsets failed. Exitting.\n");
+				free(block);
+				free(ods.data);
+				return -1;
+			}
+
+			onsets_index++;
 		}
 	}
 
 	free(block);
-
 	free(ods.data); // Or free(odsdata), they point to the same thing in this case
+
+	int* temp = realloc((*onsets),onsets_index*sizeof(int));
+	if (temp != NULL){
+		(*onsets) = temp;
+	} else {
+		printf("Resizing onsets failed. Exitting.\n");
+		free(*onsets);
+		return -1;
+	}
+	
+	return onsets_index;
+}
+
+//adds [value] to [onsets] at index [index]. if the index is out of bounds, resize the array.
+void AddOnsetAt(int** onsets, int* size, int value, int index ){
+	if(index >= (*size)){ //out of space in onsets array
+		(*size) *= 2;
+		int* temp = realloc((*onsets),(*size)*sizeof(int));
+		if(temp != NULL){
+			(*onsets) = temp;
+		} else { //realloc failed
+			free(*onsets);
+			(*size) = -1;
+			return;
+		}
+	}
+	(*onsets)[index] = value;
 }

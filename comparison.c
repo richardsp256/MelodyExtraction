@@ -16,12 +16,12 @@
 void PrintAudioMetadata(SF_INFO * file)
 {
 	//this is only for printing information for debugging purposes
-    printf("Frames:\t%ld\n", file->frames); 
-    printf("Sample rate:\t%d\n", file->samplerate);
-    printf("Channels: \t%d\n", file->channels);
-    printf("Format: \t%d\n", file->format);
-    printf("Sections: \t%d\n", file->sections);
-    printf("Seekable: \t%d\n", file->seekable);
+	printf("Frames:\t%ld\n", file->frames); 
+	printf("Sample rate:\t%d\n", file->samplerate);
+	printf("Channels: \t%d\n", file->channels);
+	printf("Format: \t%d\n", file->format);
+	printf("Sections: \t%d\n", file->sections);
+	printf("Seekable: \t%d\n", file->seekable);
 }
 
 float* WindowFunction(int size)
@@ -59,8 +59,11 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 		printf("Pitch detection complete\n");
 		fflush(NULL);
 	}
-	ExtractOnset(input, info, o_unpaddedSize, o_winSize, o_winInt, 
+
+	int *onsets = NULL;
+	int o_size = ExtractOnset(input, &onsets, info, o_unpaddedSize, o_winSize, o_winInt, 
 	             onsetStrategy, verbose);
+	free(onsets);
 	if(verbose){
 		printf("Onset detection complete\n");
 		fflush(NULL);
@@ -153,7 +156,7 @@ int ExtractSilence(float** input, int** activityRanges, SF_INFO info,
 	int a_size = silenceStrategy(input, info.frames, s_winSize, s_winInt,
 				     info.samplerate, s_mode,
 				     activityRanges);
-	for (int i =0; i<a_size;i++){
+	for (int i = 0; i < a_size; i++){
 		printf("Activity Range: %d up to %d\n", (*activityRanges)[i],
 		       (*activityRanges)[i+1]);
 		i++;
@@ -161,21 +164,34 @@ int ExtractSilence(float** input, int** activityRanges, SF_INFO info,
 	return a_size;
 }
 
-void ExtractOnset(float** input, SF_INFO info, int o_unpaddedSize, int o_winSize, 
+int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, int o_winSize, 
                   int o_winInt, OnsetStrategyFunc onsetStrategy, int verbose)
 {
+	//todo: add 'onset threshold' parameter.
+	//if two onsets are found with less than 'threshold' time between them, ignore the second one as a false positive.
+	//i think a good default would be 40ms.
 	fftwf_complex* o_fftData = NULL;
-	int o_size = STFT_r2c(input, info, o_unpaddedSize, o_winSize, o_winInt, &o_fftData);
-	int o_numBlocks = o_size/(o_winSize/2);
+	int o_fftData_size = STFT_r2c(input, info, o_unpaddedSize, o_winSize, o_winInt, &o_fftData);
+	int o_numBlocks = o_fftData_size/(o_winSize/2);
 	if(verbose){
-		printf("numblcks of pitch FFT: %d\n", o_numBlocks);
+		printf("numblcks of onset FFT: %d\n", o_numBlocks);
 		fflush(NULL);
 	}
 	float* o_fftData_float = (float*)o_fftData;
+	o_fftData_size *= 2; //because we convert from complex* to float*, o_fftData has twice as many elements
 
-	onsetStrategy(&o_fftData_float, o_size*2, o_winSize, o_winInt, info.samplerate);
-
+	int o_size = onsetStrategy(&o_fftData_float, o_fftData_size, o_winSize, info.samplerate, onsets);
+	printf("o_strat return size: %d\n", o_size);
 	free(o_fftData);
+
+
+	//convert onsets so that the value is not which block of o_fftData it occurred, but which sample of the original audio it occurred
+	for (int i = 0; i < o_size; i++){
+		(*onsets)[i] = (*onsets)[i] * o_winInt;
+		printf("onset at sample: %d, time: %d, and block: %d\n", (*onsets)[i], (int)((*onsets)[i] * (1000.0/info.samplerate)), (*onsets)[i] / o_winInt);
+	}
+
+	return o_size;
 }
 
 //reads in .wav, returns FFT by reference through fft_data, returns size of fft_data

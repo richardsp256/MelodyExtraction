@@ -84,7 +84,7 @@ int msToFrames(int ms, int samplerate){
 int numParser(char* buf, int* num){
 	// returns 1 if buffer is in units of ms. Otherwise returns 0
 	char* endptr;
-        *num = 0;
+	    *num = 0;
 	long longnum = strtol(buf, &endptr, 10);
 	if (endptr == buf){
 		return 0;
@@ -228,7 +228,7 @@ int main(int argc, char ** argv)
 			s_spacingBuf = strdup(optarg);
 			break;
 		case 'k':
-		        s_Strategy = chooseSilenceStrategy(optarg);
+		    s_Strategy = chooseSilenceStrategy(optarg);
 			if (o_Strategy == NULL){
 				printf("Argument for option --silence_strategy must be \"fVAD\"\n");
 				badargs = 1;
