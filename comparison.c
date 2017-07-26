@@ -12,6 +12,7 @@
 #include "pitchStrat.h"
 #include "onsetStrat.h"
 #include "silenceStrat.h"
+#include "winSampleConv.h"
 
 void PrintAudioMetadata(SF_INFO * file)
 {
@@ -187,8 +188,14 @@ int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, 
 
 	//convert onsets so that the value is not which block of o_fftData it occurred, but which sample of the original audio it occurred
 	for (int i = 0; i < o_size; i++){
-		(*onsets)[i] = (*onsets)[i] * o_winInt;
-		printf("onset at sample: %d, time: %d, and block: %d\n", (*onsets)[i], (int)((*onsets)[i] * (1000.0/info.samplerate)), (*onsets)[i] / o_winInt);
+		(*onsets)[i] = winStartRepSampleIndex(o_winInt, o_unpaddedSize,
+						      info.frames,
+						      (*onsets)[i]);
+		printf("onset at sample: %d, time: %d, and block: %d\n",
+		       (*onsets)[i],
+		       (int)((*onsets)[i] * (1000.0/info.samplerate)),
+		       repWinIndex(o_winInt, o_unpaddedSize, info.frames,
+				   (*onsets)[i]));
 	}
 
 	return o_size;
