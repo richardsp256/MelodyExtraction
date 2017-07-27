@@ -13,6 +13,7 @@
 #include "onsetStrat.h"
 #include "silenceStrat.h"
 #include "winSampleConv.h"
+#include "noteCompilation.h"
 
 void PrintAudioMetadata(SF_INFO * file)
 {
@@ -48,7 +49,7 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	int *activityRanges = NULL;
 	int a_size = ExtractSilence(input, &activityRanges, info, s_winSize,
 				    s_winInt, s_mode, silenceStrategy);
-	free(activityRanges);
+	
 	if(verbose){
 		printf("Silence detection complete\n");
 		fflush(NULL);
@@ -64,12 +65,24 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	int *onsets = NULL;
 	int o_size = ExtractOnset(input, &onsets, info, o_unpaddedSize, o_winSize, o_winInt, 
 	             onsetStrategy, verbose);
-	free(onsets);
+	
 	if(verbose){
 		printf("Onset detection complete\n");
 		fflush(NULL);
 	}
 
+
+	int *noteRanges = NULL;
+	float *notePitches = NULL;
+	int nR_size = ConstructNotes(&noteRanges, &notePitches, freq,
+				     freqSize, onsets, o_size, activityRanges,
+				     a_size, info, p_unpaddedSize, p_winInt);
+
+	free(activityRanges);
+	free(onsets);
+	free(noteRanges);
+	free(notePitches);
+	
 	//get midi note values of pitch in each bin
 	int* melodyMidi = malloc(sizeof(float) * freqSize);
 	for(int i = 0; i < freqSize; ++i){
@@ -200,6 +213,30 @@ int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, 
 
 	return o_size;
 }
+
+int ConstructNotes(int** noteRanges, float** notePitches, float* pitches,
+		   int p_size, int* onsets, int onset_size, int* activityRanges,
+		   int aR_size, SF_INFO info, int p_unpaddedSize, int p_winInt)
+{
+	int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
+				     aR_size, noteRanges, info.frames);
+	int nP_size = assignNotePitches(pitches, p_size, *noteRanges, nR_size,
+					p_winInt, p_unpaddedSize, info.frames,
+					notePitches);
+	printf("Detected Notes:\n");
+	char* noteName = calloc(5, sizeof(char));
+	for(int i =0; i<nP_size; i++){
+		NoteToName(FrequencyToNote((*notePitches)[i]), &noteName);
+		printf("%d -> %d / %d ms -> %d ms, %.2f, %s\n",
+		       (*noteRanges)[2*i], (*noteRanges)[2*i+1],
+		       (int)((*noteRanges)[2*i] * (1000.0/info.samplerate)),
+		       (int)((*noteRanges)[2*i+1] * (1000.0/info.samplerate)),
+		       (*notePitches)[i], noteName);
+	}
+	return nR_size;
+}
+
+		
 
 //reads in .wav, returns FFT by reference through fft_data, returns size of fft_data
 int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data)

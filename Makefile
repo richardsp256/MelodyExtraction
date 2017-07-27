@@ -3,11 +3,14 @@ CFLAGS = -Wall
 LD = gcc
 LDFLAGS = -Wall
 
-all: comparison.c comparison.h midi.c midi.h main.c pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o
+all: comparison.c comparison.h midi.c midi.h main.c pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o
 	gcc -Wall -O3 -c midi.c -o midi.o
 	gcc -I./libsndfile-1.0.26/src -I./fftw-3.3.4/api -Wall -O3 -c comparison.c -o comparison.o
 	gcc -I./libsndfile-1.0.26/src -I./fftw-3.3.4/api -Wall -O3 -c main.c -o main.o
-	gcc midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o main.o -o extract -L./fftw-3.3.4/.libs -lfftw3f -L./libsndfile-1.0.26/src/.libs -lsndfile -L./libfvad-master/src/.libs -Wl,-rpath=./libfvad-master/src/.libs -lfvad -L./libsamplerate-0.1.9/src/.libs -lsamplerate -lm
+	gcc midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o main.o -o extract -L./fftw-3.3.4/.libs -lfftw3f -L./libsndfile-1.0.26/src/.libs -lsndfile -L./libfvad-master/src/.libs -Wl,-rpath=./libfvad-master/src/.libs -lfvad -L./libsamplerate-0.1.9/src/.libs -lsamplerate -lm
+
+noteCompilation.o: noteCompilation.c
+	${CC} ${CFLAGS} -c $< -o noteCompilation.o
 
 winSampleConv.o: winSampleConv.c
 	${CC} ${CFLAGS} -c $< -o winSampleConv.o
