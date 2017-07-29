@@ -19,7 +19,7 @@ int ExtractSilence(float** input, int** activityRanges, SF_INFO info,
 		   SilenceStrategyFunc silenceStrategy);
 int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, int o_winSize, 
                   int o_winInt, OnsetStrategyFunc onsetStrategy, int verbose);
-int ConstructNotes(int** noteRanges, float** notePitches, float* pitches,
+int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 		   int p_size, int* onsets, int onset_size, int* activityRanges,
 		   int aR_size, SF_INFO info, int p_unpaddedSize, int p_winInt);
 int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data);

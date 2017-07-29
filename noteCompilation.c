@@ -59,23 +59,23 @@ int calcNoteRanges(int* onsets, int onset_size, int* activityRanges,
 
 int assignNotePitches(float* freq, int length, int* noteRanges, int nR_size,
 		      int winInt, int winSize, int numSamples,
-		      float** notePitches){
+		      float** noteFreq){
 	// in the future, we may want to do some kind of convolution of
-	// notePitches to see if there are multiple slurred notes not detected
+	// noteFreq to see if there are multiple slurred notes not detected
 	// in onset detection
 
 	int i;
 	printf("nR_size = %d\n",nR_size);
-	int nP_size = nR_size/2;
-	(*notePitches) = malloc(sizeof(float)*nP_size);
-	for (i=0; i<nP_size;i++){
-		(*notePitches)[i] = averageFreq(noteRanges[2*i],
+	int nF_size = nR_size/2;
+	(*noteFreq) = malloc(sizeof(float)*nF_size);
+	for (i=0; i<nF_size;i++){
+		(*noteFreq)[i] = averageFreq(noteRanges[2*i],
 						noteRanges[2*i+1],
 						winInt, winSize, numSamples,
 						freq,length);
-		printf("Freq: %f \n",(*notePitches)[i]);
+		printf("Freq: %f \n",(*noteFreq)[i]);
 	}
-	return nP_size;
+	return nF_size;
 }
 
 float averageFreq(int startSample, int stopSample, int winInt, int winSize,

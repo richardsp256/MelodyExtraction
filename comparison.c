@@ -73,15 +73,15 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 
 
 	int *noteRanges = NULL;
-	float *notePitches = NULL;
-	int nR_size = ConstructNotes(&noteRanges, &notePitches, freq,
+	float *noteFreq = NULL;
+	int nR_size = ConstructNotes(&noteRanges, &noteFreq, freq,
 				     freqSize, onsets, o_size, activityRanges,
 				     a_size, info, p_unpaddedSize, p_winInt);
 
 	free(activityRanges);
 	free(onsets);
 	free(noteRanges);
-	free(notePitches);
+	free(noteFreq);
 	
 	//get midi note values of pitch in each bin
 	int* melodyMidi = malloc(sizeof(float) * freqSize);
@@ -214,24 +214,24 @@ int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, 
 	return o_size;
 }
 
-int ConstructNotes(int** noteRanges, float** notePitches, float* pitches,
+int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 		   int p_size, int* onsets, int onset_size, int* activityRanges,
 		   int aR_size, SF_INFO info, int p_unpaddedSize, int p_winInt)
 {
 	int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
 				     aR_size, noteRanges, info.frames);
-	int nP_size = assignNotePitches(pitches, p_size, *noteRanges, nR_size,
+	int nF_size = assignNotePitches(pitches, p_size, *noteRanges, nR_size,
 					p_winInt, p_unpaddedSize, info.frames,
-					notePitches);
+					noteFreq);
 	printf("Detected Notes:\n");
 	char* noteName = calloc(5, sizeof(char));
-	for(int i =0; i<nP_size; i++){
-		NoteToName(FrequencyToNote((*notePitches)[i]), &noteName);
+	for(int i =0; i<nF_size; i++){
+		NoteToName(FrequencyToNote((*noteFreq)[i]), &noteName);
 		printf("%d -> %d / %d ms -> %d ms, %.2f, %s\n",
 		       (*noteRanges)[2*i], (*noteRanges)[2*i+1],
 		       (int)((*noteRanges)[2*i] * (1000.0/info.samplerate)),
 		       (int)((*noteRanges)[2*i+1] * (1000.0/info.samplerate)),
-		       (*notePitches)[i], noteName);
+		       (*noteFreq)[i], noteName);
 	}
 	return nR_size;
 }
