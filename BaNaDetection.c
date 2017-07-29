@@ -176,9 +176,10 @@ struct distinctList** BaNaFindCandidates(float **AudioData, int size,
 		// add the cepstrum fundamental candidate
 
 		struct distinctList* t = distinctCandidates(&candidates,
-							     (p-1)*(p-1)+2,
-							     xi,(float)f0Min,
-							     (float)f0Max);
+							    ((numPeaks)*
+							     (numPeaks-1)/2)+2,
+							    xi,(float)f0Min,
+							    (float)f0Max);
 		//distinctListPrintFreq(*t);
 		// determine the distinctive candidates and add them to
 		windowCandidates[blockstart/dftBlocksize] = t;

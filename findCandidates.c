@@ -19,8 +19,15 @@ struct orderedList calcCandidates(float* peaks, int numPeaks)
 {
 	int i,j;
 	float m;
+
+	// let T_n represent the nth triangle number. T_n = n(n+1)/2
+	// the maximum number of candidates from different combinations of
+	// peaks is: T_(numPeaks-1)= (numPeaks)(numPeaks-1)/2
+	// In addition to those combinations, the list of candidates also
+	// includes the lowest Frequency Peak and the cepstral frequency
+	// Thus, the maximum length is: 2+(numPeaks)(numPeaks-1)/2
 	struct orderedList candidates = orderedListCreate(2+((numPeaks-1) *
-							     (numPeaks-1)));
+							     (numPeaks)/2));
 
 	for (i=0; i<numPeaks-1;i++){
 		for (j=i+1; j<numPeaks; j++){
