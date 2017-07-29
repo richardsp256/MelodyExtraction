@@ -7,3 +7,5 @@ float averageFreq(int startSample, int stopSample, int winInt, int winSize,
 		  int numSamples, float *freq, int length);
 float medianFreq(int startSample, int stopSample, int winInt, int winSize,
 		 int numSamples, float *freq, int length);
+int* noteRangesEventTiming(int* noteRanges, int nR_size, int sample_rate,
+			   int bpm, int division);

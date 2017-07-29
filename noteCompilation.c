@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "noteCompilation.h"
 #include "winSampleConv.h"
+#include "math.h"
 
 // Here we lists functions that allow us to determine when musical notes happen
 // by compiling the information from Pitch Detection, Onset Detection, and
@@ -176,4 +177,41 @@ float medianFreq(int startSample, int stopSample, int winInt, int winSize,
 	}
 	free(temp);
 	return temp_freq;
+}
+
+int* noteRangesEventTiming(int* noteRanges, int nR_size, int sample_rate,
+			   int bpm, int division)
+{
+	// convert samples in noteRanges to midi event timings
+	// noteRanges is an array of the number of samples from the
+	// beginning that dictate when notes start and stop using the
+	// sample rate of the input audio file:
+	// {s_0, s_1, s_2, ..., s_i, ... }
+
+	// the returned eventRanges lists the amount of ticks from the
+	// previous entry. Thus our first step is to determine the sample
+	// from previous entry:
+	// {s_0, s_1-s_0, s_2 - s_1, ..., s_i - s_(i-1), ...}
+
+	// then we convert these entries so that they have units of seconds
+	// (1/sample_rate) * {s_0, s_1-s_0, s_2 - s_1, ..., s_i - s_(i-1), ...}
+
+	// finally, we need to convert into units of ticks. In the midi file
+	// there are (bpm/(60*division)) ticks per second.
+	// thus, we return:
+	// bpm/(60*sample_rate*division) * {s_0, s_1-s_0, ..., s_i-s_(i-1), ...}
+
+	int* eventRanges = malloc(sizeof(int)*nR_size);
+
+	eventRanges[0] = (int)round(((double)bpm/(60.* (double)sample_rate
+						  * (double)division)
+				     * (double)noteRanges[0]));
+	for(int i =1; i<nR_size; i++){
+		eventRanges[i] = (int)round(((double)bpm/(60.
+							  * (double)sample_rate
+							  * (double)division)
+					     * (double)(noteRanges[i]
+							- noteRanges[i-1])));
+	}
+	return eventRanges;
 }
