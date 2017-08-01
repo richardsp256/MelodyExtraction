@@ -435,3 +435,29 @@ void SaveWeightsTxt(char* fileName, float** AudioData, int size, int dftBlocksiz
 	}
 	fclose(fp);
 }
+
+
+void SaveNotesTxt(char* fileName, int* noteRanges, int* notePitches,
+		  int nP_size, int samplerate){
+	// Saves the notes and note pitches. This is for use while debugging
+	
+	FILE *fp;
+	int i;
+	fp = fopen(fileName,"w");
+	
+	// write out important comments
+	fprintf(fp, "#Sample Rate:\t%d\n", samplerate);
+	fprintf(fp, "#note_start and note stop are in units of num of samples \n");
+	fprintf(fp, "#note_pitch is the midi num associated with the pitch\n");
+	
+	// write out the header:
+	fprintf(fp, "note_start\tnote_stop\tnote_pitch");
+
+	// write out the notes:
+	for(i =0; i<nP_size; i++){
+		fprintf(fp, "\n%d\t%d\t%d",noteRanges[2*i], noteRanges[2*i+1],
+			notePitches[i]);
+	}
+
+	fclose(fp);
+}

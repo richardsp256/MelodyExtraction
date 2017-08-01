@@ -28,3 +28,5 @@ int STFTinverse_c2r(fftwf_complex** input, SF_INFO info, int winSize, int interv
 float* Magnitude(fftwf_complex* arr, int size);
 void SaveAsWav(const double* audio, SF_INFO info, const char* path);
 void SaveWeightsTxt(char* fileName, float** AudioData, int size, int dftBlocksize, int samplerate, int unpaddedSize, int winSize);
+void SaveNotesTxt(char* fileName, int* noteRanges, int* notePitches,
+		  int nP_size, int samplerate);
