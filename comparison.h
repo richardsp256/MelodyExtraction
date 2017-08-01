@@ -22,6 +22,7 @@ int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, 
 int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 		   int p_size, int* onsets, int onset_size, int* activityRanges,
 		   int aR_size, SF_INFO info, int p_unpaddedSize, int p_winInt);
+void FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi);
 int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data);
 int STFTinverse_c2r(fftwf_complex** input, SF_INFO info, int winSize, int interval, float** output);
 float* Magnitude(fftwf_complex* arr, int size);
