@@ -50,7 +50,7 @@ int OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, int
 		}
 		
 		if(onsetsds_process(&ods, block)){
-			printf("new onset\n");
+			//printf("new onset\n");
 			AddOnsetAt(onsets, &onsets_size, i, onsets_index);
 			if(onsets_size == -1){ //resize failed
 				printf("Resizing onsets failed. Exitting.\n");

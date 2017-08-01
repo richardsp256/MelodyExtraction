@@ -82,7 +82,6 @@ int assignNotePitches(float* freq, int length, int* noteRanges, int nR_size,
 	// in onset detection
 
 	int i;
-	printf("nR_size = %d\n",nR_size);
 	int nF_size = nR_size/2;
 	(*noteFreq) = malloc(sizeof(float)*nF_size);
 	for (i=0; i<nF_size;i++){

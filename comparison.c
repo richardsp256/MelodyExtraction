@@ -74,42 +74,41 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 
 	int *noteRanges = NULL;
 	float *noteFreq = NULL;
-	int nR_size = ConstructNotes(&noteRanges, &noteFreq, freq,
+	int num_notes = ConstructNotes(&noteRanges, &noteFreq, freq,
 				     freqSize, onsets, o_size, activityRanges,
 				     a_size, info, p_unpaddedSize, p_winInt);
 
+	int* melodyMidi = malloc(sizeof(float) * num_notes);
+
+	for(int i = 0; i < num_notes; ++i){
+		melodyMidi[i] = FrequencyToNote(noteFreq[i]);
+	}
+
+	char* noteName = calloc(5, sizeof(char));
+	printf("Detected %d Notes:\n", num_notes);
+	for(int i =0; i<num_notes; i++){
+		NoteToName(melodyMidi[i], &noteName);
+		printf("%d - %d,   %d ms - %d ms,   %.2f hz,   %s\n",
+		       noteRanges[2*i], noteRanges[2*i+1],
+		       (int)(noteRanges[2*i] * (1000.0/info.samplerate)),
+		       (int)(noteRanges[2*i+1] * (1000.0/info.samplerate)),
+		       noteFreq[i], noteName);
+	}
+
 	free(activityRanges);
 	free(onsets);
-	free(noteRanges);
 	free(noteFreq);
 	
 	//get midi note values of pitch in each bin
-	int* melodyMidi = malloc(sizeof(float) * freqSize);
-	for(int i = 0; i < freqSize; ++i){
-		if(verbose){
-			printf("block%d:", i);
-			fflush(NULL);
-			printf("   freq: %.2f", freq[i]);
-			fflush(NULL);
-		}
-		
-		melodyMidi[i] = FrequencyToNote(freq[i]);
-		if(verbose){
-			printf("   midi: %d", melodyMidi[i]);
-			fflush(NULL);
-		}
-		char* noteName = calloc(5, sizeof(char));
-		NoteToName(melodyMidi[i], &noteName);
-		if(verbose){
-			printf("   name: %s \n", noteName);
-			fflush(NULL);
-		}
-		free(noteName);
-	}
+
 	printf("printout complete\n");
 	fflush(NULL);
 
-	struct Midi* midi = GenerateMIDI(melodyMidi, freqSize, verbose);
+	//todo: restructure generateMidi function to also take noteRanges
+	struct Midi* midi = GenerateMIDI(melodyMidi, num_notes, verbose);
+
+	free(noteRanges);
+
 	return midi;
 }
 
@@ -195,7 +194,7 @@ int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, 
 	o_fftData_size *= 2; //because we convert from complex* to float*, o_fftData has twice as many elements
 
 	int o_size = onsetStrategy(&o_fftData_float, o_fftData_size, o_winSize, info.samplerate, onsets);
-	printf("o_strat return size: %d\n", o_size);
+	//printf("o_strat return size: %d\n", o_size);
 	free(o_fftData);
 
 
@@ -220,20 +219,12 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 {
 	int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
 				     aR_size, noteRanges, info.samplerate);
+
 	int nF_size = assignNotePitches(pitches, p_size, *noteRanges, nR_size,
 					p_winInt, p_unpaddedSize, info.frames,
 					noteFreq);
-	printf("Detected Notes:\n");
-	char* noteName = calloc(5, sizeof(char));
-	for(int i =0; i<nF_size; i++){
-		NoteToName(FrequencyToNote((*noteFreq)[i]), &noteName);
-		printf("%d -> %d / %d ms -> %d ms, %.2f, %s\n",
-		       (*noteRanges)[2*i], (*noteRanges)[2*i+1],
-		       (int)((*noteRanges)[2*i] * (1000.0/info.samplerate)),
-		       (int)((*noteRanges)[2*i+1] * (1000.0/info.samplerate)),
-		       (*noteFreq)[i], noteName);
-	}
-	return nR_size;
+
+	return nF_size;
 }
 
 		
