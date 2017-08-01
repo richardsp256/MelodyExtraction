@@ -1,5 +1,5 @@
 int calcNoteRanges(int* onsets, int onset_size, int* activityRanges,
-		   int aR_size, int** noteRanges, int numSamples);
+		   int aR_size, int** noteRanges, int samplerate);
 int assignNotePitches(float* freq, int length, int* noteRanges, int nR_size,
 		      int winInt, int winSize, int numSamples,
 		      float** noteFreq);

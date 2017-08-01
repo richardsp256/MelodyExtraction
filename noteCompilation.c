@@ -8,42 +8,58 @@
 // by compiling the information from Pitch Detection, Onset Detection, and
 // Activity Detection
 
+
+/*
+ * creates noteRanges which follows a similar format to activityRanges
+ */
 int calcNoteRanges(int* onsets, int onset_size, int* activityRanges,
-		   int aR_size, int** noteRanges, int numSamples)
+		   int aR_size, int** noteRanges, int samplerate)
 {
-	// creates noteRanges which follows a similar format to activityRanges
-
-	int numRanges = aR_size/2;
-	(*noteRanges) = malloc(sizeof(int)*(onset_size * 2 + aR_size));
-
-	if (aR_size==0){
+	if (aR_size == 0){
 		printf("No activity was detected. Exitting.\n");
-		free(*noteRanges);
 		return -1;
 	}
 
-	int i_onsets=0;
-	int j=0;
-	int i_aR, max_sample, cur_start;
+	int numRanges = aR_size/2;
+	int i_onsets = 0;
+	int j = 0;
+	int i_aR, range_end, range_start;
+	/*
+	If two onsets, or an onset and an activityrange start, 
+	are within [threshold] of eachother, we deem them as the same note.
+	The threshold I chose below is equivalent to 40ms for the samplerate. 
+	A 32nd note at 144bpm (very short) is 52 ms,
+	so i think its a safe bet anything less than 40ms is not 2 different notes.
+	*/
+	int threshold = (int)(40 * samplerate / 1000); 
+
+	(*noteRanges) = malloc(sizeof(int)*(onset_size * 2 + aR_size));
+
 	for (i_aR=0; i_aR<numRanges; i_aR++){
-		max_sample = activityRanges[i_aR * 2 + 1];
-		cur_start = activityRanges[i_aR * 2];
+
+		range_start = activityRanges[i_aR * 2];
+		range_end = activityRanges[i_aR * 2 + 1];
+		
 		for (i_onsets = i_onsets; i_onsets<onset_size;i_onsets++){
-			if (onsets[i_onsets] <= cur_start){
+		
+			if (onsets[i_onsets] <= range_start){
 				continue;
-			} else if (onsets[i_onsets] >max_sample){
+			} else if (onsets[i_onsets] >range_end){
 				break;
 			} else {
-				(*noteRanges)[j] = cur_start;
-				j++;
-				cur_start = onsets[i_onsets];
-				(*noteRanges)[j] = cur_start;
-				j++;
+				if((onsets[i_onsets] - range_start) > threshold){
+					(*noteRanges)[j] = range_start;
+					j++;
+					(*noteRanges)[j] = onsets[i_onsets];
+					j++;
+					range_start = onsets[i_onsets];
+				}
 			}
 		}
-		(*noteRanges)[j] = cur_start;
+
+		(*noteRanges)[j] = range_start;
 		j++;
-		(*noteRanges)[j] = max_sample;
+		(*noteRanges)[j] = range_end;
 		j++;
 	}
 

@@ -219,7 +219,7 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 		   int aR_size, SF_INFO info, int p_unpaddedSize, int p_winInt)
 {
 	int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
-				     aR_size, noteRanges, info.frames);
+				     aR_size, noteRanges, info.samplerate);
 	int nF_size = assignNotePitches(pitches, p_size, *noteRanges, nR_size,
 					p_winInt, p_unpaddedSize, info.frames,
 					noteFreq);
