@@ -78,7 +78,7 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 				     freqSize, onsets, o_size, activityRanges,
 				     a_size, info, p_unpaddedSize, p_winInt);
 
-	int* melodyMidi = malloc(sizeof(float) * num_notes);
+	int* melodyMidi = malloc(sizeof(int) * num_notes);
 	FrequenciesToNotes(noteFreq, num_notes, &melodyMidi);
 
 	char* noteName = calloc(5, sizeof(char));
