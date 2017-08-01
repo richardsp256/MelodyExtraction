@@ -15,6 +15,7 @@ void freeMidi(struct Midi* midi);
 int isMidiNote(int note);
 void NoteToName(int n, char** name);
 int FrequencyToNote(double freq);
+int FrequencyToFractionalNote(double freq);
 double log2(double x);
 void SaveMIDI(struct Midi* midi, char* path, int verbose);
 void AddHeader(FILE** f, short format, short tracks, short division);

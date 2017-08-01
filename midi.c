@@ -31,7 +31,11 @@ void NoteToName(int n, char** name){
 // converts from frequency to closest MIDI note
 // example: FrequencyToNote(443)=57 (A 4)
 int FrequencyToNote(double freq){
-	return round(12*log2(freq/tuning)) + 57;
+	return round(FrequencyToFractionalNote(freq));
+}
+
+float FrequencyToFractionalNote(double freq){
+	return (12*log2(freq/tuning)) + 57;
 }
 
 double log2(double x){

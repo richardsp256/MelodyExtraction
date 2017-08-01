@@ -79,20 +79,17 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 				     a_size, info, p_unpaddedSize, p_winInt);
 
 	int* melodyMidi = malloc(sizeof(float) * num_notes);
-
-	for(int i = 0; i < num_notes; ++i){
-		melodyMidi[i] = FrequencyToNote(noteFreq[i]);
-	}
+	FrequenciesToNotes(noteFreq, num_notes, &melodyMidi);
 
 	char* noteName = calloc(5, sizeof(char));
 	printf("Detected %d Notes:\n", num_notes);
 	for(int i =0; i<num_notes; i++){
 		NoteToName(melodyMidi[i], &noteName);
-		printf("%d - %d,   %d ms - %d ms,   %.2f hz,   %s\n",
+		printf("%d - %d,   %d ms - %d ms,   %.2f hz,   %d,   %s\n",
 		       noteRanges[2*i], noteRanges[2*i+1],
 		       (int)(noteRanges[2*i] * (1000.0/info.samplerate)),
 		       (int)(noteRanges[2*i+1] * (1000.0/info.samplerate)),
-		       noteFreq[i], noteName);
+		       noteFreq[i], melodyMidi[i], noteName);
 	}
 
 	free(activityRanges);
@@ -225,6 +222,16 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 					noteFreq);
 
 	return nF_size;
+}
+
+void FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi)
+{
+	//this function just does the simple conversion for now,
+	//but in the future will be able to account for singer being sharp/flat
+	//in order to get more accurate not estimates
+	for(int i = 0; i < num_notes; ++i){
+		(*melodyMidi)[i] = FrequencyToNote(freq[i]);
+	}
 }
 
 		
