@@ -3,6 +3,7 @@
 #include <math.h>
 #include <string.h>
 #include "midi.h"
+#include "noteCompilation.h"
 
 char* notes[] = {"C ","C#","D ","D#","E ","F ","F#","G ","G#","A ","A#","B "};
 const int tuning = 440;
@@ -232,6 +233,166 @@ int MakeTrack(unsigned char** track, int trackCapacity, int* noteArr, int size){
 	}
 
 	timeSinceLast += dt;
+
+	timerSize = IntToVLQ(timeSinceLast, &timer);
+	unsigned char endTrack[3] = {(unsigned char) 255, (unsigned char) 47, (unsigned char) 0}; //end track value defined in MIDI standard
+
+	if(trackLen + timerSize + 3 >= trackCapacity){
+		//allocate more space for track
+		trackCapacity += 1000;
+		unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+		if(reallocatedTrack){
+			(*track) = reallocatedTrack;
+		}
+		else{ //memory could not be allocated
+			free(timer);
+			return -1;
+		}
+	}
+
+	memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
+	trackLen += timerSize;
+	free(timer);
+	memcpy( &(*track)[trackLen], &endTrack[0], 3 * sizeof(char));
+	trackLen += 3;
+
+	return trackLen;
+}
+
+struct Track* GenerateTrackFromNotes(int* notePitches, int* noteRanges,
+				     int nP_size, int bpm, int division,
+				     int sample_rate, int verbose){
+	struct Track *track;
+	track = malloc(sizeof(struct Track));
+
+	//MIDI files are big-endian, so reverse byte order of all ints and shorts
+	// this function is temporarily separate from GenerateTracks until we
+	// work out bugs
+	int trackCapacity = 1000;
+	unsigned char* trackData = malloc(sizeof(char) * trackCapacity);
+	int tracklength = MakeTrackFromNotes(&trackData, trackCapacity, notePitches,
+					     noteRanges, nP_size, bpm, division,
+					     sample_rate, verbose);
+	if(tracklength < 0){
+		printf("track generation failed\n");
+		free(trackData);
+		return NULL;
+	}
+
+	track->len = tracklength;
+	track->data = trackData;
+	return track;
+}
+
+struct Midi* GenerateMIDIFromNotes(int* notePitches, int* noteRanges,
+				   int nP_size, int sample_rate,
+				   int verbose)
+{
+	//MIDI files are big-endian, so reverse byte order of all ints and shorts
+	// this function is temporarily separate from GenerateMIDI until we
+	// work out the bugs
+	struct Track* track;
+	track = GenerateTrackFromNotes(notePitches, noteRanges, nP_size, 120,
+				       24, sample_rate, verbose);
+	if(!track){
+		printf("track generation failed\n");
+		return NULL;
+	}
+	else{
+		struct Midi* midi;
+		midi = malloc(sizeof(struct Midi));
+		midi->tracks = malloc(sizeof(struct Track*) * 1);
+		midi->tracks[0] = track;
+		midi->format = 1;
+		midi->numTracks = 1; //note: multiple tracks not currently supported
+		midi->division = 24; //note: in the future dont hardcode
+		return midi;
+	}
+}
+
+
+
+int MakeTrackFromNotes(unsigned char** track, int trackCapacity,
+		       int* notePitches, int* noteRanges, int nP_size,
+		       int bpm, int division, int sample_rate,
+		       int verbose){
+	// this function is temporarily separate from MakeTracks until we
+	// work out bugs
+	int dt = 2; //time between events.
+	int timeSinceLast = 0;
+
+	int vel = 80; //default velocity, given to all notes.
+	int last = -1; //the last note that was played
+
+	unsigned char* timer;
+	int timerSize = 0;
+	unsigned char* message;
+
+	int trackLen = 0; 
+	int* eventRanges = noteRangesEventTiming(noteRanges, 2*nP_size,
+						 sample_rate, bpm, division);
+	
+	for(int i = 0; i < nP_size; ++i){
+		// start the note
+		timeSinceLast = eventRanges[2*i];
+		timerSize = IntToVLQ(timeSinceLast, &timer);
+		message = MessageNoteOn(notePitches[i], vel);
+
+		if(trackLen + timerSize + 3 >= trackCapacity){
+			//allocate more space for track
+			trackCapacity += 1000;
+			unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+			if(reallocatedTrack){
+				(*track) = reallocatedTrack;
+			}
+			else{ //memory could not be allocated
+				free(timer);
+				free(message);
+				return -1;
+			}
+		}
+
+		memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
+		trackLen += timerSize;
+		free(timer);
+		memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
+		trackLen += 3;
+		free(message);
+		timeSinceLast = 0;
+
+		// end the note
+
+		timeSinceLast = eventRanges[2*i+1];
+		timerSize = IntToVLQ(timeSinceLast, &timer);
+		message = MessageNoteOff(notePitches[i], vel);
+
+		if(trackLen + timerSize + 3 >= trackCapacity){
+			//allocate more space for track
+			trackCapacity += 1000;
+			unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
+			if(reallocatedTrack){
+				(*track) = reallocatedTrack;
+			}
+			else{ //memory could not be allocated
+				free(timer);
+				free(message);
+				return -1;
+			}
+		}
+
+		memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
+		trackLen += timerSize;
+		free(timer);
+		memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
+		trackLen += 3;
+		free(message);
+		timeSinceLast = 0;
+	}
+
+
+	free(eventRanges);
+	
+	timeSinceLast = 2;
 
 	timerSize = IntToVLQ(timeSinceLast, &timer);
 	unsigned char endTrack[3] = {(unsigned char) 255, (unsigned char) 47, (unsigned char) 0}; //end track value defined in MIDI standard

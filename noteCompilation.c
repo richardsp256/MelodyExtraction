@@ -230,3 +230,110 @@ int* noteRangesEventTiming(int* noteRanges, int nR_size, int sample_rate,
 	}
 	return eventRanges;
 }
+
+
+int genNotesFreqOnly(int* midiPitches, int length, int winInt, int winSize,
+		     int numSamples, int** noteRanges, int** notePitches)
+{
+	// this function calculates the start and end points from detected
+	// frequencies; it in no way depends on onset or silence detection
+	// this function only exists to maintain backwards compatability
+
+	// for now, set the number of ranges to the maximum possible size
+	// which is 2 * ceil(numFrames/2) and notePitches to maximum possible
+	// size which is ceil(numFrames/2)
+
+	int nR_size, nP_size, i,j,last;
+	int* temp;
+
+	if (length%2 == 0){
+		nR_size = length;
+	} else {
+		nR_size = length + 2;
+	}
+
+	nP_size = nR_size/2;
+	(*noteRanges) = malloc(sizeof(int)*nR_size);
+	(*notePitches) = malloc(sizeof(int)*nP_size);
+
+	// let's start with the very first entry
+	
+	last = 0;
+	j = 0;	
+
+	// proceed to the index of the first window with non-zero pitch
+	for (i = 0; i<length; i++){
+		if (midiPitches[i]>0){
+			break;
+		}
+	}
+
+	for (i =i; i<length;i++){
+
+		if (midiPitches[i]==last){
+			continue;
+		}
+		
+		if (last != 0){
+			// this means that the previous group of contiguous
+			// windows did not have a Pitch of 0 (which means there
+			// is silence) or that this is not the very first window
+			
+			// Thus, we must enter the index of the sample where
+			// the previous contiguous group of pitchs stopped
+			
+			(*noteRanges)[j] = winStopRepSampleIndex(winInt,
+								 winSize,
+								 numSamples,
+								 i-1);
+			j++;
+		}
+
+		if (midiPitches[i]!=0){
+			// this means the group of contiguous windows which are
+			// just starting do not have a Pitch of 0 (are silent).
+			// Therefore we must enter the index of the sample
+			// where the contiguous group of constant pitch begins
+			// and the actual pitch
+			(*noteRanges)[j] = winStartRepSampleIndex(winInt,
+								  winSize,
+								  numSamples,
+								  i);
+			(*notePitches)[j/2] = midiPitches[i];
+			j++;
+		}
+	}
+
+	// finally, let's check the final pitch
+	if (j%2 == 1){
+		// this means that we need to signal the end of the final note.
+		(*noteRanges)[j] = numSamples;
+	}
+
+	// before we finish, we must resize notePitches and noteRanges
+
+	nR_size = j;
+	nP_size = j/2;
+	
+	temp = realloc(*noteRanges,sizeof(int)*nR_size);
+	if (temp!=NULL){
+		*noteRanges = temp;
+	} else {
+		printf("Resizing noteRanges failed. Exitting.\n");
+		free(*noteRanges);
+		free(*notePitches);
+		return -1;
+	}
+	
+	temp = realloc(*notePitches,sizeof(int)*nP_size);
+	if (temp!=NULL){
+		*notePitches = temp;
+	} else {
+		printf("Resizing notePitches failed. Exitting.\n");
+		free(*noteRanges);
+		free(*notePitches);
+		return -1;
+	}
+
+	return nP_size;
+}
