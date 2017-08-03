@@ -81,6 +81,16 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	int* melodyMidi = malloc(sizeof(int) * num_notes);
 	FrequenciesToNotes(noteFreq, num_notes, &melodyMidi);
 
+	if (prefix !=NULL){
+		// Here we save the note data
+		char *noteFile = malloc(sizeof(char) * (strlen(prefix)+11));
+		strcpy(noteFile,prefix);
+		strcat(noteFile,"_notes.txt");
+		SaveNotesTxt(noteFile, noteRanges, melodyMidi, num_notes,
+			     info.samplerate);
+		free(noteFile);
+	}
+
 	char* noteName = calloc(5, sizeof(char));
 	printf("Detected %d Notes:\n", num_notes);
 	for(int i =0; i<num_notes; i++){
