@@ -212,21 +212,20 @@ int* noteRangesEventTiming(int* noteRanges, int nR_size, int sample_rate,
 	// (1/sample_rate) * {s_0, s_1-s_0, s_2 - s_1, ..., s_i - s_(i-1), ...}
 
 	// finally, we need to convert into units of ticks. In the midi file
-	// there are (bpm/(60*division)) ticks per second.
+	// there are (bpm/60)*division ticks per second.
 	// thus, we return:
-	// bpm/(60*sample_rate*division) * {s_0, s_1-s_0, ..., s_i-s_(i-1), ...}
+	// (bpm*division)/(60*sample_rate) * {s_0, s_1-s_0, ..., s_i-s_(i-1), ...}
 
 	int* eventRanges = malloc(sizeof(int)*nR_size);
 
-	eventRanges[0] = (int)round(((double)bpm/(60.* (double)sample_rate
-						  * (double)division)
-				     * (double)noteRanges[0]));
-	for(int i =1; i<nR_size; i++){
-		eventRanges[i] = (int)round(((double)bpm/(60.
-							  * (double)sample_rate
-							  * (double)division)
-					     * (double)(noteRanges[i]
-							- noteRanges[i-1])));
+	double ticks_per_sample = (bpm * division)/(sample_rate * 60.0);
+
+	for(int i =0; i<nR_size; i++){
+		int delta_samples = noteRanges[i];
+		if(i > 0){
+			delta_samples -= noteRanges[i-1];
+		}
+		eventRanges[i] = (int)round(delta_samples * ticks_per_sample);
 	}
 	return eventRanges;
 }

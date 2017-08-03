@@ -102,7 +102,8 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	fflush(NULL);
 
 	//todo: restructure generateMidi function to also take noteRanges
-	struct Midi* midi = GenerateMIDI(melodyMidi, num_notes, verbose);
+	struct Midi* midi = GenerateMIDIFromNotes(melodyMidi, noteRanges,
+				     num_notes, info.samplerate, verbose);
 
 	free(noteRanges);
 

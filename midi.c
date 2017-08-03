@@ -266,8 +266,6 @@ struct Track* GenerateTrackFromNotes(int* notePitches, int* noteRanges,
 	track = malloc(sizeof(struct Track));
 
 	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	// this function is temporarily separate from GenerateTracks until we
-	// work out bugs
 	int trackCapacity = 1000;
 	unsigned char* trackData = malloc(sizeof(char) * trackCapacity);
 	int tracklength = MakeTrackFromNotes(&trackData, trackCapacity, notePitches,
@@ -289,11 +287,11 @@ struct Midi* GenerateMIDIFromNotes(int* notePitches, int* noteRanges,
 				   int verbose)
 {
 	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	// this function is temporarily separate from GenerateMIDI until we
-	// work out the bugs
 	struct Track* track;
-	track = GenerateTrackFromNotes(notePitches, noteRanges, nP_size, 120,
-				       24, sample_rate, verbose);
+	int bpm = 120;
+	int divisions = 48;
+	track = GenerateTrackFromNotes(notePitches, noteRanges, nP_size, bpm,
+				       divisions, sample_rate, verbose);
 	if(!track){
 		printf("track generation failed\n");
 		return NULL;
@@ -305,7 +303,7 @@ struct Midi* GenerateMIDIFromNotes(int* notePitches, int* noteRanges,
 		midi->tracks[0] = track;
 		midi->format = 1;
 		midi->numTracks = 1; //note: multiple tracks not currently supported
-		midi->division = 24; //note: in the future dont hardcode
+		midi->division = divisions; //note: in the future dont hardcode
 		return midi;
 	}
 }
@@ -316,13 +314,9 @@ int MakeTrackFromNotes(unsigned char** track, int trackCapacity,
 		       int* notePitches, int* noteRanges, int nP_size,
 		       int bpm, int division, int sample_rate,
 		       int verbose){
-	// this function is temporarily separate from MakeTracks until we
-	// work out bugs
-	int dt = 2; //time between events.
 	int timeSinceLast = 0;
 
 	int vel = 80; //default velocity, given to all notes.
-	int last = -1; //the last note that was played
 
 	unsigned char* timer;
 	int timerSize = 0;
@@ -358,7 +352,6 @@ int MakeTrackFromNotes(unsigned char** track, int trackCapacity,
 		memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
 		trackLen += 3;
 		free(message);
-		timeSinceLast = 0;
 
 		// end the note
 
@@ -386,7 +379,6 @@ int MakeTrackFromNotes(unsigned char** track, int trackCapacity,
 		memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
 		trackLen += 3;
 		free(message);
-		timeSinceLast = 0;
 	}
 
 
