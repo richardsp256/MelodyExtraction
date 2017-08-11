@@ -363,6 +363,10 @@ int main(int argc, char ** argv)
 				s_windowsize, s_spacing, s_mode, s_Strategy,
 				hpsOvertones, verbose, prefix);
 
+		if(midi == NULL){ //extractMelody error, or no notes found.
+			return 0;
+		}
+
 		SaveMIDI(midi, outFile, verbose);
 
 		freeMidi(midi);

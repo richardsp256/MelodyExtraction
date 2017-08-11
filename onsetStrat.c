@@ -66,6 +66,10 @@ int OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, int
 	free(block);
 	free(ods.data); // Or free(odsdata), they point to the same thing in this case
 
+	if(onsets_index == 0){ //if no onsets found, do not realloc here. Unable to realloc array to size 0
+		return onsets_index;
+	}
+	printf("realloc to size %ld\n", onsets_index*sizeof(int));
 	int* temp = realloc((*onsets),onsets_index*sizeof(int));
 	if (temp != NULL){
 		(*onsets) = temp;
@@ -82,6 +86,8 @@ int OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, int
 void AddOnsetAt(int** onsets, int* size, int value, int index ){
 	if(index >= (*size)){ //out of space in onsets array
 		(*size) *= 2;
+		printf("  new size %d\n", (*size));
+		printf("realloc to size %ld\n", (*size)*sizeof(int));
 		int* temp = realloc((*onsets),(*size)*sizeof(int));
 		if(temp != NULL){
 			(*onsets) = temp;

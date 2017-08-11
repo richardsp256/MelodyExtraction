@@ -338,6 +338,10 @@ float* sa(float* y, long length, float smoothwidth)
 	// uncertainty boils down to whether or not matlab's 
 	// round function returns a int data type. If that is 
 	// the case, then this function is wrong.
+	if(smoothwidth < 1.0f){
+		smoothwidth = 1.0f;
+	}
+	
 	long w = (long)round(smoothwidth);
 	float sumPoints = 0;
 	long k;

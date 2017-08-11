@@ -49,7 +49,11 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	int *activityRanges = NULL;
 	int a_size = ExtractSilence(input, &activityRanges, info, s_winSize,
 				    s_winInt, s_mode, silenceStrategy);
-	
+	if(a_size == -1){
+		printf("Silence detection failed\n");
+		fflush(NULL);
+		return NULL;
+	}
 	if(verbose){
 		printf("Silence detection complete\n");
 		fflush(NULL);
@@ -65,7 +69,11 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	int *onsets = NULL;
 	int o_size = ExtractOnset(input, &onsets, info, o_unpaddedSize, o_winSize, o_winInt, 
 	             onsetStrategy, verbose);
-	
+	if(o_size == -1){
+		printf("Onset detection failed\n");
+		fflush(NULL);
+		return NULL;
+	}
 	if(verbose){
 		printf("Onset detection complete\n");
 		fflush(NULL);
@@ -77,6 +85,16 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	int num_notes = ConstructNotes(&noteRanges, &noteFreq, freq,
 				     freqSize, onsets, o_size, activityRanges,
 				     a_size, info, p_unpaddedSize, p_winInt);
+	if(num_notes == -1){
+		printf("Construct notes failed!\n");
+		fflush(NULL);
+		return NULL;
+	}
+	else if(num_notes == 0){
+		printf("No notes detected.");
+		fflush(NULL);
+		return NULL;
+	}
 
 	int* melodyMidi = malloc(sizeof(int) * num_notes);
 	FrequenciesToNotes(noteFreq, num_notes, &melodyMidi);
@@ -101,6 +119,7 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 		       (int)(noteRanges[2*i+1] * (1000.0/info.samplerate)),
 		       noteFreq[i], melodyMidi[i], noteName);
 	}
+	free(noteName);
 
 	free(activityRanges);
 	free(onsets);
@@ -177,11 +196,18 @@ int ExtractSilence(float** input, int** activityRanges, SF_INFO info,
 	int a_size = silenceStrategy(input, info.frames, s_winSize, s_winInt,
 				     info.samplerate, s_mode,
 				     activityRanges);
-	for (int i = 0; i < a_size; i++){
-		printf("Activity Range: %d up to %d\n", (*activityRanges)[i],
-		       (*activityRanges)[i+1]);
-		i++;
+
+	if(a_size != -1){ //if exited in error, dont print results
+		for (int i = 0; i < a_size; i++){
+			printf("Activity Range: %d up to %d\n", (*activityRanges)[i],
+			       (*activityRanges)[i+1]);
+			i++;
+		}
+		if(a_size == 0){
+			printf("No Activity Ranges found\n");
+		}
 	}
+
 	return a_size;
 }
 
@@ -207,15 +233,17 @@ int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, 
 
 
 	//convert onsets so that the value is not which block of o_fftData it occurred, but which sample of the original audio it occurred
-	for (int i = 0; i < o_size; i++){
-		(*onsets)[i] = winStartRepSampleIndex(o_winInt, o_unpaddedSize,
-						      info.frames,
-						      (*onsets)[i]);
-		printf("onset at sample: %d, time: %d, and block: %d\n",
-		       (*onsets)[i],
-		       (int)((*onsets)[i] * (1000.0/info.samplerate)),
-		       repWinIndex(o_winInt, o_unpaddedSize, info.frames,
-				   (*onsets)[i]));
+	if(o_size != -1){ //if onsetStrategy exited in error, dont try to resample
+		for (int i = 0; i < o_size; i++){
+			(*onsets)[i] = winStartRepSampleIndex(o_winInt, o_unpaddedSize,
+							      info.frames,
+							      (*onsets)[i]);
+			printf("onset at sample: %d, time: %d, and block: %d\n",
+			       (*onsets)[i],
+			       (int)((*onsets)[i] * (1000.0/info.samplerate)),
+			       repWinIndex(o_winInt, o_unpaddedSize, info.frames,
+					   (*onsets)[i]));
+		}
 	}
 
 	return o_size;
@@ -227,6 +255,12 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 {
 	int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
 				     aR_size, noteRanges, info.samplerate);
+	if(nR_size == -1){
+		if((*noteRanges) != NULL){
+			free((*noteRanges));
+		}
+		return -1;
+	}
 
 	int nF_size = assignNotePitches(pitches, p_size, *noteRanges, nR_size,
 					p_winInt, p_unpaddedSize, info.frames,

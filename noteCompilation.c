@@ -63,6 +63,10 @@ int calcNoteRanges(int* onsets, int onset_size, int* activityRanges,
 		j++;
 	}
 
+	if(j == 0){ //if no onsets found, do not realloc here. Unable to realloc array to size 0
+		return j;
+	}
+
 	int *temp;
 	temp = realloc((*noteRanges), j*sizeof(int));
 	if (temp!= NULL){
@@ -70,6 +74,8 @@ int calcNoteRanges(int* onsets, int onset_size, int* activityRanges,
 	} else {
 		printf("Resizing noteRanges failed. Exitting.\n");
 		free(*noteRanges);
+		(*noteRanges) = NULL; //when returning in error, calling func checks if (*noteranges) is NULL, if not, it needs to be freed
+		return -1;
 	}
 	return j;
 }
@@ -80,6 +86,11 @@ int assignNotePitches(float* freq, int length, int* noteRanges, int nR_size,
 	// in the future, we may want to do some kind of convolution of
 	// noteFreq to see if there are multiple slurred notes not detected
 	// in onset detection
+	
+	if(nR_size == 0){ //if no note ranges found, no note frequencies found
+		(*noteFreq) = malloc(sizeof(float)*1); //we still malloc noteFreq bc calling function expects it
+		return 0;
+	}
 
 	int i;
 	int nF_size = nR_size/2;

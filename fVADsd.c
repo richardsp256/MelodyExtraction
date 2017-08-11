@@ -85,8 +85,8 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 			// succeeded here we convert from the indices of the
 			// samples at 8000 Hz to the indices of the samples at
 			// the original rate.
-		WindowsToSamples(*activityRanges, activityRangesLength,
-				 sample_rate);
+			WindowsToSamples(*activityRanges, activityRangesLength,
+					 sample_rate);
 		}
 	} else {
 		activityRangesLength = vadHelper((*AudioData), sample_rate, mode,
