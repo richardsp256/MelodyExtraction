@@ -332,22 +332,7 @@ int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int int
     int i;
     int j;
 
-    float* fftw_in = fftwf_malloc( sizeof( float ) * winSize);
-    fftwf_complex* fftw_out = fftwf_malloc( sizeof( fftwf_complex ) * winSize );
-
-    fftwf_plan plan  = fftwf_plan_dft_r2c_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
-
-    float* window = WindowFunction(winSize);
-    if(window == NULL){
-    	printf("windowFunc error\n");
-    	fflush(NULL);
-    	fftwf_destroy_plan( plan );
-		fftwf_free( fftw_in );
-		fftwf_free( fftw_out );
-		return -1;
-    }
- 
-    //malloc space for fft_data
+    //malloc space for result fft_data
 	int numBlocks = (int)ceil((info.frames - unpaddedSize) / (float)interval) + 1;
 	if(numBlocks < 1){
 		numBlocks = 1;
@@ -362,8 +347,20 @@ int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int int
     (*fft_data) = malloc( sizeof(fftwf_complex) * numBlocks * realWinSize );
     if((*fft_data) == NULL){
     	printf("malloc failed\n");
-    	free(window);
-		fftwf_destroy_plan( plan );
+		return -1;
+    }
+
+    //set up fftw plan
+    float* fftw_in = fftwf_malloc( sizeof( float ) * winSize);
+    fftwf_complex* fftw_out = fftwf_malloc( sizeof( fftwf_complex ) * winSize );
+    fftwf_plan plan  = fftwf_plan_dft_r2c_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
+
+    float* window = WindowFunction(winSize);
+    if(window == NULL){
+    	printf("windowFunc error\n");
+    	fflush(NULL);
+    	free((*fft_data));
+    	fftwf_destroy_plan( plan );
 		fftwf_free( fftw_in );
 		fftwf_free( fftw_out );
 		return -1;
