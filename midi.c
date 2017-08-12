@@ -274,6 +274,7 @@ struct Track* GenerateTrackFromNotes(int* notePitches, int* noteRanges,
 	if(tracklength < 0){
 		printf("track generation failed\n");
 		free(trackData);
+		free(track);
 		return NULL;
 	}
 
@@ -293,7 +294,6 @@ struct Midi* GenerateMIDIFromNotes(int* notePitches, int* noteRanges,
 	track = GenerateTrackFromNotes(notePitches, noteRanges, nP_size, bpm,
 				       divisions, sample_rate, verbose);
 	if(!track){
-		printf("track generation failed\n");
 		return NULL;
 	}
 	else{

@@ -39,6 +39,12 @@ int OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, int
 
 	enum onsetsds_odf_types odftype = ODS_ODF_RCOMPLEX; //various onset detectors available, ODS_ODF_RCOMPLEX should be the best
 	float* odsdata = (float*) malloc(onsetsds_memneeded(odftype, 512, 11)); // Allocate contiguous memory ods needs for processing onset
+	if(odsdata == NULL){
+		printf("malloc error\n");
+		fflush(NULL);
+		free(block);
+		return -1;
+	}
 	onsetsds_init(&ods, odsdata, ODS_FFT_FFTW3_R2C, odftype, 512, 11, samplerate);//initialise the OnsetsDS struct and its associated memory
 
 	(*onsets) = malloc(sizeof(int)*onsets_size);

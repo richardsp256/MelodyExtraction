@@ -30,8 +30,10 @@ float* WindowFunction(int size)
 {
 	//uses Hamming Window
 	float* buffer = malloc(sizeof(float) * size);
-	for(int i = 0; i < size; ++i) {
-		buffer[i] =(float) (0.54-(0.46*cos(2*M_PI*i/(size-1.0))));
+	if (buffer != NULL){ //
+		for(int i = 0; i < size; ++i) {
+			buffer[i] =(float) (0.54-(0.46*cos(2*M_PI*i/(size-1.0))));
+		}
 	}
 	return buffer;
 }
@@ -61,6 +63,12 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	float* freq;
 	int freqSize = ExtractPitch(input, &freq, info, p_unpaddedSize, p_winSize,
 	                          p_winInt, pitchStrategy, hpsOvr, verbose, prefix);
+	if(freqSize == -1){
+		printf("Pitch detection failed\n");
+		fflush(NULL);
+		free(activityRanges);
+		return NULL;
+	}
 	if(verbose){
 		printf("Pitch detection complete\n");
 		fflush(NULL);
@@ -72,6 +80,8 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	if(o_size == -1){
 		printf("Onset detection failed\n");
 		fflush(NULL);
+		free(activityRanges);
+		free(freq);
 		return NULL;
 	}
 	if(verbose){
@@ -88,15 +98,29 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	if(num_notes == -1){
 		printf("Construct notes failed!\n");
 		fflush(NULL);
+		free(activityRanges);
+		free(freq);
+		free(onsets);
 		return NULL;
 	}
 	else if(num_notes == 0){
 		printf("No notes detected.");
 		fflush(NULL);
+		free(activityRanges);
+		free(freq);
+		free(onsets);
 		return NULL;
 	}
 
 	int* melodyMidi = malloc(sizeof(int) * num_notes);
+	if(melodyMidi == NULL){
+		printf("malloc failed\n");
+		fflush(NULL);
+		free(activityRanges);
+		free(freq);
+		free(onsets);
+		return NULL;
+	}
 	FrequenciesToNotes(noteFreq, num_notes, &melodyMidi);
 
 	if (prefix !=NULL){
@@ -122,6 +146,7 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	free(noteName);
 
 	free(activityRanges);
+	free(freq);
 	free(onsets);
 	free(noteFreq);
 	
@@ -133,8 +158,13 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	//todo: restructure generateMidi function to also take noteRanges
 	struct Midi* midi = GenerateMIDIFromNotes(melodyMidi, noteRanges,
 				     num_notes, info.samplerate, verbose);
-
 	free(noteRanges);
+
+	if(midi == NULL){
+		printf("Midi generation failed\n");
+		fflush(NULL);
+		return NULL;
+	}
 
 	return midi;
 }
@@ -145,6 +175,9 @@ int ExtractPitch(float** input, float** pitches, SF_INFO info,
 {
 	fftwf_complex* p_fftData = NULL;
 	int p_size = STFT_r2c(input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
+	if(p_size == -1){
+		return -1;
+	}
 	int p_numBlocks = p_size/(p_winSize/2);
 	if(verbose){
 		printf("numblcks of pitch FFT: %d\n", p_numBlocks);
@@ -152,6 +185,12 @@ int ExtractPitch(float** input, float** pitches, SF_INFO info,
 	}
 
 	float* spectrum = Magnitude(p_fftData, p_size);
+	if(spectrum == NULL){
+		printf("Magnitude failed\n");
+		fflush(NULL);
+		free(p_fftData);
+		return -1;
+	}
 	if(verbose){
 		printf("Magnitude complete\n");
 		fflush(NULL);
@@ -177,6 +216,9 @@ int ExtractPitch(float** input, float** pitches, SF_INFO info,
 	
 	(*pitches) = pitchStrategy(&spectrum, p_size, p_winSize/2, hpsOvr,
 					p_winSize, info.samplerate);
+	if((*pitches) == NULL){
+		return -1;
+	}
 
 	if (prefix !=NULL){
 		// Here we save the processed spectra
@@ -219,6 +261,9 @@ int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, 
 	//i think a good default would be 40ms.
 	fftwf_complex* o_fftData = NULL;
 	int o_fftData_size = STFT_r2c(input, info, o_unpaddedSize, o_winSize, o_winInt, &o_fftData);
+	if(o_fftData_size == -1){
+		return -1;
+	}
 	int o_numBlocks = o_fftData_size/(o_winSize/2);
 	if(verbose){
 		printf("numblcks of onset FFT: %d\n", o_numBlocks);
@@ -231,19 +276,20 @@ int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, 
 	//printf("o_strat return size: %d\n", o_size);
 	free(o_fftData);
 
+	if(o_size == -1){
+		return -1;
+	}
 
 	//convert onsets so that the value is not which block of o_fftData it occurred, but which sample of the original audio it occurred
-	if(o_size != -1){ //if onsetStrategy exited in error, dont try to resample
-		for (int i = 0; i < o_size; i++){
-			(*onsets)[i] = winStartRepSampleIndex(o_winInt, o_unpaddedSize,
-							      info.frames,
-							      (*onsets)[i]);
-			printf("onset at sample: %d, time: %d, and block: %d\n",
-			       (*onsets)[i],
-			       (int)((*onsets)[i] * (1000.0/info.samplerate)),
-			       repWinIndex(o_winInt, o_unpaddedSize, info.frames,
-					   (*onsets)[i]));
-		}
+	for (int i = 0; i < o_size; i++){
+		(*onsets)[i] = winStartRepSampleIndex(o_winInt, o_unpaddedSize,
+						      info.frames,
+						      (*onsets)[i]);
+		printf("onset at sample: %d, time: %d, and block: %d\n",
+		       (*onsets)[i],
+		       (int)((*onsets)[i] * (1000.0/info.samplerate)),
+		       repWinIndex(o_winInt, o_unpaddedSize, info.frames,
+				   (*onsets)[i]));
 	}
 
 	return o_size;
@@ -256,9 +302,6 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 	int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
 				     aR_size, noteRanges, info.samplerate);
 	if(nR_size == -1){
-		if((*noteRanges) != NULL){
-			free((*noteRanges));
-		}
 		return -1;
 	}
 
@@ -284,6 +327,8 @@ void FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi)
 //reads in .wav, returns FFT by reference through fft_data, returns size of fft_data
 int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data)
 {
+	//printf("\n\ninput size %ld\nsamplerate %d\nunpadded %d\npadded %d\ninterval %d\n", info.frames, info.samplerate, unpaddedSize, winSize, interval);
+	//fflush(NULL);
     int i;
     int j;
 
@@ -293,21 +338,42 @@ int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int int
     fftwf_plan plan  = fftwf_plan_dft_r2c_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
 
     float* window = WindowFunction(winSize);
+    if(window == NULL){
+    	printf("windowFunc error\n");
+    	fflush(NULL);
+    	fftwf_destroy_plan( plan );
+		fftwf_free( fftw_in );
+		fftwf_free( fftw_out );
+		return -1;
+    }
  
     //malloc space for fft_data
 	int numBlocks = (int)ceil((info.frames - unpaddedSize) / (float)interval) + 1;
 	if(numBlocks < 1){
 		numBlocks = 1;
 	}
+	//printf("numblocks %d\n", numBlocks);
+	//fflush(NULL);
+
 	//allocate winSize/2 for each block, taking the real component 
 	//and dropping the symetrical component and nyquist frequency.
 	int realWinSize = winSize/2;
+
     (*fft_data) = malloc( sizeof(fftwf_complex) * numBlocks * realWinSize );
- 
+    if((*fft_data) == NULL){
+    	printf("malloc failed\n");
+    	free(window);
+		fftwf_destroy_plan( plan );
+		fftwf_free( fftw_in );
+		fftwf_free( fftw_out );
+		return -1;
+    }
+
+ 	//printf("resultsize %ld\nresultWinSize %d\n", sizeof(fftwf_complex) * numBlocks * realWinSize, realWinSize);
+	//fflush(NULL);
 	int blockoffset;
     //run fft on each block
     for(i = 0; i < numBlocks; i++){
-
 		// Copy the chunk into our buffer
 		blockoffset = i*interval;
 		for(j = 0; j < winSize; j++) {
@@ -328,6 +394,7 @@ int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int int
 			(*fft_data)[i*realWinSize + j][1] = fftw_out[j][1];
 		}	
 	}
+
 
 	free(window);
 	fftwf_destroy_plan( plan );
@@ -354,7 +421,14 @@ int STFTinverse_c2r(fftwf_complex** input, SF_INFO info, int winSize, int interv
 
  	//malloc space for output
     (*output) = calloc( info.frames, sizeof(float));
-
+        if((*output) == NULL){
+    	printf("malloc failed\n");
+    	//free(window);
+		fftwf_destroy_plan( plan );
+		fftwf_free( fftw_in );
+		fftwf_free( fftw_out );
+		return -1;
+    }
 
 	int numBlocks = (int)ceil((info.frames - winSize) / (float)interval) + 1;
 	if(numBlocks < 1){
@@ -393,8 +467,10 @@ float* Magnitude(fftwf_complex* arr, int size)
 {
 	int i;
 	float* magArr = malloc( sizeof(float) * size);
-	for(i = 0; i < size; i++){
-		magArr[i] = hypot(arr[i][0], arr[i][1]);
+	if (magArr != NULL){
+		for(i = 0; i < size; i++){
+			magArr[i] = hypot(arr[i][0], arr[i][1]);
+		}
 	}
 	return magArr;
 }

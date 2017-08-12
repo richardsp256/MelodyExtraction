@@ -17,6 +17,7 @@ int calcNoteRanges(int* onsets, int onset_size, int* activityRanges,
 {
 	if (aR_size == 0){
 		printf("No activity was detected. Exitting.\n");
+		fflush(NULL);
 		return -1;
 	}
 
@@ -34,6 +35,11 @@ int calcNoteRanges(int* onsets, int onset_size, int* activityRanges,
 	int threshold = (int)(40 * samplerate / 1000); 
 
 	(*noteRanges) = malloc(sizeof(int)*(onset_size * 2 + aR_size));
+	if((*noteRanges) == NULL){
+		printf("malloc error\n");
+		fflush(NULL);
+		return -1;
+	}
 
 	for (i_aR=0; i_aR<numRanges; i_aR++){
 

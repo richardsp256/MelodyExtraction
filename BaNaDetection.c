@@ -38,6 +38,11 @@ float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
 
 	float *frequencies = calcFrequencies(dftBlocksize, fftSize,
 					      samplerate);
+	if(frequencies == NULL){
+		printf("malloc error\n");
+		fflush(NULL);
+		return NULL;
+	}
 	
 	// preprocess each of the frames
 	BaNaPreprocessing(AudioData, size, dftBlocksize, p, f0Min, f0Max,
@@ -55,9 +60,9 @@ float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
 	for (i=0;i<numBlocks;i++){
 		distinctListDestroy(windowCandidates[i]);
 	}
-  
 	free(windowCandidates);
 	free(frequencies);
+	
 	return fundamentals;
 }
 
@@ -68,9 +73,10 @@ float* calcFrequencies(int dftBlocksize, int fftSize, int samplerate)
 	int i;
 	float* frequencies = malloc(dftBlocksize * sizeof(float));
 	float ratio = ((float)samplerate) / ((float)fftSize);
-	
-	for (i=0;i<dftBlocksize;i++) {
-		frequencies[i] = i*ratio;
+	if(frequencies != NULL){
+		for (i=0;i<dftBlocksize;i++) {
+			frequencies[i] = i*ratio;
+		}
 	}
 	return frequencies;
 }
@@ -119,17 +125,42 @@ struct distinctList** BaNaFindCandidates(float **AudioData, int size,
 	int numBlocks = size / dftBlocksize;
 	int blockstart;
 	int numPeaks;
-	float *magnitudes = malloc(dftBlocksize * sizeof(float));
 	float temp, firstFreqPeak, ampThreshold, smoothwidth;
 	float *peakFreq, *peakMag;
-
-	peakFreq = malloc(p * sizeof(float));
-	peakMag = malloc(p * sizeof(float));
-
+	float *magnitudes;
 	struct orderedList candidates;
-
 	struct distinctList **windowCandidates;
+
+	magnitudes = malloc(dftBlocksize * sizeof(float));
+	if(magnitudes == NULL){
+		printf("malloc error\n");
+		fflush(NULL);
+		return NULL;
+	}
+	peakFreq = malloc(p * sizeof(float));
+	if(peakFreq == NULL){
+		printf("malloc error\n");
+		fflush(NULL);
+		free(magnitudes);
+		return NULL;
+	}
+	peakMag = malloc(p * sizeof(float));
+	if(peakMag == NULL){
+		printf("malloc error\n");
+		fflush(NULL);
+		free(magnitudes);
+		free(peakFreq);
+		return NULL;
+	}
 	windowCandidates = malloc(sizeof(struct distinctList*) * numBlocks);
+	if(windowCandidates == NULL){
+		printf("malloc error\n");
+		fflush(NULL);
+		free(magnitudes);
+		free(peakFreq);
+		free(peakMag);
+		return NULL;
+	}
 
 	// outer loop iterates over blocks
 	for (blockstart = 0; blockstart < size; blockstart += dftBlocksize){
