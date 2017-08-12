@@ -54,9 +54,27 @@
  *           lenght of time (ex: '60ms', note that '60 ms' fails)
  */
 
-const char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
-const char* ERR_FILE_NOT_MONO = "Input file must be Mono."
+char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
+char* ERR_FILE_NOT_MONO = "Input file must be Mono."
                           " Multi-channel audio currently not supported.\n";
+
+//default arg settings:
+char* PITCH_WINDOW_DEF = "4096";
+char* PITCH_PADDED_DEF = "none"; //none will set pitch_padded to pitch_window
+char* PITCH_SPACING_DEF = "2048";
+PitchStrategyFunc PITCH_STRATEGY_DEF = &HPSDetectionStrategy;
+
+char* ONSET_WINDOW_DEF = "512";
+char* ONSET_PADDED_DEF = "none"; //none will set onset_padded to onset_window
+char* ONSET_SPACING_DEF = "256";
+OnsetStrategyFunc ONSET_STRATEGY_DEF = &OnsetsDSDetectionStrategy;
+
+char* SILENCE_WINDOW_DEF = "10ms";
+char* SILENCE_SPACING_DEF = "none"; //-1 means to set equal to s_windowsize
+int SILENCE_MODE_DEF = 0;
+SilenceStrategyFunc SILENCE_STRATEGY_DEF = &fVADDetectionStrategy;
+
+
 
 int ReadAudioFile(char* inFile, float** buf, SF_INFO* info){
 	SNDFILE * f = sf_open(inFile, SFM_READ, info);
@@ -120,26 +138,26 @@ int main(int argc, char ** argv)
 	char* outFile = NULL;
 
 	//args for pitch detection
-	char* p_windowsizeBuf = "4096";
-	char* p_paddedsizeBuf = "none";
-	char* p_spacingBuf = "2048";
+	char* p_windowsizeBuf = PITCH_WINDOW_DEF;
+	char* p_paddedsizeBuf = PITCH_PADDED_DEF;
+	char* p_spacingBuf = PITCH_SPACING_DEF;
+	PitchStrategyFunc p_Strategy = PITCH_STRATEGY_DEF;
 	int p_windowsize, p_paddedsize, p_spacing;
-	PitchStrategyFunc p_Strategy = &HPSDetectionStrategy; //HPS is default strategy
 	
 	//args for onset detection
-	char* o_windowsizeBuf = "512";
-	char* o_paddedsizeBuf = "none"; //-1 means no zero padding
-	char* o_spacingBuf = "256";
+	char* o_windowsizeBuf = ONSET_WINDOW_DEF;
+	char* o_paddedsizeBuf = ONSET_PADDED_DEF;
+	char* o_spacingBuf = ONSET_SPACING_DEF;
+	OnsetStrategyFunc o_Strategy = ONSET_STRATEGY_DEF; //HPS is default strategy
 	int o_windowsize, o_paddedsize, o_spacing;
-	OnsetStrategyFunc o_Strategy = &OnsetsDSDetectionStrategy; //HPS is default strategy
 
 	//args for silence detection
-	char* s_windowsizeBuf = "10ms";
-	char* s_spacingBuf = "none"; //-1 means to set equal to s_windowsize
-	int  s_spacing;
-	int s_windowsize = 10;
-	int s_mode = 0;
-	SilenceStrategyFunc s_Strategy = &fVADDetectionStrategy;
+	char* s_windowsizeBuf = SILENCE_WINDOW_DEF;
+	char* s_spacingBuf = SILENCE_SPACING_DEF; //-1 means to set equal to s_windowsize
+	int s_mode = SILENCE_MODE_DEF;
+	SilenceStrategyFunc s_Strategy = SILENCE_STRATEGY_DEF;
+	int s_windowsize, s_spacing; //no paddedsize for silence detection
+
 	// strategy
 	
 	int hpsOvertones = 2;
@@ -335,6 +353,7 @@ int main(int argc, char ** argv)
 			s_windowsize = 30;
 		} else {
 			printf("--silence_window can only be \"10ms\", \"20ms\", or \"30ms\"\n");
+			s_windowsize = 1; //just give it a temp value so s_spacing doesnt fail to set
 			badargs = 1;
 		}
 
@@ -348,7 +367,7 @@ int main(int argc, char ** argv)
 		}
 
 		if(s_spacing < 1){
-			printf("Invalid arg for option --onset_spacing\n");
+			printf("Invalid arg for option --silence_spacing\n");
 			badargs = 1;
 		}
 		
