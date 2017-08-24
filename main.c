@@ -46,6 +46,7 @@
  *                    ("very aggressive"), def = 0
  *
  *   -h: number of harmonic product specturm overtones, def = 2
+ *   -t: tuning adjustment mode. 0 = no adjustment,  1 = adjust with threshold,  2 = always adjust
  *   -p: prefix for fname where spectral data is stored, def = NULL;
  *
  * note that arge --pitch_window, --pitch_padded, --pitch_spacing,
@@ -196,7 +197,7 @@ int main(int argc, char ** argv)
 	int opt = 0;
 	int badargs = 0;
 
-	while ((opt = getopt_long (argc, argv, "i:o:vth:p:", long_options, &option_index)) != -1) {
+	while ((opt = getopt_long (argc, argv, "i:o:vt:h:p:", long_options, &option_index)) != -1) {
 		switch (opt) {
 		case 'i':
 			inFile = strdup(optarg);
@@ -208,7 +209,11 @@ int main(int argc, char ** argv)
 			verbose = 1;
 			break;
 		case 't':
-			tuning = 1;
+			tuning = atoi(optarg);
+			if (tuning<0 || tuning>2){
+				printf("Argument for option -t must be 0, 1, or 2\n");
+				badargs = 1;
+			}
 			break;
 		case 'a':
 			p_windowsizeBuf = strdup(optarg);

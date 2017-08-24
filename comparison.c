@@ -138,11 +138,12 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	printf("Detected %d Notes:\n", num_notes);
 	for(int i =0; i<num_notes; i++){
 		NoteToName(melodyMidi[i], &noteName);
-		printf("%d - %d,   %d ms - %d ms,   %.2f hz,   %d,   %s\n",
+		printf("%d - %d,   %d ms - %d ms,   %.2f hz,   %.2f,   %d,   %s\n",
 		       noteRanges[2*i], noteRanges[2*i+1],
 		       (int)(noteRanges[2*i] * (1000.0/info.samplerate)),
 		       (int)(noteRanges[2*i+1] * (1000.0/info.samplerate)),
-		       noteFreq[i], melodyMidi[i], noteName);
+		       noteFreq[i], FrequencyToFractionalNote(noteFreq[i]), 
+		       melodyMidi[i], noteName);
 	}
 	free(noteName);
 
@@ -318,44 +319,49 @@ void FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi, int tuning)
 	//this function just does the simple conversion for now,
 	//but in the future will be able to account for singer being sharp/flat
 	//in order to get more accurate not estimates
-	if(!tuning){
-		for(int i = 0; i < num_notes; ++i){
-			(*melodyMidi)[i] = FrequencyToNote(freq[i]);
-		}
+
+	//threshold should be 0.0625. 
+	//to remove the tuning adjustment, just turn threshold to 0.0f
+	float threshold = 0.0f;
+
+	if(tuning == 0){
+		threshold = 0.0f;
 	}
-	else{
-		float* fractNotes = malloc(sizeof(float) * num_notes);
-		for(int i = 0; i < num_notes; ++i){
-			fractNotes[i] = FrequencyToFractionalNote(freq[i]);
-		}
+	else if(tuning == 1){
+		threshold = 0.0625f;
+	}else if(tuning == 2){
+		threshold = FLT_MAX;
+	}else{
+		threshold = 0.0f;
+	}
 
-		//threshold should be 0.0625. 
-		//to remove the tuning adjustment, just turn threshold to 0.0f
-		float threshold = 0.0625f;
+	float* fractNotes = malloc(sizeof(float) * num_notes);
+	for(int i = 0; i < num_notes; ++i){
+		fractNotes[i] = FrequencyToFractionalNote(freq[i]);
+	}
 
-		for(int i = 0; i < num_notes; ++i){
-			//size of neighbors is up to 2 pts to the left + center + up to 2 pts to the right
-			int start = (int) fmaxf(i-2, 0);
-			int end = (int) fminf(i+2, num_notes - 1);
-			int neighborSize = end-start + 1;
+	for(int i = 0; i < num_notes; ++i){
+		//size of neighbors is up to 2 pts to the left + center + up to 2 pts to the right
+		int start = (int) fmaxf(i-2, 0);
+		int end = (int) fminf(i+2, num_notes - 1);
+		int neighborSize = end-start + 1;
 
-			float* neighbors = malloc(sizeof(float) * neighborSize );
-			memcpy(&neighbors[0], &fractNotes[start], sizeof(float) * neighborSize);
+		float* neighbors = malloc(sizeof(float) * neighborSize );
+		memcpy(&neighbors[0], &fractNotes[start], sizeof(float) * neighborSize);
 
-			//printf("arr:");
-			//for(int j = 0; j < neighborSize; ++j){
-			//	printf("  %f", neighbors[j]);
-			//}
-			//printf("\n");
+		//printf("arr:");
+		//for(int j = 0; j < neighborSize; ++j){
+		//	printf("  %f", neighbors[j]);
+		//}
+		//printf("\n");
 
-			float avg;
-			float dist = FractionalAverage(neighbors, neighborSize, i - start, &avg);
-			free(neighbors);
-			if(dist < threshold){
-				(*melodyMidi)[i] = (int) roundf(roundf(fractNotes[i] - avg) + avg);
-			}else{
-				(*melodyMidi)[i] = (int) roundf(fractNotes[i]);
-			}
+		float avg;
+		float dist = FractionalAverage(neighbors, neighborSize, i - start, &avg);
+		free(neighbors);
+		if(dist < threshold){
+			(*melodyMidi)[i] = (int) roundf(roundf(fractNotes[i] - avg) + avg);
+		}else{
+			(*melodyMidi)[i] = (int) roundf(fractNotes[i]);
 		}
 	}
 }		
