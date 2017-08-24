@@ -36,7 +36,9 @@ int FrequencyToNote(double freq){
 }
 
 float FrequencyToFractionalNote(double freq){
-	return (12*log2(freq/tuning)) + 57;
+	float fractNote = (12*log2(freq/tuning)) + 57;
+	//printf("fractNote: %f\n", fractNote);
+	return fractNote;
 }
 
 double log2(double x){

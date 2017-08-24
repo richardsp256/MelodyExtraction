@@ -1,11 +1,9 @@
-void fractPartArray(float* input, int size, float** output);
-float fractPart(float x);
-void weightNoteDist(float* input, int size, float center, float** weights);
 float FractionalAverage(float* arr, int len, int centerInd, float* avg);
-float linearDist(float* arr, int len, float pt);
+float fractPart(float x);
+float weightDist(float a, float b);
 float squareDistWrapped(float* arr, int len, float pt);
-float min(float* arr, int len);
+float squareDistWrappedWeighted(float* arr, int len, float pt, float* weights);
 float mean(float* arr, int len);
 float meanWeighted(float* arr, int len, float* weights);
-float squareDistWrappedWeighted(float* arr, int len, float pt, float* weights);
+float min(float* arr, int len);
 float sum(float* arr, int len);

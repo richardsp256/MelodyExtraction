@@ -14,6 +14,7 @@
 #include "silenceStrat.h"
 #include "winSampleConv.h"
 #include "noteCompilation.h"
+#include "tuningAdjustment.h"
 
 void PrintAudioMetadata(SF_INFO * file)
 {
@@ -42,7 +43,7 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int o_unpaddedSize, int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
 		int s_winSize, int s_winInt, int s_mode, SilenceStrategyFunc silenceStrategy,
-		int hpsOvr, int verbose, char* prefix)
+		int hpsOvr, int tuning, int verbose, char* prefix)
 { 
 	if(verbose){
 		PrintAudioMetadata(&info);
@@ -121,7 +122,7 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 		free(onsets);
 		return NULL;
 	}
-	FrequenciesToNotes(noteFreq, num_notes, &melodyMidi);
+	FrequenciesToNotes(noteFreq, num_notes, &melodyMidi, tuning);
 
 	if (prefix !=NULL){
 		// Here we save the note data
@@ -312,17 +313,52 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 	return nF_size;
 }
 
-void FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi)
+void FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi, int tuning)
 {
 	//this function just does the simple conversion for now,
 	//but in the future will be able to account for singer being sharp/flat
 	//in order to get more accurate not estimates
-	for(int i = 0; i < num_notes; ++i){
-		(*melodyMidi)[i] = FrequencyToNote(freq[i]);
+	if(!tuning){
+		for(int i = 0; i < num_notes; ++i){
+			(*melodyMidi)[i] = FrequencyToNote(freq[i]);
+		}
 	}
-}
+	else{
+		float* fractNotes = malloc(sizeof(float) * num_notes);
+		for(int i = 0; i < num_notes; ++i){
+			fractNotes[i] = FrequencyToFractionalNote(freq[i]);
+		}
 
-		
+		//threshold should be 0.0625. 
+		//to remove the tuning adjustment, just turn threshold to 0.0f
+		float threshold = 0.0625f;
+
+		for(int i = 0; i < num_notes; ++i){
+			//size of neighbors is up to 2 pts to the left + center + up to 2 pts to the right
+			int start = (int) fmaxf(i-2, 0);
+			int end = (int) fminf(i+2, num_notes - 1);
+			int neighborSize = end-start + 1;
+
+			float* neighbors = malloc(sizeof(float) * neighborSize );
+			memcpy(&neighbors[0], &fractNotes[start], sizeof(float) * neighborSize);
+
+			//printf("arr:");
+			//for(int j = 0; j < neighborSize; ++j){
+			//	printf("  %f", neighbors[j]);
+			//}
+			//printf("\n");
+
+			float avg;
+			float dist = FractionalAverage(neighbors, neighborSize, i - start, &avg);
+			free(neighbors);
+			if(dist < threshold){
+				(*melodyMidi)[i] = (int) roundf(roundf(fractNotes[i] - avg) + avg);
+			}else{
+				(*melodyMidi)[i] = (int) roundf(fractNotes[i]);
+			}
+		}
+	}
+}		
 
 //reads in .wav, returns FFT by reference through fft_data, returns size of fft_data
 int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data)

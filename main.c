@@ -162,6 +162,7 @@ int main(int argc, char ** argv)
 	
 	int hpsOvertones = 2;
 	int verbose = 0; 
+	int tuning = 0;
 	char* prefix = NULL;
 
 	SF_INFO info;
@@ -195,7 +196,7 @@ int main(int argc, char ** argv)
 	int opt = 0;
 	int badargs = 0;
 
-	while ((opt = getopt_long (argc, argv, "i:o:vh:p:", long_options, &option_index)) != -1) {
+	while ((opt = getopt_long (argc, argv, "i:o:vth:p:", long_options, &option_index)) != -1) {
 		switch (opt) {
 		case 'i':
 			inFile = strdup(optarg);
@@ -205,6 +206,9 @@ int main(int argc, char ** argv)
 			break;
 		case 'v':
 			verbose = 1;
+			break;
+		case 't':
+			tuning = 1;
 			break;
 		case 'a':
 			p_windowsizeBuf = strdup(optarg);
@@ -380,7 +384,7 @@ int main(int argc, char ** argv)
 				p_windowsize, p_paddedsize, p_spacing, p_Strategy, 
 				o_windowsize, o_paddedsize, o_spacing, o_Strategy,
 				s_windowsize, s_spacing, s_mode, s_Strategy,
-				hpsOvertones, verbose, prefix);
+				hpsOvertones, tuning, verbose, prefix);
 
 		if(midi == NULL){ //extractMelody error, or no notes found.
 			return 0;

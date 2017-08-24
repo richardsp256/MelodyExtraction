@@ -10,40 +10,31 @@
 //given a list of fractional parts (between 0 and 1)
 //return 'average' fractional part.
 //note that fractional parts can wrap (aka dist between .9 and .1 is .2, not .8)
-void fractPartArray(float* input, int size, float** output)
-{
-	(*output) = malloc(sizeof(float) * size);
-	for(int i = 0; i < size; i++)
-	{
-		(*output)[i] = fractPart(input[i]);
-	}
-}
-
-float fractPart(float x)
-{
-	return x - (int)x;
-}
-
-void weightNoteDist(float* input, int size, float center, float** weights)
-{
-	(*weights) = malloc(sizeof(float) * size);
-	for(int i = 0; i < size; i++)
-	{
-		(*weights)[i] = 1.0f/(input[i] - center + 1); //dist 0 = 1, dist 1 = 1/2, dist 2 = 1/3, dist 3 = 1/4, ect.
-	}
-}
 
 float FractionalAverage(float* arr, int len, int centerInd, float* avg)
 {
 	assert(centerInd < len && centerInd >= 0);
-
-	float* fractParts;
-	fractPartArray(arr, len, &fractParts);
-
-	float* weights;
 	float center = arr[centerInd];
-	printf("center  %f\n", center);
-	weightNoteDist(arr, len, center, &weights);
+	//printf("center  %f\n", center);
+
+	//printf("array:  ");
+	//for(int i = 0; i < len; ++i){
+	//	printf("%f ", arr[i]);
+	//}
+	//printf("\n");
+
+	float* fractParts = malloc(sizeof(float) *  len);
+	for(int i = 0; i < len; ++i){
+		fractParts[i] = fractPart(arr[i]);
+	}
+
+	//printf("weights: ");
+	float* weights = malloc(sizeof(float) * len);
+	for(int i = 0; i < len; ++i){
+		weights[i] = weightDist(arr[i], center);
+	//	printf("%f ", weights[i]);
+	}
+	//printf("\n");
 
 	(*avg) = fractParts[centerInd]; //set initial avg on central pt
 	float lowest_dist;
@@ -84,22 +75,25 @@ float FractionalAverage(float* arr, int len, int centerInd, float* avg)
 	return lowest_dist;
 }
 
-float linearDist(float* arr, int len, float pt)
+float fractPart(float x)
 {
-	//calc linear dist of all nums in arr to pt.
-	//aka  sum(abs(arr[i] - pt))
-	//note: for median, as median is the pt with the minimum linear dist
-	float dist = 0;
-	for(int i = 0; i < len; ++i){
-		dist = dist + fabs(arr[i] - pt);
-	}
-	return dist;
+	return x - (int)x;
 }
+
+float weightDist(float a, float b)
+{
+	if(sqrtf(fabs(a-b)) == 0.0f){ //special case to avoid divide by 0
+		return 1.0f;
+	}
+	return fminf(1.0f/sqrtf(fabs(a - b)), 1.0f);
+}
+
 float squareDistWrapped(float* arr, int len, float pt)
 {
 	//calc square dist of all nums in arr to pt.
-	//aka  sum(sqr(arr[i] - pt))
+	//aka  sum(sq(arr[i] - pt))
 	//note: for mean, as mean is the pt with the minimum square dist
+	//normalized so dist should always range between 0 and .25
 	float dist = 0;
 	for(int i = 0; i < len; ++i){
 		float diff = arr[i] - pt;
@@ -111,7 +105,49 @@ float squareDistWrapped(float* arr, int len, float pt)
 		}
 		dist = dist + (diff*diff);
 	}
+	dist = dist / len;
 	return dist;
+}
+
+float squareDistWrappedWeighted(float* arr, int len, float pt, float* weights)
+{
+	//calc weighted square dist of all nums in arr to pt.
+	//aka  sum(sqr(arr[i] - pt)*weights[i])
+	//note: for mean, as mean is the pt with the minimum square dist
+	//normalized so dist should always range between 0 and .25
+	float dist = 0;
+	for(int i = 0; i < len; ++i){
+		float diff = arr[i] - pt;
+		if(diff > 0.5){
+			diff = 1 - diff;
+		}
+		else if(diff < (-0.5)){
+			diff = -1 - diff;
+		}
+		dist = dist + (diff*diff * weights[i]);
+	}
+	dist = dist / (sum(weights, len) - 1);
+	return dist;
+}
+
+float mean(float* arr, int len)
+{
+	float avg = 0;
+	for(int i = 0; i < len; i++){
+		avg = avg + arr[i];
+	}
+	avg = avg / len;
+	return avg;
+}
+
+float meanWeighted(float* arr, int len, float* weights)
+{
+	float avg = 0;
+	for(int i = 0; i < len; i++){
+		avg = avg + (arr[i] * weights[i]);
+	}
+	avg = avg / sum(weights, len);
+	return avg;
 }
 
 float min(float* arr, int len)
@@ -126,16 +162,6 @@ float min(float* arr, int len)
 	return min;
 }
 
-float mean(float* arr, int len)
-{
-	float avg = 0;
-	for(int i = 0; i < len; i++){
-		avg = avg + arr[i];
-	}
-	avg = avg / len;
-	return avg;
-}
-
 float sum(float* arr, int len)
 {
 	float sum = 0.0f;
@@ -143,33 +169,4 @@ float sum(float* arr, int len)
 		sum = sum + arr[i];
 	}
 	return sum;
-}
-
-float meanWeighted(float* arr, int len, float* weights)
-{
-	float avg = 0;
-	for(int i = 0; i < len; i++){
-		avg = avg + (arr[i] * weights[i]);
-	}
-	avg = avg / sum(weights, len);
-	return avg;
-}
-
-float squareDistWrappedWeighted(float* arr, int len, float pt, float* weights)
-{
-	//calc square dist of all nums in arr to pt.
-	//aka  sum(sqr(arr[i] - pt))
-	//note: for mean, as mean is the pt with the minimum square dist
-	float dist = 0;
-	for(int i = 0; i < len; ++i){
-		float diff = arr[i] - pt;
-		if(diff > 0.5){
-			diff = 1 - diff;
-		}
-		else if(diff < (-0.5)){
-			diff = -1 - diff;
-		}
-		dist = dist + (diff*diff * weights[i]);
-	}
-	return dist;
 }
