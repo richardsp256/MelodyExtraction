@@ -14,7 +14,7 @@ project folder.
 
 From the FFTW folder run the commands:
 
-	./configure --enable-float
+	./configure --enable-float CFLAGS=-fPIC
 	make
 
 From the Libsndfile folder run the commands:
@@ -42,3 +42,8 @@ the current configuration files with
 	make distclean
 
 in that library's directory.
+
+Shared Library Usage
+--------------------
+To make use of the functionallity in this project, include melodyextraction.h
+and tell the compiler to use libmelodyextraction.so

@@ -5,13 +5,7 @@
 #include <getopt.h>
 #include <string.h>
 #include <limits.h>
-#include "sndfile.h"
-#include "comparison.h"
-#include "midi.h"
-#include "pitchStrat.h"
-#include "onsetStrat.h"
-#include "silenceStrat.h"
-
+#include "melodyextraction.h"
 
 /* Usage is as follows:
  * mandatory args:
@@ -55,122 +49,13 @@
  *           lenght of time (ex: '60ms', note that '60 ms' fails)
  */
 
-char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
-char* ERR_FILE_NOT_MONO = "Input file must be Mono."
-                          " Multi-channel audio currently not supported.\n";
-
-//default arg settings:
-char* PITCH_WINDOW_DEF = "4096";
-char* PITCH_PADDED_DEF = "none"; //none will set pitch_padded to pitch_window
-char* PITCH_SPACING_DEF = "2048";
-PitchStrategyFunc PITCH_STRATEGY_DEF = &HPSDetectionStrategy;
-
-char* ONSET_WINDOW_DEF = "512";
-char* ONSET_PADDED_DEF = "none"; //none will set onset_padded to onset_window
-char* ONSET_SPACING_DEF = "256";
-OnsetStrategyFunc ONSET_STRATEGY_DEF = &OnsetsDSDetectionStrategy;
-
-char* SILENCE_WINDOW_DEF = "10ms";
-char* SILENCE_SPACING_DEF = "none"; //-1 means to set equal to s_windowsize
-int SILENCE_MODE_DEF = 0;
-SilenceStrategyFunc SILENCE_STRATEGY_DEF = &fVADDetectionStrategy;
-
-
-
-int ReadAudioFile(char* inFile, float** buf, SF_INFO* info){
-	SNDFILE * f = sf_open(inFile, SFM_READ, info);
-	if( !f ){
-		printf("%s", ERR_INVALID_FILE);
-		return 0;
-	}
-	if((*info).channels != 1){
-		printf("%s", ERR_FILE_NOT_MONO);
-		sf_close( f );
-		return 0;
-	}
-
-	(*buf) = malloc( sizeof(float) * (*info).frames);
-	sf_readf_float( f, (*buf), (*info).frames );
-	sf_close( f );
-
-	return 1;
-}
-
-int msToFrames(int ms, int samplerate){
-	return (samplerate * ms) / 1000; //integer division
-}
-
-int numParser(char* buf, int* num){
-	// returns 1 if buffer is in units of ms. Otherwise returns 0
-	char* endptr;
-	    *num = 0;
-	long longnum = strtol(buf, &endptr, 10);
-	if (endptr == buf){
-		return 0;
-	}
-	if (longnum > INT_MAX || longnum < INT_MIN){
-		return 0;
-	}
-	*num = longnum;
-	if (*endptr!= '\0'){ //characters exist after the parsed number
-		if(strcmp(endptr, "ms") == 0){ //proper millisecond format
-			return 1;
-		}
-		else{ //invalid format
-			*num = 0;
-		}
-	}
-	return 0;
-}
-
-
-int ConvertToFrames(char* buf, int samplerate){
-	
-	int num;
-	if (numParser(buf, &num) == 1){
-		num = msToFrames(num, samplerate);
-	}
-	return num;
-}
 
 int main(int argc, char ** argv)
 {
 	char* inFile = NULL;
 	char* outFile = NULL;
 
-	//args for pitch detection
-	char* p_windowsizeBuf = PITCH_WINDOW_DEF;
-	char* p_paddedsizeBuf = PITCH_PADDED_DEF;
-	char* p_spacingBuf = PITCH_SPACING_DEF;
-	PitchStrategyFunc p_Strategy = PITCH_STRATEGY_DEF;
-	int p_windowsize, p_paddedsize, p_spacing;
-	
-	//args for onset detection
-	char* o_windowsizeBuf = ONSET_WINDOW_DEF;
-	char* o_paddedsizeBuf = ONSET_PADDED_DEF;
-	char* o_spacingBuf = ONSET_SPACING_DEF;
-	OnsetStrategyFunc o_Strategy = ONSET_STRATEGY_DEF; //HPS is default strategy
-	int o_windowsize, o_paddedsize, o_spacing;
-
-	//args for silence detection
-	char* s_windowsizeBuf = SILENCE_WINDOW_DEF;
-	char* s_spacingBuf = SILENCE_SPACING_DEF; //-1 means to set equal to s_windowsize
-	int s_mode = SILENCE_MODE_DEF;
-	SilenceStrategyFunc s_Strategy = SILENCE_STRATEGY_DEF;
-	int s_windowsize, s_spacing; //no paddedsize for silence detection
-
-	// strategy
-	
-	int hpsOvertones = 2;
-	int verbose = 0; 
-	int tuning = 0;
-	char* prefix = NULL;
-
-	SF_INFO info;
-	float* input;
-
-	int readFile = 0;
-	
+	struct me_data *inst= me_data_new();
 	//check command line arguments
 	static struct option long_options[] =
 		{
@@ -206,77 +91,70 @@ int main(int argc, char ** argv)
 			outFile = strdup(optarg);
 			break;
 		case 'v':
-			verbose = 1;
+			me_set_verbose(inst,1);
 			break;
 		case 't':
-			tuning = atoi(optarg);
-			if (tuning<0 || tuning>2){
+			if (me_set_tuning(inst,atoi(optarg)) !=0){
 				printf("Argument for option -t must be 0, 1, or 2\n");
 				badargs = 1;
 			}
 			break;
 		case 'a':
-			p_windowsizeBuf = strdup(optarg);
+			me_set_pitch_window(inst,optarg);
 			break;
 		case 'x':
-			p_paddedsizeBuf = strdup(optarg);
+			me_set_pitch_padded(inst,optarg);
 			break;
 		case 'b':
-			p_spacingBuf = strdup(optarg);
+			me_set_pitch_spacing(inst,optarg);
 			break;
 		case 'c':
-			p_Strategy = choosePitchStrategy(optarg);
-			if (p_Strategy == NULL){
+			if (me_set_pitch_strategy(inst,optarg) == 2){
 				printf("Argument for option --pitch_strategy must be \"HPS\", \"BaNa\", or \"BaNaMusic\"\n");
 				badargs = 1;
 			}
 			break;
 		case 'd':
-			o_windowsizeBuf = strdup(optarg);
+			me_set_onset_window(inst,optarg);
 			break;
 		case 'y':
-			o_paddedsizeBuf = strdup(optarg);
+			me_set_onset_padded(inst,optarg);
 			break;
 		case 'e':
-			o_spacingBuf = strdup(optarg);
+			me_set_onset_spacing(inst,optarg);
 			break;
 		case 'f':
-			o_Strategy = chooseOnsetStrategy(optarg);
-			if (o_Strategy == NULL){
+			if (me_set_onset_strategy(inst,optarg) == 2){
 				printf("Argument for option --onset_strategy must be \"OnsetsDS\"\n");
 				badargs = 1;
 			}
 			break;
-
 		case 'g':		
-			s_windowsizeBuf = strdup(optarg);
+			me_set_silence_window(inst,optarg);
 			break;
 		case 'j':
-			s_spacingBuf = strdup(optarg);
+			me_set_silence_spacing(inst,optarg);
 			break;
 		case 'k':
-		    s_Strategy = chooseSilenceStrategy(optarg);
-			if (o_Strategy == NULL){
+			if (me_set_silence_strategy(inst,optarg) == 2){
 				printf("Argument for option --silence_strategy must be \"fVAD\"\n");
 				badargs = 1;
 			}
-			break;
+		break;
 		case 'l':
-			s_mode = atoi(optarg);
-			if (s_mode<0 || s_mode>3){
+			if (me_set_silence_mode(inst,atoi(optarg)) == 2){
 				printf("Argument for option --silence_mode must be 0, 1, 2, or 3\n");
 				badargs = 1;
 			}
 			break;
 		case 'h':
-			hpsOvertones = atoi(optarg);
-			if(hpsOvertones < 1){
+			if(me_set_hps_overtones(inst,atoi(optarg))==2){
 				printf("Argument for option -s must be a positive integer\n");
 				badargs = 1;
 			}
 			break;
 		case 'p':
-			prefix = strdup(optarg);
+			me_set_prefix(inst,optarg);
 			break;
 		case '?':
 			badargs = 1;
@@ -296,111 +174,17 @@ int main(int argc, char ** argv)
 		printf("Mandatory Argument -i not set\n");
 		badargs = 1;
 	}
-	else if(!ReadAudioFile(inFile, &input, &info)){
-		badargs = 1;
-	}
-	else{ //ReadAudioFile() succeeded
-		readFile = 1;
-		//determine values for p_windowsize, p_spacing, and p_paddedsize
-		p_windowsize = ConvertToFrames(p_windowsizeBuf, info.samplerate);
-		if(p_windowsize < 1){
-			printf("Invalid arg for option --pitch_window\n");
-			badargs = 1;
-		}
-		p_spacing = ConvertToFrames(p_spacingBuf, info.samplerate);
-		if(p_spacing < 1){
-			printf("Invalid arg for option --pitch_spacing\n");
-			badargs = 1;
-		}
-		if(strcmp(p_paddedsizeBuf, "none") == 0){
-			p_paddedsize = p_windowsize;
-		}
-		else{
-			p_paddedsize = ConvertToFrames(p_paddedsizeBuf, info.samplerate);
-		}
-		if(p_paddedsize < 1){
-			printf("Invalid arg for option --pitch_padded\n");
-			badargs = 1;
-		}
-		else if(p_paddedsize < p_windowsize){
-			printf("--pitch_padded cannot be set less than --pitch_windowsize, whose value is %d\n", p_windowsize);
-			badargs = 1;
-		}
-
-		//determine values for o_windowsize, o_spacing, and o_paddedsize
-		o_windowsize = ConvertToFrames(o_windowsizeBuf, info.samplerate);
-		if(o_windowsize < 1){
-			printf("Invalid arg for option --onset_window\n");
-			badargs = 1;
-		}
-		o_spacing = ConvertToFrames(o_spacingBuf, info.samplerate);
-		if(o_spacing < 1){
-			printf("Invalid arg for option --onset_spacing\n");
-			badargs = 1;
-		}
-		if(strcmp(o_paddedsizeBuf, "none") == 0){
-			o_paddedsize = o_windowsize;
-		}
-		else{
-			o_paddedsize = ConvertToFrames(o_paddedsizeBuf, info.samplerate);
-		}	
-		if(o_paddedsize < 1){
-			printf("Invalid arg for option --onset_padded\n");
-			badargs = 1;
-		}
-		else if(o_paddedsize < o_windowsize){
-			printf("--onset_padded cannot be set less than --onset_windowsize, whose value is %d\n", o_windowsize);
-			badargs = 1;
-		}
-
-		//determine values for s_windowsize and s_spacing
-		if (strcmp(s_windowsizeBuf,"10ms") == 0){
-			s_windowsize = 10;
-		} else if (strcmp(s_windowsizeBuf,"20ms") == 0){
-			s_windowsize = 20;
-		} else if (strcmp(s_windowsizeBuf,"30ms") == 0){
-			s_windowsize = 30;
-		} else {
-			printf("--silence_window can only be \"10ms\", \"20ms\", or \"30ms\"\n");
-			s_windowsize = 1; //just give it a temp value so s_spacing doesnt fail to set
-			badargs = 1;
-		}
-
-		if (strcmp(s_spacingBuf,"none") == 0){
-			s_spacing = s_windowsize;
-		} else {
-			if (numParser(s_spacingBuf, &s_spacing)==0) {
-				badargs = 1;
-				printf("--silence_spacing must be in units of ms\n");
-			}
-		}
-
-		if(s_spacing < 1){
-			printf("Invalid arg for option --silence_spacing\n");
-			badargs = 1;
-		}
-		
-	}
-
 
 	if(!badargs){
 
-		struct Midi* midi  = ExtractMelody(&input, info, 
-				p_windowsize, p_paddedsize, p_spacing, p_Strategy, 
-				o_windowsize, o_paddedsize, o_spacing, o_Strategy,
-				s_windowsize, s_spacing, s_mode, s_Strategy,
-				hpsOvertones, tuning, verbose, prefix);
+		struct Midi* midi  = me_process(inFile, inst);
 
 		if(midi == NULL){ //extractMelody error, or no notes found.
 			return 0;
 		}
 
-		SaveMIDI(midi, outFile, verbose);
-
+		SaveMIDI(midi, outFile, 1);
 		freeMidi(midi);
-	}
-	if(readFile){
-		free(input);
 	}
 	
 	return 0;

@@ -1,10 +1,16 @@
 CC = gcc
-CFLAGS = -Wall
+CFLAGS = -Wall -O3 -fPIC
 LD = gcc
 LDFLAGS = -Wall
 
-all: tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o main.o
-	gcc tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o main.o -o extract -L./fftw-3.3.4/.libs -lfftw3f -L./libsndfile-1.0.26/src/.libs -lsndfile -L./libfvad-master/src/.libs -Wl,-rpath=./libfvad-master/src/.libs -lfvad -L./libsamplerate-0.1.9/src/.libs -lsamplerate -lm
+all: main.o libmelodyextraction.so
+	gcc main.o -o extract -L./ -Wl,-rpath=./ -lmelodyextraction -lm
+
+libmelodyextraction.so: tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o melodyextraction.o
+	gcc -shared tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o melodyextraction.o -o libmelodyextraction.so -L./fftw-3.3.4/.libs -lfftw3f -L./libsndfile-1.0.26/src/.libs -lsndfile -L./libfvad-master/src/.libs -Wl,-rpath=./libfvad-master/src/.libs -lfvad -L./libsamplerate-0.1.9/src/.libs -lsamplerate -lm -fPIC
+
+melodyextraction.o: melodyextraction.c
+	${CC} -I./libsndfile-1.0.26/src -I./fftw-3.3.4/api ${CFLAGS} -c $< -o melodyextraction.o
 
 tuningAdjustment.o: tuningAdjustment.c
 	${CC} ${CFLAGS} -c $< -o tuningAdjustment.o
@@ -58,4 +64,4 @@ main.o: main.c
 	${CC} -I./libsndfile-1.0.26/src -I./fftw-3.3.4/api ${CFLAGS} -c $< -o main.o
 
 clean:
-	rm *.o
+	rm -f *.o
