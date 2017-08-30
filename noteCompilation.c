@@ -50,10 +50,12 @@ int calcNoteRanges(int* onsets, int onset_size, int* activityRanges,
 		
 			if (onsets[i_onsets] <= range_start){
 				continue;
-			} else if (onsets[i_onsets] >range_end){
+			} else if (onsets[i_onsets] >= range_end){
 				break;
 			} else {
-				if((onsets[i_onsets] - range_start) > threshold){
+				//only add note if it isn't too close to the beginning or end of another note
+				if((onsets[i_onsets] - range_start) > threshold
+					&& (range_end - onsets[i_onsets]) > threshold){
 					(*noteRanges)[j] = range_start;
 					j++;
 					(*noteRanges)[j] = onsets[i_onsets];
@@ -106,7 +108,7 @@ int assignNotePitches(float* freq, int length, int* noteRanges, int nR_size,
 						noteRanges[2*i+1],
 						winInt, winSize, numSamples,
 						freq,length);
-		printf("Freq: %f \n",(*noteFreq)[i]);
+		//printf("Freq: %f \n",(*noteFreq)[i]);
 	}
 	return nF_size;
 }
