@@ -180,7 +180,7 @@ int me_set_silence_strategy(struct me_data* inst, char* value){
 int me_set_silence_mode(struct me_data* inst,int value){
 	if ((value < 0) || (value > 3)){ 
 		return 2;
-		}
+	}
 	inst->silence_mode = value;
 	return 0;
 }
@@ -189,14 +189,14 @@ int me_set_hps_overtones(struct me_data* inst,int value){
 	if (value>0){ 
 		inst->h = value;
 		return 0;
-		}
+	}
 	return 2;
 }
 
 int me_set_tuning(struct me_data* inst,int value){
-	if ((value < 0) || (value > 1)){ 
+	if ((value < 0) || (value > 2)){ 
 		return 2;
-		}
+	}
 	inst->t = value;
 	return 0;
 }
@@ -205,7 +205,7 @@ int me_set_verbose(struct me_data* inst,int value){
 	if ((value == 0) || (value == 1)){ 
 		inst->v = value;
 		return 0;
-		}
+	}
 	return 1;
 }
 
