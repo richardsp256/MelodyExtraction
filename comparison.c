@@ -161,6 +161,7 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	struct Midi* midi = GenerateMIDIFromNotes(melodyMidi, noteRanges,
 				     num_notes, info.samplerate, verbose);
 	free(noteRanges);
+	free(melodyMidi);
 
 	if(midi == NULL){
 		printf("Midi generation failed\n");
