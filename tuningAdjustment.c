@@ -1,5 +1,6 @@
 #include <math.h>
 #include <limits.h>
+#include <float.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
@@ -14,14 +15,10 @@
 float FractionalAverage(float* arr, int len, int centerInd, float* avg)
 {
 	assert(centerInd < len && centerInd >= 0);
-	float center = arr[centerInd];
-	//printf("center  %f\n", center);
+	int use_weighting = 1; //for internal testing. to turn weighting off make it 0
 
-	//printf("array:  ");
-	//for(int i = 0; i < len; ++i){
-	//	printf("%f ", arr[i]);
-	//}
-	//printf("\n");
+	float center = arr[centerInd];
+	//printf("center  %f, ind %d, len %d\n", center, centerInd, len);
 
 	float* fractParts = malloc(sizeof(float) *  len);
 	for(int i = 0; i < len; ++i){
@@ -31,7 +28,11 @@ float FractionalAverage(float* arr, int len, int centerInd, float* avg)
 	//printf("weights: ");
 	float* weights = malloc(sizeof(float) * len);
 	for(int i = 0; i < len; ++i){
-		weights[i] = weightDist(arr[i], center);
+		if(use_weighting){
+			weights[i] = weightDist(arr[i], center);
+		}else{
+			weights[i] = 1.0f;
+		}
 	//	printf("%f ", weights[i]);
 	}
 	//printf("\n");
@@ -59,8 +60,6 @@ float FractionalAverage(float* arr, int len, int centerInd, float* avg)
 			}
 		}
 		//calc avg and dist (median and linear dist, or mean and square dist)
-		//float curAvg = mean(fractParts, len);
-		//float curDist = squareDistWrapped(fractParts, len, curAvg);
 		float curAvg = meanWeighted(fractParts, len, weights);
 		float curDist = squareDistWrappedWeighted(fractParts, len, curAvg, weights);
 		//if beats best, update best
@@ -69,7 +68,7 @@ float FractionalAverage(float* arr, int len, int centerInd, float* avg)
 			lowest_dist = curDist;
 		}
 
-		mi = min(fractParts, len);
+		mi = minFinite(fractParts, len);
 	} while (mi < 0.5);
 
 	return lowest_dist;
@@ -86,27 +85,6 @@ float weightDist(float a, float b)
 		return 1.0f;
 	}
 	return fminf(1.0f/sqrtf(fabs(a - b)), 1.0f);
-}
-
-float squareDistWrapped(float* arr, int len, float pt)
-{
-	//calc square dist of all nums in arr to pt.
-	//aka  sum(sq(arr[i] - pt))
-	//note: for mean, as mean is the pt with the minimum square dist
-	//normalized so dist should always range between 0 and .25
-	float dist = 0;
-	for(int i = 0; i < len; ++i){
-		float diff = arr[i] - pt;
-		if(diff > 0.5){
-			diff = 1 - diff;
-		}
-		else if(diff < (-0.5)){
-			diff = -1 - diff;
-		}
-		dist = dist + (diff*diff);
-	}
-	dist = dist / len;
-	return dist;
 }
 
 float squareDistWrappedWeighted(float* arr, int len, float pt, float* weights)
@@ -130,16 +108,6 @@ float squareDistWrappedWeighted(float* arr, int len, float pt, float* weights)
 	return dist;
 }
 
-float mean(float* arr, int len)
-{
-	float avg = 0;
-	for(int i = 0; i < len; i++){
-		avg = avg + arr[i];
-	}
-	avg = avg / len;
-	return avg;
-}
-
 float meanWeighted(float* arr, int len, float* weights)
 {
 	float avg = 0;
@@ -150,14 +118,13 @@ float meanWeighted(float* arr, int len, float* weights)
 	return avg;
 }
 
-float min(float* arr, int len)
+float minFinite(float* arr, int len) //min finite value in arr (so if it has -inf, that is skipped)
 {
-	if(len == 0){
-		return INT_MAX; //max float
-	}
-	float min = arr[0];
-	for(int i = 1; i < len; ++i){
-		min = fminf(min, arr[i]);
+	float min = FLT_MAX;
+	for(int i = 0; i < len; ++i){
+		if(!isinf(arr[i])){
+			min = fminf(min, arr[i]);
+		}
 	}
 	return min;
 }
