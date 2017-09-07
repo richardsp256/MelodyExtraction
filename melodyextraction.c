@@ -209,7 +209,8 @@ int me_set_verbose(struct me_data* inst,int value){
 	return 1;
 }
 
-int ReadAudioFile(char* inFile, float** buf, SF_INFO* info){
+int ReadAudioFile(char* inFile, float** buf, SF_INFO* info)
+{
 	SNDFILE * f = sf_open(inFile, SFM_READ, info);
 	if( !f ){
 		printf("%s", ERR_INVALID_FILE);
@@ -265,8 +266,8 @@ int ConvertToFrames(char* buf, int samplerate){
 	return num;
 }
 
-
-struct Midi* me_process(char *fname, struct me_data *inst){
+struct Midi* me_process(float **input, SF_INFO info, struct me_data *inst)
+{
 	char* prefix = NULL;
 	
 	int p_windowsize, p_paddedsize, p_spacing;
@@ -280,10 +281,6 @@ struct Midi* me_process(char *fname, struct me_data *inst){
 
 	int hpsOvertones, verbose, tuning;
 
-	SF_INFO info;
-	float* input;
-
-	int readFile = 0;
 	int badargs = 0;
 
 	// set the values directly from inst
@@ -296,111 +293,103 @@ struct Midi* me_process(char *fname, struct me_data *inst){
 	verbose = inst->v;
 	tuning = inst->t;
 
-	if (!ReadAudioFile(fname, &input, &info)){
+	
+	//determine values for p_windowsize, p_spacing, and p_paddedsize
+	p_windowsize = ConvertToFrames(inst->pitch_window,
+				       info.samplerate);
+	if(p_windowsize < 1){
+		printf("Invalid arg for option pitch_window\n");
 		badargs = 1;
-	} else { //ReadAudioFile() succeeded
-		readFile = 1;
-		
-		//determine values for p_windowsize, p_spacing, and p_paddedsize
-		p_windowsize = ConvertToFrames(inst->pitch_window,
+	}
+	
+	p_spacing = ConvertToFrames(inst->pitch_spacing,
+				    info.samplerate);
+	if(p_spacing < 1){
+		printf("Invalid arg for option pitch_spacing\n");
+		badargs = 1;
+	}
+	if(strcmp(inst->pitch_padded, "none") == 0){
+		p_paddedsize = p_windowsize;
+	}
+	else{
+		p_paddedsize = ConvertToFrames(inst->pitch_padded,
 					       info.samplerate);
-		if(p_windowsize < 1){
-			printf("Invalid arg for option pitch_window\n");
-			badargs = 1;
-		}
-		
-		p_spacing = ConvertToFrames(inst->pitch_spacing,
-					    info.samplerate);
-		if(p_spacing < 1){
-			printf("Invalid arg for option pitch_spacing\n");
-			badargs = 1;
-		}
-		if(strcmp(inst->pitch_padded, "none") == 0){
-			p_paddedsize = p_windowsize;
-		}
-		else{
-			p_paddedsize = ConvertToFrames(inst->pitch_padded,
-						       info.samplerate);
-		}
-		if(p_paddedsize < 1){
-			printf("Invalid arg for option pitch_padded\n");
-			badargs = 1;
-		}
-		else if(p_paddedsize < p_windowsize){
-			printf("pitch_padded cannot be set less than pitch_windowsize, whose value is %d\n", p_windowsize);
-			badargs = 1;
-		}
+	}
+	if(p_paddedsize < 1){
+		printf("Invalid arg for option pitch_padded\n");
+		badargs = 1;
+	}
+	else if(p_paddedsize < p_windowsize){
+		printf("pitch_padded cannot be set less than pitch_windowsize, whose value is %d\n", p_windowsize);
+		badargs = 1;
+	}
 
-		//determine values for o_windowsize, o_spacing, and o_paddedsize
-		o_windowsize = ConvertToFrames(inst->onset_window,
+	//determine values for o_windowsize, o_spacing, and o_paddedsize
+	o_windowsize = ConvertToFrames(inst->onset_window,
+				       info.samplerate);
+	if(o_windowsize < 1){
+		printf("Invalid arg for option onset_window\n");
+		badargs = 1;
+	}
+	o_spacing = ConvertToFrames(inst->onset_spacing,
+				    info.samplerate);
+	if(o_spacing < 1){
+		printf("Invalid arg for option onset_spacing\n");
+		badargs = 1;
+	}
+	if(strcmp(inst->onset_padded, "none") == 0){
+		o_paddedsize = o_windowsize;
+	}
+	else{
+		o_paddedsize = ConvertToFrames(inst->onset_padded,
 					       info.samplerate);
-		if(o_windowsize < 1){
-			printf("Invalid arg for option onset_window\n");
-			badargs = 1;
-		}
-		o_spacing = ConvertToFrames(inst->onset_spacing,
-					    info.samplerate);
-		if(o_spacing < 1){
-			printf("Invalid arg for option onset_spacing\n");
-			badargs = 1;
-		}
-		if(strcmp(inst->onset_padded, "none") == 0){
-			o_paddedsize = o_windowsize;
-		}
-		else{
-			o_paddedsize = ConvertToFrames(inst->onset_padded,
-						       info.samplerate);
-		}	
-		if(o_paddedsize < 1){
-			printf("Invalid arg for option onset_padded\n");
-			badargs = 1;
-		}
-		else if(o_paddedsize < o_windowsize){
-			printf("onset_padded cannot be set less than onset_windowsize, whose value is %d\n", o_windowsize);
-			badargs = 1;
-		}
+	}	
+	if(o_paddedsize < 1){
+		printf("Invalid arg for option onset_padded\n");
+		badargs = 1;
+	}
+	else if(o_paddedsize < o_windowsize){
+		printf("onset_padded cannot be set less than onset_windowsize, whose value is %d\n", o_windowsize);
+		badargs = 1;
+	}
 
-		//determine values for s_windowsize and s_spacing
-		if (strcmp(inst->silence_window,"10ms") == 0){
-			s_windowsize = 10;
-		} else if (strcmp(inst->silence_window,"20ms") == 0){
-			s_windowsize = 20;
-		} else if (strcmp(inst->silence_window,"30ms") == 0){
-			s_windowsize = 30;
-		} else {
-			printf("silence_window can only be \"10ms\", \"20ms\", or \"30ms\"\n");
-			s_windowsize = 1; //just give it a temp value so s_spacing doesnt fail to set
-			badargs = 1;
-		}
+	//determine values for s_windowsize and s_spacing
+	if (strcmp(inst->silence_window,"10ms") == 0){
+		s_windowsize = 10;
+	} else if (strcmp(inst->silence_window,"20ms") == 0){
+		s_windowsize = 20;
+	} else if (strcmp(inst->silence_window,"30ms") == 0){
+		s_windowsize = 30;
+	} else {
+		printf("silence_window can only be \"10ms\", \"20ms\", or \"30ms\"\n");
+		s_windowsize = 1; //just give it a temp value so s_spacing doesnt fail to set
+		badargs = 1;
+	}
 
-		if (strcmp(inst->silence_spacing,"none") == 0){
-			s_spacing = s_windowsize;
-		} else {
-			if (numParser(inst->silence_spacing, &s_spacing)==0) {
-				badargs = 1;
-				printf("silence_spacing must be in units of ms\n");
-			}
-		}
-
-		if(s_spacing < 1){
-			printf("Invalid arg for option silence_spacing\n");
+	if (strcmp(inst->silence_spacing,"none") == 0){
+		s_spacing = s_windowsize;
+	} else {
+		if (numParser(inst->silence_spacing, &s_spacing)==0) {
 			badargs = 1;
+			printf("silence_spacing must be in units of ms\n");
 		}
+	}
+
+	if(s_spacing < 1){
+		printf("Invalid arg for option silence_spacing\n");
+		badargs = 1;
 	}
 
 	struct Midi* midi = NULL;
 	
 	if(!badargs){
+		midi = ExtractMelody(input, info, p_windowsize, p_paddedsize,
+			       p_spacing, p_Strategy, o_windowsize,
+			       o_paddedsize, o_spacing, o_Strategy,
+			       s_windowsize, s_spacing, s_mode,
+			       s_Strategy, hpsOvertones, tuning,
+			       verbose, prefix);
+	}
 
-		  midi = ExtractMelody(&input, info, p_windowsize, p_paddedsize,
-				       p_spacing, p_Strategy, o_windowsize,
-				       o_paddedsize, o_spacing, o_Strategy,
-				       s_windowsize, s_spacing, s_mode,
-				       s_Strategy, hpsOvertones, tuning,
-				       verbose, prefix);
-	}
-	if(readFile){
-		free(input);
-	}
 	return midi;
-};
+}

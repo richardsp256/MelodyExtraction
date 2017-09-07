@@ -177,7 +177,16 @@ int main(int argc, char ** argv)
 
 	if(!badargs){
 
-		struct Midi* midi  = me_process(inFile, inst);
+		SF_INFO info;
+
+		float* input;
+		if (!ReadAudioFile(inFile, &input, &info)){
+			return 0;
+		}
+
+		struct Midi* midi  = me_process(&input, info, inst);
+
+		free(input);
 
 		if(midi == NULL){ //extractMelody error, or no notes found.
 			return 0;

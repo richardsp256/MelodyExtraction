@@ -1,3 +1,5 @@
+#include "sndfile.h"
+
 // the following is included so we can handle the basics of midi files
 
 struct Track{
@@ -67,4 +69,6 @@ int me_set_tuning(struct me_data* inst,int value);
 int me_set_verbose(struct me_data* inst,int value);
 
 
-struct Midi* me_process(char *fname, struct me_data *inst);
+struct Midi* me_process(float **input, SF_INFO info, struct me_data *inst);
+
+int ReadAudioFile(char* inFile, float** buf, SF_INFO* info);
