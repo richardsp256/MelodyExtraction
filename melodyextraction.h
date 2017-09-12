@@ -1,4 +1,7 @@
 #include "sndfile.h"
+#include "pitchStrat.h"
+#include "onsetStrat.h"
+#include "silenceStrat.h"
 
 // the following is included so we can handle the basics of midi files
 
@@ -23,50 +26,59 @@ void SaveMIDI(struct Midi* midi, char* path, int verbose);
 // like libfvad, libsamplerate, and fftw3, we define an object that we
 // use to actually execute the library
 // we may want to make this opaque
+//struct me_settings;
 
-struct me_data;
+//struct me_data;
+struct me_settings{
+	char * prefix;
+	char * pitch_window;
+	char * pitch_padded;
+	char * pitch_spacing;
+	char * pitch_strategy;
+	char * onset_window;
+	char * onset_padded;
+	char * onset_spacing;
+	char * onset_strategy;
+	char * silence_window;
+	char * silence_spacing;
+	char * silence_strategy;
+	int silence_mode;
+	int hps;
+	int tuning;
+	int verbose;
+};
 
-// create an instance of me_data
-struct me_data* me_data_new();
+struct me_data{
+	char * prefix;
+	int pitch_window;
+	int pitch_padded;
+	int pitch_spacing;
+	PitchStrategyFunc pitch_strategy;
+	int onset_window;
+	int onset_padded;
+	int onset_spacing;
+	OnsetStrategyFunc onset_strategy;
+	int silence_window;
+	int silence_spacing;
+	SilenceStrategyFunc silence_strategy;
+	int silence_mode;
+	int hps;
+	int tuning;
+	int verbose;
+};
+
+// create an instance of me_settings
+struct me_settings* me_settings_new();
+
+//destroy me setting
+void me_settings_free(struct me_settings* inst);
+
+// create an instance of me_data from me_settings
+char* me_data_init(struct me_data** inst, struct me_settings* settings, SF_INFO info);
 
 // destroy me_data
 void me_data_free(struct me_data *inst);
 
-// reset me_data to default values
-int me_data_reset(struct me_data *inst);
-
-/* List of adjustable parameters:
- * pitch_window: number of frames of audiodata taken for each stft window for 
- *                pitch detection. def = 4096
- * etc.
- *
- * below are functions to adjust algorithm parameters
- * each of these functions return 0, 1, or 2.
- * 0 means that adjusting the parameter was successful
- * 1 indicates that there was an issue with allocating memory
- * 2 means that the parameter was invalid
- */
-
-
-/* pitch_window: number of frames of audiodata taken for each stft window for 
- *                pitch detection. def = 4096
- */
-int me_set_prefix(struct me_data* inst,char* value);
-int me_set_pitch_window(struct me_data* inst,char* value);
-int me_set_pitch_padded(struct me_data* inst,char* value);
-int me_set_pitch_spacing(struct me_data* inst,char* value);
-int me_set_pitch_strategy(struct me_data* inst,char* value);
-int me_set_onset_window(struct me_data* inst,char* value);
-int me_set_onset_padded(struct me_data* inst,char* value);
-int me_set_onset_spacing(struct me_data* inst,char* value);
-int me_set_onset_strategy(struct me_data* inst,char* value);
-int me_set_silence_window(struct me_data* inst, char* value);
-int me_set_silence_spacing(struct me_data* inst, char* value);
-int me_set_silence_strategy(struct me_data* inst, char* value);
-int me_set_silence_mode(struct me_data* inst,int value);
-int me_set_hps_overtones(struct me_data* inst,int value);
-int me_set_tuning(struct me_data* inst,int value);
-int me_set_verbose(struct me_data* inst,int value);
 
 
 struct Midi* me_process(float **input, SF_INFO info, struct me_data *inst);

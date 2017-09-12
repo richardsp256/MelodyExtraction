@@ -55,7 +55,6 @@ int main(int argc, char ** argv)
 	char* inFile = NULL;
 	char* outFile = NULL;
 
-	struct me_data *inst= me_data_new();
 	//check command line arguments
 	static struct option long_options[] =
 		{
@@ -82,6 +81,8 @@ int main(int argc, char ** argv)
 	int opt = 0;
 	int badargs = 0;
 
+	struct me_settings *settings= me_settings_new();
+
 	while ((opt = getopt_long (argc, argv, "i:o:vt:h:p:", long_options, &option_index)) != -1) {
 		switch (opt) {
 		case 'i':
@@ -91,70 +92,52 @@ int main(int argc, char ** argv)
 			outFile = strdup(optarg);
 			break;
 		case 'v':
-			me_set_verbose(inst,1);
+			settings->verbose = 1;
 			break;
 		case 't':
-			if (me_set_tuning(inst,atoi(optarg)) !=0){
-				printf("Argument for option -t must be 0, 1, or 2\n");
-				badargs = 1;
-			}
+			settings->tuning = atoi(optarg);
 			break;
 		case 'a':
-			me_set_pitch_window(inst,optarg);
+			settings->pitch_window = strdup(optarg);
 			break;
 		case 'x':
-			me_set_pitch_padded(inst,optarg);
+			settings->pitch_padded = strdup(optarg);
 			break;
 		case 'b':
-			me_set_pitch_spacing(inst,optarg);
+			settings->pitch_spacing = strdup(optarg);
 			break;
 		case 'c':
-			if (me_set_pitch_strategy(inst,optarg) == 2){
-				printf("Argument for option --pitch_strategy must be \"HPS\", \"BaNa\", or \"BaNaMusic\"\n");
-				badargs = 1;
-			}
+			settings->pitch_strategy = strdup(optarg);
 			break;
 		case 'd':
-			me_set_onset_window(inst,optarg);
+			settings->onset_window = strdup(optarg);
 			break;
 		case 'y':
-			me_set_onset_padded(inst,optarg);
+			settings->onset_padded = strdup(optarg);
 			break;
 		case 'e':
-			me_set_onset_spacing(inst,optarg);
+			settings->onset_spacing = strdup(optarg);
 			break;
 		case 'f':
-			if (me_set_onset_strategy(inst,optarg) == 2){
-				printf("Argument for option --onset_strategy must be \"OnsetsDS\"\n");
-				badargs = 1;
-			}
+			settings->onset_strategy = strdup(optarg);
 			break;
 		case 'g':		
-			me_set_silence_window(inst,optarg);
+			settings->silence_window = strdup(optarg);
 			break;
 		case 'j':
-			me_set_silence_spacing(inst,optarg);
+			settings->silence_spacing = strdup(optarg);
 			break;
 		case 'k':
-			if (me_set_silence_strategy(inst,optarg) == 2){
-				printf("Argument for option --silence_strategy must be \"fVAD\"\n");
-				badargs = 1;
-			}
-		break;
+			settings->silence_strategy = strdup(optarg);
+			break;
 		case 'l':
-			if (me_set_silence_mode(inst,atoi(optarg)) == 2){
-				printf("Argument for option --silence_mode must be 0, 1, 2, or 3\n");
-				badargs = 1;
-			}
+			settings->silence_mode = atoi(optarg);
 			break;
 		case 'h':
-			if(me_set_hps_overtones(inst,atoi(optarg))==2){
-				printf("Argument for option -s must be a positive integer\n");
-				badargs = 1;
-			}
+			settings->hps = atoi(optarg);
 			break;
 		case 'p':
-			me_set_prefix(inst,optarg);
+			settings->prefix = strdup(optarg);
 			break;
 		case '?':
 			badargs = 1;
@@ -184,7 +167,28 @@ int main(int argc, char ** argv)
 			return 0;
 		}
 
+		struct me_data *inst;
+		char* err = me_data_init(&inst, settings, info);
+		//printf("is ther error?: %s\n", err);
+		//printf("val of inst: %d  %d  %d\n", inst, &inst, *inst);
+		if(inst == NULL){
+			printf("error initializing me_data: %s\n", err);
+			me_settings_free(settings);
+			free(input);
+			return 0;
+		}
+
+		//printf("%d  %d  %d\n", inst->pitch_window, inst->pitch_padded, inst->pitch_spacing);
+		//printf("%d  %d  %d\n", inst->onset_window, inst->onset_padded, inst->onset_spacing);
+		//printf("%d  %d  %d\n", inst->silence_window, inst->silence_mode, inst->silence_spacing);
+		//printf("%d  %d  %d\n", inst->hps, inst->tuning, inst->verbose);
+
 		struct Midi* midi  = me_process(&input, info, inst);
+
+		printf("MIDI\n");
+
+		me_settings_free(settings);
+		me_data_free(inst);
 
 		free(input);
 

@@ -49,6 +49,14 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 		PrintAudioMetadata(&info);
 	}
 
+	if(verbose){
+		printf("ARGS:\n");
+		printf("p_unpad %d,  p_win %d,  p_int %d\n", p_unpaddedSize, p_winSize, p_winInt);
+		printf("o_unpad %d,  o_win %d,  o_int %d\n", o_unpaddedSize, o_winSize, o_winInt);
+		printf("s_win %d,  s_int %d,  s_mode %d\n", s_winSize, s_winInt, s_mode);
+		printf("hps %d,  tuning %d,  verbose %d,  prefix %s\n", hpsOvr, tuning, verbose, prefix);
+	}
+
 	int *activityRanges = NULL;
 	int a_size = ExtractSilence(input, &activityRanges, info, s_winSize,
 				    s_winInt, s_mode, silenceStrategy);
