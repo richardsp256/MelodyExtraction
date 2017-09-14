@@ -108,7 +108,7 @@ int assignNotePitches(float* freq, int length, int* noteRanges, int nR_size,
 						noteRanges[2*i+1],
 						winInt, winSize, numSamples,
 						freq,length);
-		//printf("Freq: %f \n",(*noteFreq)[i]);
+		printf("  Freq: %f \n",(*noteFreq)[i]);
 	}
 	return nF_size;
 }
@@ -122,6 +122,9 @@ float averageFreq(int startSample, int stopSample, int winInt, int winSize,
 	// take the weighted average
 	int start_index = repWinIndex(winInt, winSize, numSamples, startSample);
 	int stop_index = repWinIndex(winInt, winSize, numSamples, stopSample);
+
+	printf("   startsample %d, stopsample %d\n", startSample, stopSample);
+	printf("   startind %d, stopind %d\n", start_index, stop_index);
 
 	if ((stop_index - start_index) == 0){
 		// this is the scenario where the entire note occurs within a
@@ -173,6 +176,8 @@ float averageFreq(int startSample, int stopSample, int winInt, int winSize,
 		temp += (double)num_samples*(double)freq[stop_index];
 		n+=num_samples;
 	}
+
+	printf("   temp  %f,  n  %d\n", temp, n);
 	
 	return (float)(temp/(double)n);
 }

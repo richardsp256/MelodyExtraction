@@ -80,6 +80,9 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	}
 	if(verbose){
 		printf("Pitch detection complete\n");
+		for(int y = 0; y < freqSize; y++){ 
+			printf("  %f\n", freq[y]); 
+		} 
 		fflush(NULL);
 	}
 
