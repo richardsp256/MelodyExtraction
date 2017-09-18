@@ -333,6 +333,25 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 					p_winInt, p_unpaddedSize, info.frames,
 					noteFreq);
 
+	//if the pitch for any note is 0 (aka not valid), remove it 
+	for(int i = 0; i < nF_size; ++i){ 
+		printf("checking pitch %f\n", (*noteFreq)[i]); 
+		if((*noteFreq)[i] == 0.0f){ 
+			for(int j = i+1; j < nF_size; ++j){
+				(*noteFreq)[j-1] = (*noteFreq)[j];
+				(*noteRanges)[(j*2)-2] = (*noteRanges)[(j*2)];
+				(*noteRanges)[(j*2)-1] = (*noteRanges)[(j*2)+1];
+			}
+			(*noteFreq) = realloc((*noteFreq), (nF_size -1) * sizeof(float));
+			(*noteRanges) = realloc((*noteRanges), (nR_size -2) * sizeof(int));
+
+			nR_size -= 2; 
+			nF_size -= 1;
+
+			i--; 
+		} 
+	}
+
 	return nF_size;
 }
 

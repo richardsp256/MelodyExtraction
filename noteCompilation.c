@@ -123,8 +123,8 @@ float averageFreq(int startSample, int stopSample, int winInt, int winSize,
 	int start_index = repWinIndex(winInt, winSize, numSamples, startSample);
 	int stop_index = repWinIndex(winInt, winSize, numSamples, stopSample);
 
-	printf("   startsample %d, stopsample %d\n", startSample, stopSample);
-	printf("   startind %d, stopind %d\n", start_index, stop_index);
+	//printf("   startsample %d, stopsample %d\n", startSample, stopSample);
+	//printf("   startind %d, stopind %d\n", start_index, stop_index);
 
 	if ((stop_index - start_index) == 0){
 		// this is the scenario where the entire note occurs within a
@@ -138,6 +138,7 @@ float averageFreq(int startSample, int stopSample, int winInt, int winSize,
 	int n = winStopRepSampleIndex(winInt, winSize, numSamples, start_index)
 		- startSample;
 	double temp = ((double)n) * ((double)freq[start_index]);
+	//printf("    temp init %f with num_samples %d and freq %f\n", temp, n, freq[start_index]);
 	
 	// now we will handle all windows between the first and last window
 	// we calculate the standard number of samples per window. This applies 
@@ -163,6 +164,7 @@ float averageFreq(int startSample, int stopSample, int winInt, int winSize,
 		}
 		temp += (double)num_samples*(double)freq[i];
 		n+=num_samples;
+		//printf("    temp update %f with num_samples %d and freq %f\n", temp, num_samples, freq[i]);
 	}
 
 	// it is possible for the window with index stop_index to have some
@@ -175,9 +177,10 @@ float averageFreq(int startSample, int stopSample, int winInt, int winSize,
 		num_samples = stopSample - final_window_start;
 		temp += (double)num_samples*(double)freq[stop_index];
 		n+=num_samples;
+		//printf("    temp update %f with num_samples %d and freq %f\n", temp, num_samples, freq[stop_index]);
 	}
 
-	printf("   temp  %f,  n  %d\n", temp, n);
+	//printf("   temp  %f,  n  %d\n", temp, n);
 	
 	return (float)(temp/(double)n);
 }
