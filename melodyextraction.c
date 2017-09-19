@@ -85,6 +85,25 @@ int ConvertToFrames(char* buf, int samplerate){
 	return num;
 }
 
+struct me_data{
+	char * prefix;
+	int pitch_window;
+	int pitch_padded;
+	int pitch_spacing;
+	PitchStrategyFunc pitch_strategy;
+	int onset_window;
+	int onset_padded;
+	int onset_spacing;
+	OnsetStrategyFunc onset_strategy;
+	int silence_window;
+	int silence_spacing;
+	SilenceStrategyFunc silence_strategy;
+	int silence_mode;
+	int hps;
+	int tuning;
+	int verbose;
+};
+
 
 char* me_data_init(struct me_data** inst, struct me_settings* settings, SF_INFO info)
 {

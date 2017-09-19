@@ -26,9 +26,8 @@ void SaveMIDI(struct Midi* midi, char* path, int verbose);
 // like libfvad, libsamplerate, and fftw3, we define an object that we
 // use to actually execute the library
 // we may want to make this opaque
-//struct me_settings;
 
-//struct me_data;
+//struct me_settings;
 struct me_settings{
 	char * prefix;
 	char * pitch_window;
@@ -48,24 +47,7 @@ struct me_settings{
 	int verbose;
 };
 
-struct me_data{
-	char * prefix;
-	int pitch_window;
-	int pitch_padded;
-	int pitch_spacing;
-	PitchStrategyFunc pitch_strategy;
-	int onset_window;
-	int onset_padded;
-	int onset_spacing;
-	OnsetStrategyFunc onset_strategy;
-	int silence_window;
-	int silence_spacing;
-	SilenceStrategyFunc silence_strategy;
-	int silence_mode;
-	int hps;
-	int tuning;
-	int verbose;
-};
+//struct me_data;
 
 // create an instance of me_settings
 struct me_settings* me_settings_new();
