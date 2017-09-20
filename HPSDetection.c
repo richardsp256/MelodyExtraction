@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+#include <float.h>
 #include "HPSDetection.h"
 
 float* HarmonicProductSpectrum(float** AudioData, int size, int dftBlocksize, int hpsOvr, int fftSize, int samplerate)
@@ -8,8 +9,9 @@ float* HarmonicProductSpectrum(float** AudioData, int size, int dftBlocksize, in
 	//for now, doesn't attempt to distinguish if a note is or isnt playing.
 	//if no note is playing, the dominant tone will just be from the noise.
 
-	int i,j,limit, numBlocks, loudestIndex;
+	int i,j,limit, numBlocks;
 	float loudestOfBlock;
+	int loudestIndex = -1;
 	assert(size % dftBlocksize == 0);
 	numBlocks = size / dftBlocksize;
 
@@ -35,7 +37,7 @@ float* HarmonicProductSpectrum(float** AudioData, int size, int dftBlocksize, in
 			}
 		}
 
-		loudestOfBlock = 0.0;
+		loudestOfBlock = FLT_MIN;
 		for(i = 0; i < dftBlocksize; ++i){
 			if((*AudioData)[blockstart + i] > loudestOfBlock){
 				loudestOfBlock = (*AudioData)[blockstart + i];

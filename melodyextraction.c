@@ -35,7 +35,7 @@
 //for pitch and onset, default padding = windowsize, default spacing = windowsize/2
 //for silence, default spacing = windowsize
 int PITCH_WINDOW_DEF = 4096;
-PitchStrategyFunc PITCH_STRATEGY_DEF = &HPSDetectionStrategy;
+PitchStrategyFunc PITCH_STRATEGY_DEF = &BaNaMusicDetectionStrategy;
 
 int ONSET_WINDOW_DEF = 512;
 OnsetStrategyFunc ONSET_STRATEGY_DEF = &OnsetsDSDetectionStrategy;

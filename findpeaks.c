@@ -321,6 +321,10 @@ float* fastsmooth(float* y, long length, float w, int type)
 	case 3 :
 		smoothY = sa(sa(sa(y,length,w),length,w),length,w);
 		break;
+	default:
+		smoothY = sa(sa(sa(y,length,w),length,w),length,w);
+		break;
+
 	}
 	return smoothY;
 }

@@ -59,7 +59,7 @@ comparison.o: comparison.c
 	${CC} -I./libsndfile-1.0.26/src -I./fftw-3.3.4/api ${CFLAGS} -c $< -o comparison.o
 
 midi.o: midi.c
-	${CC} ${CFLAGS} -c $< -o midi.o
+	${CC} -I./libsndfile-1.0.26/src ${CFLAGS} -c $< -o midi.o
 
 main.o: main.c
 	${CC} -I./libsndfile-1.0.26/src -I./fftw-3.3.4/api ${CFLAGS} -c $< -o main.o

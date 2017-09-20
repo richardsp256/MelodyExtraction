@@ -47,7 +47,7 @@ struct me_settings{
 	int verbose;
 };
 
-//struct me_data;
+struct me_data;
 
 // create an instance of me_settings
 struct me_settings* me_settings_new();
