@@ -4,11 +4,14 @@ LD = gcc
 LDFLAGS = -Wall
 
 
-all: tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o melodyextraction.o main.o 
-	gcc tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o melodyextraction.o main.o -o extract -L./fftw-3.3.4/.libs -lfftw3f -L./libsndfile-1.0.26/src/.libs -lsndfile -L./libfvad-master/src/.libs -Wl,-rpath=./libfvad-master/src/.libs -lfvad -L./libsamplerate-0.1.9/src/.libs -lsamplerate -lm
+all: testOnset.o tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o melodyextraction.o main.o 
+	gcc testOnset.o tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o melodyextraction.o main.o -o extract -L./fftw-3.3.4/.libs -lfftw3f -L./libsndfile-1.0.26/src/.libs -lsndfile -L./libfvad-master/src/.libs -Wl,-rpath=./libfvad-master/src/.libs -lfvad -L./libsamplerate-0.1.9/src/.libs -lsamplerate -lm
 
 lib: tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o melodyextraction.o
 	gcc -shared tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o melodyextraction.o -o libmelodyextraction.so -L./fftw-3.3.4/.libs -lfftw3f -L./libsndfile-1.0.26/src/.libs -lsndfile -L./libfvad-master/src/.libs -Wl,-rpath=./libfvad-master/src/.libs -lfvad -L./libsamplerate-0.1.9/src/.libs -lsamplerate -lm -fPIC
+
+testOnset.o: testOnset.c
+	${CC} ${CFLAGS} -c $< -o testOnset.o
 
 melodyextraction.o: melodyextraction.c
 	${CC} -I./libsndfile-1.0.26/src -I./fftw-3.3.4/api ${CFLAGS} -c $< -o melodyextraction.o
