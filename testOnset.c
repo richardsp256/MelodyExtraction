@@ -141,6 +141,8 @@ int alg1(int** transients, float* detection_func, int len){
 		AddTransientAt(transients, &transients_capacity, 5*detect_index, transient_index); //multiple detect_index by 5 to convert to ms
 		if(transients_capacity == -1){ //resize failed
 			printf("Resizing transients failed. Exitting.\n");
+			freeKernels(Kernels, numKernels);
+			free(*transients);
 			return -1;
 		}
 		transient_index += 1;
@@ -160,6 +162,8 @@ int alg1(int** transients, float* detection_func, int len){
 		AddTransientAt(transients, &transients_capacity, 5*detect_index, transient_index); //multiple detect_index by 5 to convert to ms
 		if(transients_capacity == -1){ //resize failed
 			printf("Resizing transients failed. Exitting.\n");
+			freeKernels(Kernels, numKernels);
+			free(*transients);
 			return -1;
 		}
 		transient_index += 1;
