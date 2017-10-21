@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
-
+#include <time.h>
 #include "filterBank.h"
 
 struct filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
@@ -51,18 +51,27 @@ struct filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 		free(fB);
 		return fB;
 	}
-
+	//printf("Constructing the channel Data array\n");
 	fcArray = centralFreqMapper(numChannels, minFreq, maxFreq);
 	if (fcArray == NULL){
 		filterBankDestroy(fB);
 		return NULL;
 	}
-	
+
 	for (i=0; i<numChannels; i++){
 		// going to need to be modified
 		((fB->cDArray)[i]).cf = fcArray[i];
-
-		*((fB->cDArray)[i]).p1r = 0.0;
+		((fB->cDArray)[i]).p1r = malloc(sizeof(float));
+		((fB->cDArray)[i]).p2r = malloc(sizeof(float));
+		((fB->cDArray)[i]).p3r = malloc(sizeof(float));
+		((fB->cDArray)[i]).p4r = malloc(sizeof(float));
+		((fB->cDArray)[i]).p1i = malloc(sizeof(float));
+		((fB->cDArray)[i]).p2i = malloc(sizeof(float));
+		((fB->cDArray)[i]).p3i = malloc(sizeof(float));
+		((fB->cDArray)[i]).p4i = malloc(sizeof(float));
+		((fB->cDArray)[i]).qcos = malloc(sizeof(float));
+		((fB->cDArray)[i]).qsin = malloc(sizeof(float));
+		*(((fB->cDArray)[i]).p1r) = 0.0;
 		*((fB->cDArray)[i]).p2r = 0.0;
 		*((fB->cDArray)[i]).p3r = 0.0;
 		*((fB->cDArray)[i]).p4r = 0.0;
@@ -85,6 +94,18 @@ struct filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 }
 
 void filterBankDestroy(struct filterBank* fB){
+	for (int i=0; i<(fB->numChannels); i++){
+		free(((fB->cDArray)[i]).p1r);
+		free(((fB->cDArray)[i]).p2r);
+		free(((fB->cDArray)[i]).p3r);
+		free(((fB->cDArray)[i]).p4r);
+		free(((fB->cDArray)[i]).p1i);
+		free(((fB->cDArray)[i]).p2i);
+		free(((fB->cDArray)[i]).p3i);
+		free(((fB->cDArray)[i]).p4i);
+		free(((fB->cDArray)[i]).qsin);
+		free(((fB->cDArray)[i]).qcos);
+	}
 	free(fB->cDArray);
 	free(fB);
 }

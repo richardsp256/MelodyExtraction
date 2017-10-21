@@ -1,5 +1,9 @@
 #include "gammatoneFilter.h"
 
+// Had not originally thought that I would need to individually allocate
+// memory for the pointer to every member of channelData (it's obvious now).
+// Need to modify implementation
+
 struct filterBank{
 	
 	struct channelData* cDArray;
