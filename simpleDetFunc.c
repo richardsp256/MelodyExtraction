@@ -78,75 +78,198 @@ int wIndGetStop(struct windowIndexer *wInd){
 	}
 }
 
-void calcSigma(int startIndex, int interval, float scaleFactor,
-	       int sigWindowSize, int dataLength, int numWindows,
-	       float *buffer, float **sigmas){
-	struct windowIndexer* wInd;
-	int i,j,winStart,winStop;
-	double s1,s2,temp, nsamples;
-	float std;
-	// sigWindowSize has units of intervals. We need it to have units of
-	// samples
-	wInd = windowIndexerNew(1, 1, sigWindowSize*interval, interval,
-				startIndex, dataLength);
 
-	for (i=0;i<numWindows;i++){
-		winStart = wIndGetStart(wInd);
-		winStop = wIndGetStop(wInd);
-		//printf("winStart: %d, winStop: %d\n", winStart, winStop);
-		nsamples = (double)(winStop - winStart);
-		s1 = 0;
-		s2 = 0;
-		for (j=winStart;j<winStop;j++){
-			temp = (double)buffer[j];
-			s1 += temp;
-			s2 += temp*temp;
+/* the following draws HEAVY inspiration from implementation of pandas 
+ * roll_variance. 
+ * https://github.com/pandas-dev/pandas/blob/master/pandas/_libs/window.pyx
+ */
+static inline double calc_var(double nobs, double ssqdm_x){
+	double result;
+	/* Variance is unchanged if no observation is added or removed
+	 */
+	if (nobs == 1){
+		result = 0;
+	} else {
+		result = ssqdm_x / (nobs - 1);
+		if (result < 0){
+			result = 0;
 		}
-		std =(float)sqrt((nsamples*s2-(s1*s1))/(nsamples*(nsamples-1)));
-		(*sigmas)[i] = (scaleFactor*std/powf((float)nsamples,0.2));
+	}
+	return result;
+}
+
+static inline void add_var(double val, int *nobs, double *mean_x,
+			   double *ssqdm_x){
+	/* add a value from the var calc */
+	double delta;
+
+	(*nobs) += 1;
+	delta = (val - *mean_x);
+	(*mean_x) += delta / *nobs;
+	(*ssqdm_x) += (delta * (val - *mean_x));
+}
+
+static inline void remove_var(double val, int *nobs, double *mean_x,
+			      double *ssqdm_x){
+	/* remove a value from the var calc */
+
+	double delta;
+
+	(*nobs) += 1;
+	if (*nobs>0){
+		delta = (val - *mean_x);
+		(*mean_x) -= delta / *nobs;
+		(*ssqdm_x) -= (delta * (val - *mean_x));
+	} else {
+		*mean_x = 0;
+		*ssqdm_x = 0;
 	}
 }
 
-#define M_1_SQRT2PI 0.3989422804
-static inline float calcPSMEntryContrib(float* x, int start, int window_size,
-					float sigma)
-{
-	int i,j,off1,off2;
-	float out,temp,denom;
-	out=0;
-	denom = M_SQRT1_2/sigma;
-	off1=start;
-	for (i=1;i<=window_size;i++){
-		x[i]*=denom;
-	}
+/* Basically we compute the rolling variance following the algorithm from 
+ * python pandas. (This algorithm can still be further optimized to be much 
+ * more similar to the standard deviation algorithm used for the alternative 
+ * detection function calculation. (It just requires a more careful 
+ * implementation that I don't currently have the patience for).
+ */
 
-	off1=start;
-	for (i=1;i<=window_size;i++){
-		off1++;
-		off2 = off1;
-		for (j=i; j<=window_size;j++){
-			off2++;
-			temp = x[off1]- x[off2]; 
-			out+=expf(-temp * temp);
+void rollSigma(int startIndex, int interval, float scaleFactor,
+	       int sigWindowSize, int dataLength, int numWindows,
+	       float *buffer, float **sigmas){
+	int i,j,k,nobs = 0,winStart, winStop, prevStop,prevStart;
+	double mean_x = 0, ssqdm_x = 0;
+	float std;
+	struct windowIndexer* wInd;
+
+	wInd = windowIndexerNew(1, 1, sigWindowSize*interval, 1,
+				startIndex, dataLength);
+	
+	for (i=0;i<numWindows;i++){
+		winStart = wIndGetStart(wInd);
+		winStop = wIndGetStop(wInd);
+
+		/* Over the first window observations can only be added 
+		 * never removed */
+		if (i == 0){
+			for (j=winStart;j<winStop;j++){
+				add_var(buffer[j], &nobs, &mean_x, &ssqdm_x);
+			}
+		} else {
+			/* after the first window, observations can both be 
+			 * added and removed */
+
+			/* calculate adds 
+			 * (almost always iterates over 1 value, for the final
+			 *  windows, iterates over 0 values)
+			 */
+			for (j=prevStop;j<winStop;j++){
+				add_var(buffer[j], &nobs, &mean_x, &ssqdm_x);
+			}
+
+			/* calculate deletes 
+			 * (should always iterates over 1 value)
+			 */
+			for (j = prevStart; j<winStart; j++){
+				remove_var(buffer[j], &nobs, &mean_x, &ssqdm_x);
+			}
+		}
+		wIndAdvance(wInd);
+		prevStart = winStart;
+		prevStop = winStop;
+
+		/* compute sigma */
+		std = sqrtf((float)calc_var(nobs, ssqdm_x));
+		(*sigmas)[i] = (scaleFactor*std/powf((float)nobs,0.2));
+
+		/* Now we need to advance the window over the interval between  
+		 * the current where we just calculated sigma and the next 
+		 * location where we want sigma. 
+		 * We do this because the windowIndexer only advances one index 
+		 * at a time and we are only interested in keeping the sigma 
+		 * values separated by interval (a number indices typically 
+		 * greater than 1) */
+		if (i == (numWindows-1)){
+			break;
+		}
+
+		for (k = 1; k<interval;k++){
+			winStart = wIndGetStart(wInd);
+			winStop = wIndGetStop(wInd);
+			/* after the first window, observations can both be 
+			 * added and removed */
+
+			/* calculate adds */
+			for (j=prevStop;j<winStop;j++){
+				add_var(buffer[j], &nobs, &mean_x, &ssqdm_x);
+			}
+
+			/* calculate deletes */
+			for (j = prevStart; j< winStart;j++){
+				remove_var(buffer[j], &nobs, &mean_x, &ssqdm_x);
+			}
+			wIndAdvance(wInd);
+			prevStart = winStart;
+			prevStop = winStop;
+
+		}
+	}
+	windowIndexerDestroy(wInd);	
+}
+
+
+
+
+
+#define M_1_SQRT2PI 0.3989422804
+static inline float calcPSMEntryContrib(float* x, int window_size, float sigma)
+{
+	int i,j;
+	double out,temp;
+	out=0;
+	for (i=0;i<window_size;i++){
+		for (j=1; j<=window_size;j++){
+			temp = x[i]- x[i+j]; 
+			out+=exp(-1.0 * temp * temp);
 		}
 	}
 	out *= M_1_SQRT2PI / sigma;
-	return out;
+	//printf("out = %f\n",(float)out);
+	return (float)out;
 }
 
 void pSMContribution(int correntropyWinSize, int interval,
 		     int numWindows, float *buffer,
 		     float *sigmas,float **pSMatrix){
-	int i,start;
+	int i,start,j,calcBufferLength;
+	float *calcBuffer, denom;
 	start = 0;
-	
+
+	calcBufferLength = 2*correntropyWinSize +1;
+	calcBuffer = malloc(sizeof(float)*calcBufferLength);
+
 	for (i=0;i<numWindows;i++){
 		// not sure if the following function will work correctly:
-		(*pSMatrix)[i] = calcPSMEntryContrib(buffer, start,
-						     correntropyWinSize,
-						     sigmas[i]);
+		denom = M_SQRT1_2/sigmas[i];
+
+		/* The fact that that the first entry in a window is not 
+		 * being placed in the calculation buffer for the correntropy 
+		 * calculation. Per the paper, the correntropy calculation uses 
+		 * the 2*correntropyWinSize elements immediately following the 
+		 * first entry in the window
+		 */
+		for (j=1;j<=calcBufferLength;j++){
+			calcBuffer[j] = (buffer[start+j]) * denom;
+		}
+		(*pSMatrix)[i] += calcPSMEntryContrib(calcBuffer,
+						      correntropyWinSize,
+						      sigmas[i]);
+		//if (i>=1400){
+		//	printf("Current pSMatrix[%d] value: %f\n",
+		//	       i,(*pSMatrix)[i]);
+		//}
 		start+=interval;
 	}
+	free(calcBuffer);
 }
 
 
@@ -172,7 +295,8 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 	 * will be sufficient (it's not exact - you could get away with adding 
 	 * fewer zeros).
 	 */
-	bufferLength = (numWindows + 2)*correntropyWinSize;
+	bufferLength = (numWindows)*interval + 4* correntropyWinSize;
+	printf("bufferLength: %d\n",bufferLength);
 	buffer = malloc(sizeof(float)*bufferLength);
 	for (i = numWindows * correntropyWinSize; i<bufferLength;i++){
 		buffer[i] = 0;
@@ -198,7 +322,7 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 				dataLength);
 		//printf("   gammatone %d...\n", i);
 		/* compute the sigma values */
-		calcSigma(startIndex, interval, scaleFactor, sigWindowSize,
+		rollSigma(startIndex, interval, scaleFactor, sigWindowSize,
 			  dataLength, numWindows, buffer, &sigmas);
 		//printf("   sigma %d...\n", i);
 		/* compute the pooledSummaryMatrixValues */
@@ -279,7 +403,7 @@ int main(int argc, char *argv[]){
 	float *array;
 	int length, sampleRate;
 
-	sampleRate = 11025;
+	sampleRate = 8000;
 	length = 7*sampleRate;
 
 	//set the seed
@@ -290,7 +414,7 @@ int main(int argc, char *argv[]){
 	clock_t c1 = clock();
 
 	float* detectionFunc = NULL;
-	int detectionFuncLength = simpleDetFunctionCalculation(137, 55, powf(4./3.,0.2), 1403,
+	int detectionFuncLength = simpleDetFunctionCalculation(100, 120, powf(4./3.,0.2), 1403,
 				     sampleRate, 64,
 				     80, 4000,
 				     array, length,
