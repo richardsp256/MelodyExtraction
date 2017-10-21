@@ -56,4 +56,4 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 				 int sampleRate, int numChannels,
 				 float minFreq, float maxFreq,
 				 float* data, int dataLength,
-				 float** detFunction)
+				 float** detFunction);

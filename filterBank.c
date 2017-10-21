@@ -6,7 +6,8 @@
 #include "filterBank.h"
 
 struct filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
-				 int samplerate, float minFreq, float maxFreq){
+				 int samplerate, float minFreq, float maxFreq)
+{
 	struct filterBank* fB;
 	float *fcArray;
 	int i;

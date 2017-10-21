@@ -90,7 +90,8 @@ void AddTransientAt(int** transients, int* size, int value, int index ){
 	(*transients)[index] = value;
 }
 
-int alg1(int** transients, float* detection_func, int len){
+//populates transients, which will hold indices of onsets and offsets in detection_func
+int detectTransients(int** transients, float* detection_func, int len){
 	int minkernel = 4;
 	int maxkernel = 1500;
 
@@ -138,7 +139,7 @@ int alg1(int** transients, float* detection_func, int len){
 			break;
 		}
 
-		AddTransientAt(transients, &transients_capacity, 5*detect_index, transient_index); //multiple detect_index by 5 to convert to ms
+		AddTransientAt(transients, &transients_capacity, detect_index, transient_index);
 		if(transients_capacity == -1){ //resize failed
 			printf("Resizing transients failed. Exitting.\n");
 			freeKernels(Kernels, numKernels);
@@ -159,7 +160,7 @@ int alg1(int** transients, float* detection_func, int len){
 		}
 		detect_index += bestInd;
 
-		AddTransientAt(transients, &transients_capacity, 5*detect_index, transient_index); //multiple detect_index by 5 to convert to ms
+		AddTransientAt(transients, &transients_capacity, detect_index, transient_index);
 		if(transients_capacity == -1){ //resize failed
 			printf("Resizing transients failed. Exitting.\n");
 			freeKernels(Kernels, numKernels);
@@ -169,7 +170,6 @@ int alg1(int** transients, float* detection_func, int len){
 		transient_index += 1;
 		
 		//if at end of activity range, jump detect_index forward to start of next range
-
 	}
 
 	freeKernels(Kernels, numKernels);
@@ -186,12 +186,6 @@ int alg1(int** transients, float* detection_func, int len){
 		free(*transients);
 		return -1;
 	}
-
-
-	for(int k = 0; k < transient_index; k+=2){
-		printf("  %f -  %f\n", (*transients)[k] / 1000.0f, (*transients)[k+1] / 1000.0f);
-	}
-	printf("done, %d notes found\n", transient_index / 2);
 
 	return transient_index;
 }

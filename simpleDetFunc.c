@@ -155,13 +155,15 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 				 int sampleRate, int numChannels,
 				 float minFreq, float maxFreq,
 				 float* data, int dataLength,
-				 float** detFunction){
+				 float** detFunction)
+{
 
 	int dFLength,numWindows,bufferLength,i,startIndex;
 	float *pooledSummaryMatrix, *sigmas, *centralFreq, *buffer;
 
 	numWindows = (int)ceil((dataLength - correntropyWinSize)/
 			       (float)interval) + 1;
+	printf("datalen: %d, numWindows: %d\n", dataLength, numWindows);
 	dFLength = numWindows - 1;
 
 	/* for simplicity, we are just going pad the buffer with some extra 
@@ -187,16 +189,29 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 
 	startIndex = correntropyWinSize/2;
 	
+	float averageTime = 0.0f;
 	for (i = 0;i<numChannels;i++){
+		clock_t c1 = clock();
+
+		//printf("compute channel %d...\n", i);
 		gammatoneFilter(data, &buffer, centralFreq[i], sampleRate,
 				dataLength);
+		//printf("   gammatone %d...\n", i);
 		/* compute the sigma values */
 		calcSigma(startIndex, interval, scaleFactor, sigWindowSize,
 			  dataLength, numWindows, buffer, &sigmas);
+		//printf("   sigma %d...\n", i);
 		/* compute the pooledSummaryMatrixValues */
 		pSMContribution(correntropyWinSize, interval, numWindows,
 				buffer, sigmas, &pooledSummaryMatrix);
+		//printf("   matrix %d...\n", i);
+		
+		clock_t c2 = clock();
+		float elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
+		printf("  %d\telapsed = %f\n", i, elapsed*1000);
+		averageTime += elapsed;
 	}
+	printf("  average time: %f\n", (averageTime*1000) / numChannels);
 
 	free(sigmas);
 	free(buffer);
@@ -259,36 +274,35 @@ float* normal_distribution_array(int length, float mu, float sigma){
 	return out;
 }
 
-
+/*
 int main(int argc, char *argv[]){
-	// set the seed
-	float *array,*result, center_freq, elapsed;
-	int length, sampleRate,i,num;
-	clock_t c1,c2;
+	float *array;
+	int length, sampleRate;
 
 	sampleRate = 11025;
 	length = 7*sampleRate;
-	//length = 1403*55;
-	center_freq = 38610+274;
-	num = 10000;
-	num = 1;
-	result = 1;
 
+	//set the seed
 	srand(341535264);
 	array = normal_distribution_array(length, 0.0, 1.0);
 	printf("Constructed Array\n");
-	c1 = clock();
-	simpleDetFunctionCalculation(137, 55, powf(4./3.,0.2), 1403,
+
+	clock_t c1 = clock();
+
+	float* detectionFunc = NULL;
+	int detectionFuncLength = simpleDetFunctionCalculation(137, 55, powf(4./3.,0.2), 1403,
 				     sampleRate, 64,
 				     80, 4000,
 				     array, length,
-				     &result);
-	c2 = clock();
+				     &detectionFunc);
 
-	elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
+	clock_t c2 = clock();
+
+	float elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
+	printf("elapsed = %e\n",(elapsed/1000.f));
 	
-	printf("elapsed = %e\n",(elapsed/num));
 	free(array);
-	free(result);
+	free(detectionFunc);
 	return 1;
 }
+*/

@@ -87,8 +87,9 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	}
 
 	int *onsets = NULL;
-	int o_size = ExtractOnset(input, &onsets, info, o_unpaddedSize, o_winSize, o_winInt, 
-	             onsetStrategy, verbose);
+	//int o_size = ExtractOnset(input, &onsets, info, o_unpaddedSize, o_winSize, o_winInt, 
+	//             onsetStrategy, verbose);
+	int o_size = TransientDetectionStrategy(input, info.frames, 0, info.samplerate, &onsets);
 	if(o_size == -1){
 		printf("Onset detection failed\n");
 		fflush(NULL);
@@ -280,9 +281,6 @@ int ExtractSilence(float** input, int** activityRanges, SF_INFO info,
 int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, int o_winSize, 
                   int o_winInt, OnsetStrategyFunc onsetStrategy, int verbose)
 {
-	//todo: add 'onset threshold' parameter.
-	//if two onsets are found with less than 'threshold' time between them, ignore the second one as a false positive.
-	//i think a good default would be 40ms.
 	fftwf_complex* o_fftData = NULL;
 	int o_fftData_size = STFT_r2c(input, info, o_unpaddedSize, o_winSize, o_winInt, &o_fftData);
 	if(o_fftData_size == -1){
