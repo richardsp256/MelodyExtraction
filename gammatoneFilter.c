@@ -67,6 +67,30 @@
 #define erb(x)         ( 24.7 * ( 4.37e-3 * ( x ) + 1.0 ) )
 
 
+double ERB(double f)
+{
+  //ERB = 24.7(4.37*10^-3 * f + 1)
+  return (0.107939 * f) + 27;
+}
+
+//g(t) = a t^(n-1) e^(-2pi b t) cos(2pi f t + phase)
+//n = 4
+//b = 1.019 * ERB
+//ERB(only when n=4) = 24.7(0.00437 f + 1)
+//phase, in our case, can be safely ignored and removed.
+//so with the above...
+//g(t) = a t^(3) e^(-2pi t (0.109989841 f + 27.513)) cos(2pi f t)
+void simpleGammatone(float* data, float** output, float centralFreq, int samplerate, int datalen)
+{
+  for(int i = 0; i < datalen; i++){
+    double t = i/(double)samplerate;
+    double bandwidth = BW_CORRECTION * ERB(centralFreq);
+    double amplitude = data[i]; //this is (most likely) not actually the amplitude!!!
+
+    (*output)[i] = amplitude * pow(i, 3) * exp(-2 * M_PI * bandwidth * t) * cos(2 * M_PI * centralFreq * t);
+  }
+}
+
 void gammatoneFilter(float *x, float **bm, float cf, int fs, int nsamples)
 {
    int t;

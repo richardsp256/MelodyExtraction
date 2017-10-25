@@ -1,3 +1,5 @@
+void simpleGammatone(float* data, float** output, float centralFreq, int samplerate, int datalen);
+
 void gammatoneFilter(float *x, float **bm, float cf, int fs, int nsamples);
 
 /* the following function is identical to the preceeding function except that

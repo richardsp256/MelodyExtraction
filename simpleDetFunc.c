@@ -318,8 +318,9 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 		clock_t c1 = clock();
 
 		//printf("compute channel %d...\n", i);
-		gammatoneFilter(data, &buffer, centralFreq[i], sampleRate,
-				dataLength);
+		//gammatoneFilter(data, &buffer, centralFreq[i], sampleRate,dataLength);
+		simpleGammatone(data, &buffer, centralFreq[i], sampleRate, dataLength);
+
 		//printf("   gammatone %d...\n", i);
 		/* compute the sigma values */
 		rollSigma(startIndex, interval, scaleFactor, sigWindowSize,
