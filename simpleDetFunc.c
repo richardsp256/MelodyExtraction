@@ -58,6 +58,8 @@ int wIndGetStart(struct windowIndexer *wInd){
 		if (temp < 0){
 			// applies to both variable and non-variable windows
 			return 0;
+		}else{
+			return temp;
 		}
 	} else {
 		return (wInd->curLocation);
@@ -141,7 +143,7 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 	float std;
 	struct windowIndexer* wInd;
 
-	wInd = windowIndexerNew(1, 1, sigWindowSize*interval, 1,
+	wInd = windowIndexerNew(1, 1, sigWindowSize, 1,
 				startIndex, dataLength);
 	
 	for (i=0;i<numWindows;i++){

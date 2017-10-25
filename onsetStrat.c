@@ -162,7 +162,7 @@ int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize, in
 	int correntropyWinSize = samplerate/80; //length of the correntropy window. According to the paper, if minFreq = 80 Hz, set to samplerate/80 
 	int interval = samplerate/200;//hopsize, h, for detect func, in samples. Paper says 5ms (samplerate/200). Assumed to be same as interval h where sigma is optimized. 
 	float scaleFactor = powf(4./3.,0.2); //magic, grants three wishes
-	int sigWindowSize = (samplerate*7)/interval; //window size for sigma optimizer in numbers of intervals. Paper suggests 7s.
+	int sigWindowSize = (samplerate*7); //window size for sigma optimizer in numbers of samples. Paper suggests 7s.
 
 	float* detectionFunction = NULL;
 	int detectionFunctionLength = simpleDetFunctionCalculation(correntropyWinSize, interval, scaleFactor, sigWindowSize,
