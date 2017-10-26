@@ -85,9 +85,10 @@ void simpleGammatone(float* data, float** output, float centralFreq, int sampler
   for(int i = 0; i < datalen; i++){
     double t = i/(double)samplerate;
     double bandwidth = BW_CORRECTION * ERB(centralFreq);
-    double amplitude = data[i]; //this is (most likely) not actually the amplitude!!!
+    double amplitude = fabs(data[i]);
 
-    (*output)[i] = amplitude * pow(i, 3) * exp(-2 * M_PI * bandwidth * t) * cos(2 * M_PI * centralFreq * t);
+    (*output)[i] = (float) ( amplitude * pow(i,3) * exp(-2*M_PI*bandwidth*t) * cos(2*M_PI*centralFreq*t) );
+
   }
 }
 
