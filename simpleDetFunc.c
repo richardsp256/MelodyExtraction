@@ -293,14 +293,13 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 
 	/* for simplicity, we are just going pad the buffer with some extra 
 	 * zeros at the end so that we don't need to specially treat the 
-	 * function that computes correntropy. Add 2*correntropyWinSize zeros 
-	 * will be sufficient (it's not exact - you could get away with adding 
-	 * fewer zeros).
+	 * function that computes correntropy. Add correntropyWinSize zeros 
+	 * will be sufficient.
 	 */
-	bufferLength = (numWindows)*interval + 4* correntropyWinSize;
+	bufferLength = dataLength + correntropyWinSize;
 	printf("bufferLength: %d\n",bufferLength);
 	buffer = malloc(sizeof(float)*bufferLength);
-	for (i = numWindows * correntropyWinSize; i<bufferLength;i++){
+	for (i = dataLength; i<bufferLength;i++){
 		buffer[i] = 0;
 	}
 
