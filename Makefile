@@ -11,13 +11,13 @@ lib: tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o
 	gcc -shared tuningAdjustment.o midi.o comparison.o pitchStrat.o onsetStrat.o onsetsds.o silenceStrat.o fVADsd.o HPSDetection.o BaNaDetection.o findpeaks.o findCandidates.o candidateSelection.o lists.o winSampleConv.o noteCompilation.o melodyextraction.o simpleDetFunc.o gammatoneFilter.o filterBank.o testOnset.o -o libmelodyextraction.so -L./fftw-3.3.4/.libs -lfftw3f -L./libsndfile-1.0.26/src/.libs -lsndfile -L./libfvad-master/src/.libs -Wl,-rpath=./libfvad-master/src/.libs -lfvad -L./libsamplerate-0.1.9/src/.libs -lsamplerate -lm -fPIC
 
 simpleDetFunc.exe: simpleDetFunc.o gammatoneFilter.o filterBank.o
-	gcc simpleDetFunc.o gammatoneFilter.o filterBank.o -lm -o simpleDetFunc.exe
+	gcc simpleDetFunc.o gammatoneFilter.o filterBank.o -lm -L./libsamplerate-0.1.9/src/.libs -lsamplerate -o simpleDetFunc.exe
 
 simpleDetFunc.o: simpleDetFunc.c
 	${CC} ${CFLAGS} -c $< -o simpleDetFunc.o
 
 gammatoneFilter.o: gammatoneFilter.c
-	${CC} ${CFLAGS} -c $< -o gammatoneFilter.o
+	${CC} ${CFLAGS}  -I./libsamplerate-0.1.9/src -c $< -o gammatoneFilter.o
 
 filterBank.o: filterBank.c
 	${CC} ${CFLAGS} -c $< -o filterBank.o

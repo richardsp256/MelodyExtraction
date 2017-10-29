@@ -57,32 +57,12 @@ struct filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 		filterBankDestroy(fB);
 		return NULL;
 	}
-
+	/*
 	for (i=0; i<numChannels; i++){
-		// going to need to be modified
-		((fB->cDArray)[i]).cf = fcArray[i];
-		((fB->cDArray)[i]).p1r = malloc(sizeof(float));
-		((fB->cDArray)[i]).p2r = malloc(sizeof(float));
-		((fB->cDArray)[i]).p3r = malloc(sizeof(float));
-		((fB->cDArray)[i]).p4r = malloc(sizeof(float));
-		((fB->cDArray)[i]).p1i = malloc(sizeof(float));
-		((fB->cDArray)[i]).p2i = malloc(sizeof(float));
-		((fB->cDArray)[i]).p3i = malloc(sizeof(float));
-		((fB->cDArray)[i]).p4i = malloc(sizeof(float));
-		((fB->cDArray)[i]).qcos = malloc(sizeof(float));
-		((fB->cDArray)[i]).qsin = malloc(sizeof(float));
-		*(((fB->cDArray)[i]).p1r) = 0.0;
-		*((fB->cDArray)[i]).p2r = 0.0;
-		*((fB->cDArray)[i]).p3r = 0.0;
-		*((fB->cDArray)[i]).p4r = 0.0;
-		*((fB->cDArray)[i]).p1i = 0.0;
-		*((fB->cDArray)[i]).p2i = 0.0;
-		*((fB->cDArray)[i]).p3i = 0.0;
-		*((fB->cDArray)[i]).p4i = 0.0;
-		*((fB->cDArray)[i]).qcos = 1.0;
-		*((fB->cDArray)[i]).qsin = 0.0;
+		// fill in the channel data
 
 	}
+	*/
 	fB->numChannels = numChannels;
 	fB->lenChannels = fB->lenChannels;
 	fB->overlap = overlap;
@@ -94,18 +74,6 @@ struct filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 }
 
 void filterBankDestroy(struct filterBank* fB){
-	for (int i=0; i<(fB->numChannels); i++){
-		free(((fB->cDArray)[i]).p1r);
-		free(((fB->cDArray)[i]).p2r);
-		free(((fB->cDArray)[i]).p3r);
-		free(((fB->cDArray)[i]).p4r);
-		free(((fB->cDArray)[i]).p1i);
-		free(((fB->cDArray)[i]).p2i);
-		free(((fB->cDArray)[i]).p3i);
-		free(((fB->cDArray)[i]).p4i);
-		free(((fB->cDArray)[i]).qsin);
-		free(((fB->cDArray)[i]).qcos);
-	}
 	free(fB->cDArray);
 	free(fB);
 }
@@ -200,10 +168,7 @@ void filterBankFilteringHelper(struct channelData * cD,
 			       float* inputChunk,
 			       float** leadingSpectraChunk,
 			       int nsamples, int samplerate){
-	gammatoneFilterChunk(inputChunk, leadingSpectraChunk, cD->cf,
-			     samplerate, nsamples, (cD->p1r), (cD->p2r),
-			     (cD->p3r), (cD->p4r), (cD->p1i), (cD->p2i),
-			     (cD->p3i), (cD->p4i), (cD->qcos), (cD->qsin));
+	//gammatoneFilterChunk();
 }
 
 void filterBankOverlapHelper(float** leadingSpectraChunk,
@@ -335,46 +300,3 @@ void filterBankFinalChunk(struct filterBank* fB, float* inputChunk,
 		}
 	}
 }
-
-
-
-
-
-
-
-
-
-/*
-
-
-void printArray(int *array, int length){
-	printf("[");
-	if (length >0){
-		printf("%d", array[0]);
-	}
-	
-	for (int i=1;i<length;i++){
-		printf(", %d",array[i]);
-	}
-	printf("]\n");
-
-}
-
-int main(int argc, char ** argv)
-{
-	int* array;
-
-	array = malloc(sizeof(int) * 6);
-	array[0] = 0;
-	array[1] = 1;
-	array[2] = 2;
-	array[3] = 3;
-	array[4] = 4;
-	array[5] = 5;
-
-	printArray(array,6);
-	printArray(array+3,3);
-	free(array);
-	return 0;
-}
-*/
