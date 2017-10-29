@@ -191,8 +191,8 @@ void naiveGammatone(float* data, float** output, float centralFreq,
 		doubled[doubled_length] = 0;
 		doubled_length++;
 	}
-	printf("doubled_length = %d\n", doubled_length);
-	printf("twice the input length = %d\n", 2*datalen);
+	//printf("doubled_length = %d\n", doubled_length);
+	//printf("twice the input length = %d\n", 2*datalen);
 	assert((doubled_length == (2*datalen)));
 
 	re_z = malloc(sizeof(float)*doubled_length);
@@ -251,12 +251,13 @@ void naiveGammatone(float* data, float** output, float centralFreq,
 	
 	/* finally we downsample back down to the starting frequency */
 	result_length = dataHalving(y, doubled_length, 2*samplerate, output);
+	
+	//printf("result_length = %d\n", result_length);
+	//printf("input length = %d\n", datalen);
 	if (result_length == (datalen-1)){
-		output[result_length]=0;
+		(*output)[result_length]=0;
 		result_length++;
 	}
-	printf("result_length = %d\n", result_length);
-	printf("input length = %d\n", datalen);
 	assert((result_length == datalen));	
 	free(re_w);
 	free(im_w);
