@@ -2,70 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
-
-/* Modified from:
- * http://staffwww.dcs.shef.ac.uk/people/N.Ma/resources/gammatone/gammatone_c.c
- *=========================================================================
- * An efficient C implementation of the 4th order gammatone filter
- *-------------------------------------------------------------------------
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *-------------------------------------------------------------------------
- *
- *  gammatoneFilter(float *x, float **bm, float cf, int fs, int nsamples) 
- *
- *  x        - input signal
- *  bm       - basilar membrane displacement
- *  fs       - sampling frequency (Hz)
- *  cf       - center frequency of the filter (Hz)
- *  nsamples - number of samples in x
- *
- *  The gammatone filter is commonly used in models of the auditory system.
- *  The algorithm is based on Martin Cooke's Ph.D work (Cooke, 1993) using 
- *  the base-band impulse invariant transformation. This implementation is 
- *  highly efficient in that a mathematical rearrangement is used to 
- *  significantly reduce the cost of computing complex exponentials. For 
- *  more detail on this implementation see
- *  http://www.dcs.shef.ac.uk/~ning/resources/gammatone/
- *
- *  Originally written by:
- *  Ning Ma, University of Sheffield
- *  n.ma@dcs.shef.ac.uk, 09 Mar 2006
- *
- *  This code has been updated to use single precision floating point numbers
- *
- *=========================================================================
- */
-
-
-/*=======================
- * Useful Const
- *=======================
- */
-#define BW_CORRECTION      1.0190
-#define VERY_SMALL_NUMBER  1.e-35
-#ifndef M_PI
-#define M_PI               3.14159265358979323846
-#endif
-
-/*=======================
- * Utility functions
- *=======================
- */
-#define myMax(x,y)     ( ( x ) > ( y ) ? ( x ) : ( y ) )
-#define myMod(x,y)     ( ( x ) - ( y ) * floor ( ( x ) / ( y ) ) )
-#define erb(x)         ( 24.7 * ( 4.37e-3 * ( x ) + 1.0 ) )
-
+#include <assert.h>
+#include "samplerate.h"
 
 double ERB(double f)
 {
@@ -84,192 +22,246 @@ void simpleGammatone(float* data, float** output, float centralFreq, int sampler
 {
   for(int i = 0; i < datalen; i++){
     double t = i/(double)samplerate;
-    double bandwidth = BW_CORRECTION * ERB(centralFreq);
+    double bandwidth = 1.019 * ERB(centralFreq);
     double amplitude = fabs(data[i]);
 
     (*output)[i] = (float) ( amplitude * pow(i,3) * exp(-2*M_PI*bandwidth*t) * cos(2*M_PI*centralFreq*t) );
-
   }
 }
 
-void gammatoneFilter(float *x, float **bm, float cf, int fs, int nsamples)
-{
-   int t;
-   float a, tpt, tptbw, gain;
-   float p0r, p1r, p2r, p3r, p4r, p0i, p1i, p2i, p3i, p4i;
-   float a1, a2, a3, a4, a5, u0r, u0i; /*, u1r, u1i;*/
-   float qcos, qsin, oldcs, coscf, sincf;
+/* MA note: I don't know a lot about Impulse Response Filtering, but going off 
+ * my previous experience using filtering in image processing, I assume that 
+ * to apply a gammatone impules filter one convolves the impulse response with 
+ * the input signal. The above function does not do that. Applying that seems 
+ * really, costly so I might not know what I am talking about. Below I attempt 
+ * to implement a version taken from a paper*/
 
-  /*=========================================
-   * Initialising variables
-   *=========================================
-   */
-   tpt = ( M_PI + M_PI ) / fs;
-   tptbw = tpt * erb ( cf ) * BW_CORRECTION;
-   a = exp ( -tptbw );
 
-  /* based on integral of impulse response */
-   gain = ( tptbw*tptbw*tptbw*tptbw ) / 3;
 
-  /* Update filter coefficients */
-   a1 = 4.0*a; a2 = -6.0*a*a; a3 = 4.0*a*a*a; a4 = -a*a*a*a; a5 = a*a;
-   p0r = 0.0; p1r = 0.0; p2r = 0.0; p3r = 0.0; p4r = 0.0;
-   p0i = 0.0; p1i = 0.0; p2i = 0.0; p3i = 0.0; p4i = 0.0;
- 
-  /*===========================================================
-   * exp(a+i*b) = exp(a)*(cos(b)+i*sin(b))
-   * q = exp(-i*tpt*cf*t) = cos(tpt*cf*t) + i*(-sin(tpt*cf*t))
-   * qcos = cos(tpt*cf*t)
-   * qsin = -sin(tpt*cf*t)
-   *===========================================================
-   */
-   coscf = cos ( tpt * cf );
-   sincf = sin ( tpt * cf );
-   qcos = 1; qsin = 0;   /* t=0 & q = exp(-i*tpt*t*cf)*/
-   for ( t=0; t<nsamples; t++ )
-   {
-     /* Filter part 1 & shift down to d.c. */
-      p0r = qcos*x[t] + a1*p1r + a2*p2r + a3*p3r + a4*p4r;
-      p0i = qsin*x[t] + a1*p1i + a2*p2i + a3*p3i + a4*p4i;
+int dataDoubling(float* data,int datalen, int samplerate, float **doubled){
+	/* Helper function for naiveGammatone. It handles data doubling. It 
+	 * might be fine just to repeat entries, but I am not sure how we 
+	 * would handle downsampling - thus we will use libsamplerate  */
 
-     /* Clip coefficients to stop them from becoming too close to zero */
-      if (fabs(p0r) < VERY_SMALL_NUMBER)
-        p0r = 0.0F;
-      if (fabs(p0i) < VERY_SMALL_NUMBER)
-        p0i = 0.0F;
-      
-     /* Filter part 2 */
-      u0r = p0r + a1*p1r + a5*p2r;
-      u0i = p0i + a1*p1i + a5*p2i;
+	int success_code,result_length;
 
-     /* Update filter results */
-      p4r = p3r; p3r = p2r; p2r = p1r; p1r = p0r;
-      p4i = p3i; p3i = p2i; p2i = p1i; p1i = p0i;
-  
-     /*==========================================
-      * Basilar membrane response
-      * 1/ shift up in frequency first: 
-      *    (u0r+i*u0i) * exp(i*tpt*cf*t) = (u0r+i*u0i) * (qcos + i*(-qsin))
-      * 2/ take the real part only: bm = real(exp(j*wcf*kT).*u) * gain;
-      *==========================================
-      */
-      (*bm)[t] = ( u0r * qcos + u0i * qsin ) * gain;
-     
+	(*doubled) = malloc(sizeof(float)* 2*datalen); 
+	SRC_DATA *resampleData = malloc(sizeof(SRC_DATA));
+	resampleData -> data_in = data;
+	resampleData -> data_out = *doubled;
+	resampleData -> input_frames = (long)datalen;
+	resampleData -> output_frames = (long)(2 * datalen);
+	resampleData -> src_ratio = 2.0;
 
-     /*====================================================
-      * The basic idea of saving computational load:
-      * cos(a+b) = cos(a)*cos(b) - sin(a)*sin(b)
-      * sin(a+b) = sin(a)*cos(b) + cos(a)*sin(b)
-      * qcos = cos(tpt*cf*t) = cos(tpt*cf + tpt*cf*(t-1))
-      * qsin = -sin(tpt*cf*t) = -sin(tpt*cf + tpt*cf*(t-1))
-      *====================================================
-      */
-      qcos = coscf * ( oldcs = qcos ) + sincf * qsin;
-      qsin = coscf * qsin - sincf * oldcs;
-   }
-   return;
+	success_code = src_simple(resampleData, 0, 1);
+
+	if (success_code != 0){
+		printf("libsamplerate Error:\n %s\n",
+		       src_strerror(success_code));
+		free(resampleData);
+		free(doubled);
+		return -1;
+	}
+
+	result_length = (int)(resampleData->output_frames_gen);
+	free(resampleData);
+	return result_length;
 }
 
+int dataHalving(float* data,int datalen, int samplerate, float **halved){
+	/* Helper function for naiveGammatone. It handles data halving*/
 
-/* the following function is identical to the preceeding function except that
- * it allows you to process the input in chunks and save the coefficients 
- * between function calls 
+	int success_code,result_length;
+
+	(*halved) = malloc(sizeof(float)* datalen/2); 
+	SRC_DATA *resampleData = malloc(sizeof(SRC_DATA));
+	resampleData -> data_in = data;
+	resampleData -> data_out = *halved;
+	resampleData -> input_frames = (long)datalen;
+	resampleData -> output_frames = (long)(datalen/2);
+	resampleData -> src_ratio = 0.5;
+
+	success_code = src_simple(resampleData, 0, 1);
+
+	if (success_code != 0){
+		printf("libsamplerate Error:\n %s\n",
+		       src_strerror(success_code));
+		free(resampleData);
+		free(halved);
+		return -1;
+	}
+
+	result_length = (int)(resampleData->output_frames_gen);
+	free(resampleData);
+	return result_length;
+}
+
+void first_order_recursive_filter(float* re_z, float* im_z, float* re_w,
+				   float* im_w, int length, float b,
+				   float delta_t){
+	/* Helper function that computes the response from the first-order.
+	 * This takes an arbitrary complex input array z[k] and returns the 
+	 * complex output array w[k]. Our representation of complex arrays is 
+	 * consistent with our treatment in naiveGammatone:
+	 *     z[k] = re_z[k] + i * im_z[k]
+	 *     w[k] = re_w[k] + i * im_w[k]
+	 * the filter computes element k using the following formula:
+	 * w[k] = w[k-1] + (1-exp(-2*pi*b*delta_t)) * (z[k-1] - w[k-1])
+	 */
+
+	int k;
+	float factor;
+
+	/* for convenience, factor = (1-exp(-2*pi*b*delta_t)) */
+	factor = 1. - expf(-2.*M_PI*b*delta_t);
+
+	/* We require special handling for w[0] because it requires data from 
+	 * before the start of the input. We simply assume silence for that 
+	 * data - thus w[k<0] = 0 and z[k<0] = 0 
+	 */
+	re_w[0] = 0;
+	im_w[0] = 0;
+	for (k=1;k<length;k++){
+		re_w[k] = re_w[k-1] + factor * (re_z[k-1]-re_w[k-1]);
+		im_w[k] = im_w[k-1] + factor * (im_z[k-1]-im_w[k-1]);
+	}
+}
+
+void swap_arrays(float** array1, float** array2){
+	float *temp = *array1;
+	*array1 = *array2;
+	*array2 = temp;
+}
+
+void recursive_filter_application(float* re_z, float* im_z, float* re_w,
+				  float* im_w, int length, float b,
+				  float delta_t){
+	/* Helper function that recursively applies the first-order recursive 
+	 * filter function on its output to approximate the 4th order gammatone 
+	 * filter. 
+	 */
+	int i;
+	for (i=0; i<4; i++){
+		if (i>0){
+			/* we call the first_order_recursive_filter, z[k] 
+			 * represents our input and w[k] represents our output.
+			 * Here, we are setting z[k] to the output of the prior 
+			 * first_order_recursive_filter call and we are setting 
+			 * w[k] to the input of the prior 
+			 * first_order_recursive_filter call (so that it can be 
+			 * overwritten 
+			 */
+			swap_arrays(&re_z, &re_w);
+			swap_arrays(&im_z, &im_w);
+		}
+		first_order_recursive_filter(re_z, im_z, re_w, im_w, length, b,
+					     delta_t);
+	}
+}
+
+/* Drawing slighlty from simpleImplementation of GammatoneFilter 
+ * Draws mostly from: 
+ * https://www.pdn.cam.ac.uk/other-pages/cnbh/files/publications/
+ * SVOSAnnexC1988.pdf
+ *
+ * Basically we use a cascade of recursive filters - I have not done anything 
+ * to try to offset them. I also have made no assumptions about the 
+ * normalization constant - I am not sure what this approximation does for our 
+ * normalization constant.
+ *
+ * Need to take a look at our resampling - it always returns arrays that are 1 
+ * elemet shorter than we want - right now we just set the final entry to 0, 
+ * but we need to be more clever.
+ * 
+ * This was written to be as transparent as possible. With minimal modification 
+ * you could make it more memory.
+ * There is almost definitely to apply these operations element-wise instead of 
+ * performing array operations (especially since we are recursively applying 
+ * only 4 filters.
  */
-void gammatoneFilterChunk(float *x, float **bm, float cf, int fs, int nsamples,
-			  float *curr_p1r, float *curr_p2r, float *curr_p3r,
-			  float *curr_p4r, float *curr_p1i, float *curr_p2i,
-			  float *curr_p3i, float *curr_p4i, float *curr_qcos,
-			  float *curr_qsin)
-{
-   int t;
-   float a, tpt, tptbw, gain;
-   float p0r, p1r, p2r, p3r, p4r, p0i, p1i, p2i, p3i, p4i;
-   float a1, a2, a3, a4, a5, u0r, u0i; /*, u1r, u1i;*/
-   float qcos, qsin, oldcs, coscf, sincf;
+void naiveGammatone(float* data, float** output, float centralFreq,
+		    int samplerate, int datalen){
+	int k, doubled_length, result_length;
+	float *doubled, *re_z, *im_z, *re_w, *im_w, *y, delta_t,phi,b;
 
-  /*=========================================
-   * Initialising variables
-   *=========================================
-   */
-   tpt = ( M_PI + M_PI ) / fs;
-   tptbw = tpt * erb ( cf ) * BW_CORRECTION;
-   a = exp ( -tptbw );
+	// first we do data doubling - to avoid aliasing
+	doubled = NULL;
+	doubled_length = dataDoubling(data,datalen, samplerate, &doubled);
+	if (doubled_length == (2*datalen-1)){
+		doubled[doubled_length] = 0;
+		doubled_length++;
+	}
+	//printf("doubled_length = %d\n", doubled_length);
+	//printf("twice the input length = %d\n", 2*datalen);
+	assert((doubled_length == (2*datalen)));
 
-  /* based on integral of impulse response */
-   gain = ( tptbw*tptbw*tptbw*tptbw ) / 3;
+	re_z = malloc(sizeof(float)*doubled_length);
+	im_z = malloc(sizeof(float)*doubled_length);
+	re_w = malloc(sizeof(float)*doubled_length);
+	im_w = malloc(sizeof(float)*doubled_length);
 
-  /* Update filter coefficients */
-   a1 = 4.0*a; a2 = -6.0*a*a; a3 = 4.0*a*a*a; a4 = -a*a*a*a; a5 = a*a;
-   p0r = 0.0; p0i = 0.0;
-   if (curr_p1r == NULL){
-	   /* this is the very first chunk */
-	   p1r = 0.0; p2r = 0.0; p3r = 0.0; p4r = 0.0;
-	   p1i = 0.0; p2i = 0.0; p3i = 0.0; p4i = 0.0;
-	   qcos = 1; qsin = 0;   /* t=0 & q = exp(-i*tpt*t*cf)*/
-   } else {
-	   p1r = *curr_p1r; p2r = *curr_p2r; p3r = *curr_p3r; p4r = *curr_p4r;
-	   p1i = *curr_p1i; p2i = *curr_p2i; p3i = *curr_p3i; p4r = *curr_p4i;
-	   qcos = *curr_qcos; qsin = *curr_qsin;
-   }
- 
-  /*===========================================================
-   * exp(a+i*b) = exp(a)*(cos(b)+i*sin(b))
-   * q = exp(-i*tpt*cf*t) = cos(tpt*cf*t) + i*(-sin(tpt*cf*t))
-   * qcos = cos(tpt*cf*t)
-   * qsin = -sin(tpt*cf*t)
-   *===========================================================
-   */
-   coscf = cos ( tpt * cf );
-   sincf = sin ( tpt * cf );
-   
-   for ( t=0; t<nsamples; t++ )
-   {
-     /* Filter part 1 & shift down to d.c. */
-      p0r = qcos*x[t] + a1*p1r + a2*p2r + a3*p3r + a4*p4r;
-      p0i = qsin*x[t] + a1*p1i + a2*p2i + a3*p3i + a4*p4i;
+	/* we need to frequency shift the array x[k] by the amout -f0. Here
+	 * x[k] as doubled. z[k] is the complex array which we represent as:
+	 *     z[k] = re_z[k] + i * im_z[k]
+	 * z[k] = exp(-i*2*pi*f_0 * k * delta_t) * x[k]
+	 * here delta_t is 1/(2*samplerate) - the factor of 2 accounts for how 
+	 * we doubled the samplerate. To solve for the elements of re_z and 
+	 * im_z, we use Euler's equation: exp(i*phi) = cos(phi) + i * sin(phi)
+	 */
 
-     /* Clip coefficients to stop them from becoming too close to zero */
-      if (fabs(p0r) < VERY_SMALL_NUMBER)
-        p0r = 0.0F;
-      if (fabs(p0i) < VERY_SMALL_NUMBER)
-        p0i = 0.0F;
-      
-     /* Filter part 2 */
-      u0r = p0r + a1*p1r + a5*p2r;
-      u0i = p0i + a1*p1i + a5*p2i;
+	delta_t = 0.5/samplerate;
+	b = 1.019 * ERB(centralFreq);
 
-     /* Update filter results */
-      p4r = p3r; p3r = p2r; p2r = p1r; p1r = p0r;
-      p4i = p3i; p3i = p2i; p2i = p1i; p1i = p0i;
-  
-     /*==========================================
-      * Basilar membrane response
-      * 1/ shift up in frequency first: 
-      *    (u0r+i*u0i) * exp(i*tpt*cf*t) = (u0r+i*u0i) * (qcos + i*(-qsin))
-      * 2/ take the real part only: bm = real(exp(j*wcf*kT).*u) * gain;
-      *==========================================
-      */
-      (*bm)[t] = ( u0r * qcos + u0i * qsin ) * gain;
+	for (k=0; k<doubled_length; k++){
+		/* z[k] = x[k] * exp(-i*2*pi*f_0 * k * delta_t)
+		 * z[k] = x[k] * (cos(2*pi*f_0 * k * delta_t) 
+		 *                 - i * sin(2*pi*f_0 * k * delta_t))
+		 * Re(z[k]) = x[k] * cos(2*pi*f_0 * k * delta_t)
+		 * Im(z[k]) = -1* x[k] * sin(2*pi*f_0 * k * delta_t)
+		 */
+		phi = 2*M_PI*centralFreq * delta_t*k;
+		re_z[k] = doubled[k] * cos(phi);
+		im_z[k] = -1 * doubled[k] * sin(phi);
+	}
 
-     /*====================================================
-      * The basic idea of saving computational load:
-      * cos(a+b) = cos(a)*cos(b) - sin(a)*sin(b)
-      * sin(a+b) = sin(a)*cos(b) + cos(a)*sin(b)
-      * qcos = cos(tpt*cf*t) = cos(tpt*cf + tpt*cf*(t-1))
-      * qsin = -sin(tpt*cf*t) = -sin(tpt*cf + tpt*cf*(t-1))
-      *====================================================
-      */
-      qcos = coscf * ( oldcs = qcos ) + sincf * qsin;
-      qsin = coscf * qsin - sincf * oldcs;
-   }
+	/* now we can free doubled */
+	free(doubled);
 
-   /* Update the tracked values */
-   *curr_p1r = p1r; *curr_p2r = p2r; *curr_p3r = p3r; *curr_p4r = p4r;
-   *curr_p1i = p1i; *curr_p2i = p2i; *curr_p3i = p3i; *curr_p4i = p4i;
-   *curr_qcos = qcos; *curr_qsin = qsin;
+	/* recursively apply the first-order recursive filter */
+	recursive_filter_application(re_z, im_z, re_w, im_w, doubled_length,
+				     b, delta_t);
+	/* we can free z*/
+	free(re_z);
+	free(im_z);
 
-   return;
+	y = malloc(sizeof(float)*doubled_length);
+	/* Here we need to shift the frequency of the output of the filter by 
+	 * +f0 and take the real component to produce an array y[k] 
+	 * y[k] = Re( exp(i*2*pi*f_0 * k * delta_t) * w[k])
+	 * y[k] = Re((re_w[k] + i*im_w[k]) * (cos(2*pi*f_0*k *delta_t) 
+	 *                                     + i*sin(2*pi*f_0*k*delta_t)))
+	 * y[k] = re_w[k] * cos(2*pi*f_0*k *delta_t) 
+	 *          - im_w[k] * sin(2*pi*f_0*k*delta_t)
+	 */
+	
+	for (k=0; k<doubled_length; k++){
+	         phi = 2*M_PI*centralFreq * delta_t*k;
+		 y[k] = (re_w[k]*cos(phi) - im_w[k] * sin(phi));
+         }
+	
+	/* finally we downsample back down to the starting frequency */
+	result_length = dataHalving(y, doubled_length, 2*samplerate, output);
+	
+	//printf("result_length = %d\n", result_length);
+	//printf("input length = %d\n", datalen);
+	if (result_length == (datalen-1)){
+		(*output)[result_length]=0;
+		result_length++;
+	}
+	assert((result_length == datalen));	
+	free(re_w);
+	free(im_w);
+	free(y);
 }
-
 
 

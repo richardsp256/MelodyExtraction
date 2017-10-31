@@ -16,18 +16,6 @@ struct filterBank{
 
 struct channelData{
 	float cf; // center frequency
-
-	// filter coefficients that must be tracked:
-	float *p1r;
-	float *p2r;
-	float *p3r;
-	float *p4r;
-	float *p1i;
-	float *p2i;
-	float *p3i;
-	float *p4i;
-	float *qcos;
-	float *qsin;
 };
 
 struct filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,

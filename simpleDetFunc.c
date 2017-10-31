@@ -320,7 +320,8 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 
 		//printf("compute channel %d...\n", i);
 		//gammatoneFilter(data, &buffer, centralFreq[i], sampleRate,dataLength);
-		simpleGammatone(data, &buffer, centralFreq[i], sampleRate, dataLength);
+		//simpleGammatone(data, &buffer, centralFreq[i], sampleRate, dataLength);
+		naiveGammatone(data, &buffer, centralFreq[i], sampleRate, dataLength);
 
 		//printf("   gammatone %d...\n", i);
 		/* compute the sigma values */
@@ -405,7 +406,7 @@ int main(int argc, char *argv[]){
 	float *array;
 	int length, sampleRate;
 
-	sampleRate = 8000;
+	sampleRate = 11025;
 	length = 7*sampleRate;
 
 	//set the seed
@@ -416,7 +417,7 @@ int main(int argc, char *argv[]){
 	clock_t c1 = clock();
 
 	float* detectionFunc = NULL;
-	int detectionFuncLength = simpleDetFunctionCalculation(100, 120, powf(4./3.,0.2), 1403,
+	int detectionFuncLength = simpleDetFunctionCalculation(137, 55, powf(4./3.,0.2), 1403,
 				     sampleRate, 64,
 				     80, 4000,
 				     array, length,
