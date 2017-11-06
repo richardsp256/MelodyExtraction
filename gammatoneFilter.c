@@ -264,4 +264,500 @@ void naiveGammatone(float* data, float** output, float centralFreq,
 	free(y);
 }
 
+/* We are implementing the biquad filter with a Direct Form II Transposed 
+ * Structure (this structure seems to be fairly standard for implementing 
+ * digital biquad filters)
+ *
+ * coef: is a 6 entry array with the feedforward and feedback coefficients 
+ *       coef[0]= b0, coef[1] = b1, coef[2] = b2
+ *       coef[3]= a0, coef[4] = a1, coef[5] = a2
+ * x: the input passed through the filter.
+ * y: the output, it must already be allocated and have the same length as x. 
+ *    To update the input array in place with the filter response, pass the 
+ *    same argument for x into y. 
+ * length: the length of both x and y
+ * 
+ * The difference equations are:
+ *  y[n] = (b0 * x[n] + d1[n-1])/a0  
+ *  d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]   
+ *  d2[n] = b2 * x[n] - a2 * y[n]
+ *
+ * for now we are implementing this using doubles because precision matters.
+ *
+ * optimization: we could imitate many other implementations and require that
+ *               a0 = 1.
+ *
+ * Probably need to be check for overflows and underflows - since this is 
+ * recursive it could screw up a lot.
+ */
+void biquadFilter(double *coef, double *x, double *y, int length){
+	double d1, d2, cur_x, cur_y, a0,a1,a2,b0,b1,b2;
+	int n;
+	/* d1 and d2 are state variables, for now asssume they start at 0,
+	 * because before a recording there is silence. If we are chunking the 
+	 * recording we will need to track d1 and d2 between chunks. */
+	d1 = 0;
+	d2 = 0;
 
+	/* set the feedforward coefficients */
+	b0 = coef[0]; b1 = coef[1]; b2 = coef[2];
+	/* set the feedback coefficients */
+	a0 = coef[3]; a1 = coef[4]; a2 = coef[5];
+
+	for (n = 0; n<length; n++){
+		cur_x = x[n];
+		/* first difference equation: y[n] = (b0 * x[n] + d1[n-1])/a0 
+		 */
+		cur_y = (b0 * cur_x + d1)/a0;
+
+		/* next difference equation: 
+		 *     d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
+		 */
+		d1 = b1 * cur_x - a1 * cur_y + d2;
+		/* final difference equation: d2[n] = b2 * x[n] - a2 * y[n]
+		 */
+		d2 = b2 * cur_x - a2 * cur_y;
+
+		/* finally set y to cur_y */
+		y[n] = cur_y;
+	}
+}
+
+/* num_stages : the number of biquad filters to apply. Must be at least 1
+ * coef: a num_stages * 6 entry array with the feedforward and feedback 
+ *       coefficients for every stage of filtering. The coefficients of the ith
+ *       stage should be at:
+ *           coef[(i*6)+0]= b0, coef[(i*6)+1] = b1, coef[(i*6)+2] = b2
+ *           coef[(i*6)+3]= a0, coef[(i*6)+4] = a1, coef[(i*6)+5] = a2
+ * x: the input passed through the filter.
+ * y: the output, it must already be allocated and have the same length as x. 
+ *    To update the input array in place with the filter response, pass the 
+ *    same argument for x into y.
+ * length: the length of both x and y
+ *
+ * This can be optimized by doing all of the filtering for x[n] in one go (we 
+ * would be doing the same number of additive/multiplicative operations (to 
+ * maintain numerical stability), but it would cut down on the number of for 
+ * loops (and the number of times we access the data)
+ *
+ * again, if processing audio in chunks, we will need to keep track of the 
+ * state variables between function calls.
+ */
+void cascadeBiquad(int num_stages, double *coef, double *x, double *y,
+		   int length){
+
+	/* run the filter the first time to produce y */
+	biquadFilter(coef, x, y, length);
+
+	/* run the biquad filter num_stages-1 more times, updating y in place 
+	 */
+	for (int i= 1; i<num_stages; i++){
+		biquadFilter((coef + (6*i)), y, y, length);
+	}
+}
+
+
+void allPoleCoef(float centralFreq, int samplerate, double *coef){
+	/* taken from Slaney 1993 
+	 * https://engineering.purdue.edu/~malcolm/apple/tr35/PattersonsEar.pdf
+	 * Expects coef to be already allocated and have room for 24 
+	 * entries
+	 */
+	double delta_t = 1./(double)samplerate;
+	double cf = (double)centralFreq;
+	double b = 2*M_PI*1.019*24.7*(4.37*cf/1000. + 1); //bandwidth
+	int i;
+
+	/* Now to actually set the coefficients for each stae of filtering.
+	 * The only coefficient that changes between stages is b1
+	 */
+	for (i=0;i<4;i++){
+		/* We  start by setting b0 */
+		coef[6*i] = delta_t;
+		/* set b1 */
+		coef[6*i+1] = (-((2 * delta_t * cos(2 * cf * M_PI * delta_t)
+				  / exp(b * delta_t))
+				 + (pow(-1,(double)i) * 2
+				    * sqrt(3 + pow(2., 1.5)) * delta_t *
+				    sin(2 * cf * M_PI * delta_t)
+				    / exp(b * delta_t))) / 2.);
+		/* set b2 */
+		coef[6*i+2] = 0;
+		/* set a0 */
+		coef[6*i+3] = 1;
+		/* set a1 */
+		coef[6*i+4] = -2*cos(2*cf*M_PI*delta_t)/exp(b*delta_t);
+		/* set a2 */
+		coef[6*i+5] = exp(-2*b*delta_t);
+	}
+}
+
+
+/* this is where the main work for the allPoleGammatoneFilter is done. 
+ * It is maintained separately for testing. It does not upsample, downsample, 
+ * or convert two and from floats 
+ */
+void allPoleGammatoneHelper(double* data, double** output, float centralFreq,
+			    int samplerate, int datalen){
+	double *coef = malloc(sizeof(double)*24);
+	allPoleCoef(centralFreq, samplerate, coef);
+	cascadeBiquad(4, coef, data, (*output), datalen);
+	free(coef);
+}
+
+
+/* The allPoleGammatone approximates the gammatone function. 
+ * The All-Pole Gammatone Filter (APGF) is described by Slaney 1993:
+ *    https://engineering.purdue.edu/~malcolm/apple/tr35/PattersonsEar.pdf
+ * Our entire implementation is based on his description (It is implemented 
+ * using a cascade of 4 biquad filters).
+ *
+ * I believe there is further disccusionabout the filter by Lyon 1996:
+ *   http://www.dicklyon.com/tech/Hearing/APGF_Lyon_1996.pdf
+ * I believe that they may also discuss how to normalize the frequency 
+ * response. He also discuses how the One-Zero Gammatone Filter (OZGF) is a 
+ * better approximation for a gammatone than the APGF. It is slightly modified 
+ * from the APGF.
+ *
+ * Need to be careful about sampling rate. We can definitely run into aliasing 
+ * problems due to the Nyquist Frequency being close to the highest central 
+ * frequency depending on the input. For now we will just upsample and 
+ * downsample like with the naiveGammatone function (not exactly right, but 
+ * close).
+ *
+ * To start with, this is implemented using doubles - we can probably make this 
+ * work on floats but we need to be careful as precision does matter.
+ *
+ * This function can certainly be optimized. Currently the cascade filter calls 
+ * the biquadFilter 4 times meaning that we iterate over the array 4 times. We 
+ * could consolidate that into filtering one time through. We could optimize 
+ * the biquadFilter function to expect a0 = 1 (which is standard and would 
+ * remove datalen*4 unnecessary multiplications). If we know that we are 
+ * definitely using this function, we could also modify our filtering to know 
+ * that b2 is always 0 (this would remove datalen*4 unnecessary multiplications
+ * and subtractions).
+ */
+void allPoleGammatone(float* data, float** output, float centralFreq,
+		      int samplerate, int datalen){
+	double *ddoubled, *dresult;
+	float *fdoubled, *fresult;
+	int doubled_length,result_length,i;
+	// first we do data doubling - to avoid aliasing
+	fdoubled = NULL;
+	doubled_length = dataDoubling(data,datalen, samplerate, &fdoubled);
+	if (doubled_length == (2*datalen-1)){
+		fdoubled[doubled_length] = 0;
+		doubled_length++;
+	}
+	assert((doubled_length == (2*datalen)));
+
+	// next we allocate memory
+	ddoubled = malloc(sizeof(double)*doubled_length);
+
+	// convert from array of floats to array of doubles
+	for (i = 0; i < doubled_length; i++){
+		ddoubled[i] = (double)fdoubled[i];
+	}
+	// no longer need fdoubled
+	free(fdoubled);
+
+	// allocate memory for dresult
+	dresult = malloc(sizeof(double)*doubled_length);
+
+	// perform filtering
+	allPoleGammatoneHelper(ddoubled, &dresult, centralFreq,
+			       2*samplerate, doubled_length);
+	// no longer need ddoubled
+	free(ddoubled);
+
+	// allocate memory for fresult
+	fresult = malloc(sizeof(float)*doubled_length);
+
+	// convert the array of results from doubles to floats
+	for (i = 0; i < doubled_length; i++){
+		fresult[i] = (float)dresult[i];
+	}
+
+	// no longer need dresult
+	free(dresult);
+
+	/* finally we downsample back down to the starting frequency */
+	result_length = dataHalving(fresult, doubled_length, 2*samplerate,
+				    output);
+	if (result_length == (datalen-1)){
+		(*output)[result_length]=0;
+		result_length++;
+	}
+	assert((result_length == datalen));
+	free(fresult);
+}
+
+
+
+
+
+
+int compareArrayEntries(double *ref, double* other, int length,
+			double tol, int rel,double abs_zero_tol){
+	// if relative < 1, then we compare absolute value of the absolute
+	// difference between values
+	// if relative > 1, we need to specially handle when the reference
+	// value is zero. In that case, we look at the absolute differce and
+	// compare it to abs_zero_tol
+	
+	int i;
+	int success = 1;
+	double diff;
+	
+	for (i = 0; i< length; i++){
+		diff = abs(ref[i]-other[i]);
+		if (rel >=1){
+			if (ref[i] == 0){
+				// we will just compute relative difference
+				if (diff > abs_zero_tol){
+					success = -1;
+					printf("ref[%d] = 0, comp[%d] = %e",
+					       i,i,other[i]);
+					printf(" has abs diff > %e\n",
+					       abs_zero_tol);
+				}
+				continue;
+			}
+			diff = diff/abs(ref[i]);
+		}
+		if (diff>tol){
+			success = -1;
+		      	printf("ref[%d] = %e, comp[%d] = %e", i,ref[i],
+			       i,other[i]);
+			if (rel>=1){
+				printf(" has rel diff > %e\n", tol);
+			} else {
+				printf(" has abs diff > %e\n", tol);
+			}
+		}		
+	}
+	return success;
+
+}
+
+int testAllPoleCoefFramework(float centralFreq, int samplerate, double *ref,
+			     double tol, int rel, double abs_zero_tol){
+	double *coef = malloc(sizeof(double)*24);
+	allPoleCoef(centralFreq, samplerate, coef);
+	int r = compareArrayEntries(ref, coef, 24, tol, rel, abs_zero_tol);
+	free(coef);
+	return r;
+}
+		
+
+int testAllPoleCoef(){
+	double ref[] = {9.070294784580499e-05, -1.800958216008583e-04, 0., 1.,
+			-1.559068514003616e+00, 8.572246015552891e-01,
+			9.070294784580499e-05, 3.868371148715167e-05, 0., 1.,
+			-1.559068514003616e+00, 8.572246015552891e-01,
+			9.070294784580499e-05, -8.947437182615128e-05, 0., 1.,
+			-1.559068514003616e+00, 8.572246015552891e-01,
+			9.070294784580499e-05, -5.193773828755539e-05, 0., 1.,
+			-1.559068514003616e+00, 8.572246015552891e-01};
+	double ref1[] = {6.250000000000000e-05, -1.423723457784763e-04, 0., 1.,
+			 -9.875982434226381e-01, 7.899919923972590e-01,
+			 6.250000000000000e-05, 8.064745556456143e-05, 0., 1.,
+			 -9.875982434226381e-01, 7.899919923972590e-01,
+			 6.250000000000000e-05, -4.999451938443668e-05, 0., 1.,
+			 -9.875982434226381e-01, 7.899919923972590e-01,
+			 6.250000000000000e-05, -1.173037082947821e-05, 0., 1.,
+			 -9.875982434226381e-01, 7.899919923972590e-01};
+	double ref2[] = {1.250000000000000e-04, -1.472702708602396e-04, 0., 1.,
+			 -1.933555254215478e+00, 9.423254437488362e-01,
+			 1.250000000000000e-04, -9.442413591669516e-05, 0., 1.,
+			 -1.933555254215478e+00, 9.423254437488362e-01,
+			 1.250000000000000e-04, -1.253806850476248e-04, 0., 1.,
+			 -1.933555254215478e+00, 9.423254437488362e-01,
+			 1.250000000000000e-04, -1.163137217293100e-04, 0., 1.,
+			 -1.933555254215478e+00, 9.423254437488362e-01};
+	int r, success;
+	int rel = 1;
+	double tol = 1.e-5;
+	double abs_zero_tol = 1.e-5;
+	
+	success = 1;
+	printf("AllPole Coefficient Test 1:\n");
+	r = testAllPoleCoefFramework(1000., 11025, ref,
+				     tol, rel, abs_zero_tol);
+	if (r == 1){
+		printf("Passed\n");
+	} else {
+		success = -1;
+		printf("Failed\n");
+	}
+
+	printf("AllPole Coefficient Test 2:\n");
+	r = testAllPoleCoefFramework(2500., 16000, ref1,
+				     tol, rel, abs_zero_tol);
+	if (r == 1){
+		printf("Passed\n");
+	} else {
+		success = -1;
+		printf("Failed\n");
+	}
+
+	printf("AllPole Coefficient Test 3:\n");
+	r = testAllPoleCoefFramework(115., 8000, ref2,
+				     tol, rel, abs_zero_tol);
+	if (r == 1){
+		printf("Passed\n");
+	} else {
+		success = -1;
+		printf("Failed\n");
+	}
+	return success;
+}
+
+
+void stepFunction(double *array,int length, double start, double increment,
+		 int steplength){
+	double cur;
+	int i=0;
+	int j=1;
+	cur = start;
+	while (i<length){
+		if (i < j*steplength){
+			array[i] = cur;
+		} else {
+			j++;
+			cur = increment*(double)j+start;
+			array[i] = cur;
+		}
+		i++;
+	}
+}
+
+int testAllPoleGammatoneFramework(float centralFreq, int samplerate,
+				  double *input, int length, double *ref,
+				  double tol, int rel, double abs_zero_tol){
+
+	double *result = malloc(sizeof(double)*length);
+	allPoleGammatoneHelper(input, &result, centralFreq, samplerate, length);
+	int r = compareArrayEntries(ref, result, length, tol, rel,
+				    abs_zero_tol);
+	free(result);
+	return r;
+}
+
+int testAllPoleGammatone(){
+	
+	double *impulse_input = calloc(1000,sizeof(double));
+	impulse_input[0] = 1.;
+
+	double *input2 = calloc(100,sizeof(double));
+	stepFunction(input2,100, -2.0, 3.0,17);
+
+	double ref1[] = {6.7683936e-17, 2.1104779e-16, 2.4239155e-16,
+			 -1.4876671e-16, -1.1331346e-15, -2.4695411e-15,
+			 -3.4440334e-15, -3.1343673e-15, -9.2002259e-16,
+			 3.0133997e-15, 7.4745466e-15, 1.0557555e-14,
+			 1.0381404e-14, 5.9970156e-15, -1.9466179e-15,
+			 -1.1132757e-14, -1.8233237e-14, -2.0110857e-14,
+			 -1.5126992e-14, -4.0193326e-15, 1.0060513e-14,
+			 2.2454080e-14, 2.8581038e-14, 2.5646008e-14,
+			 1.3823791e-14, -3.5618239e-15, -2.0997375e-14,
+			 -3.2589734e-14, -3.4111317e-14, -2.4553863e-14,
+			 -6.6166725e-15, 1.4079451e-14, 3.0812802e-14,
+			 3.8005663e-14, 3.3124484e-14, 1.7576952e-14,
+			 -3.7107607e-15, -2.3900910e-14, -3.6494625e-14,
+			 -3.7467944e-14, -2.6578874e-14, -7.4166384e-15,
+			 1.3808726e-14, 3.0317848e-14, 3.6963977e-14,
+			 3.1859387e-14, 1.6907246e-14, -2.9066224e-15,
+			 -2.1196912e-14, -3.2261313e-14, -3.2875479e-14,
+			 -2.3231246e-14, -6.7477481e-15, 1.1139880e-14,
+			 2.4784009e-14, 3.0117890e-14, 2.5866809e-14,
+			 1.3818143e-14, -1.8902313e-15, -1.6188239e-14,
+			 -2.4712622e-14, -2.5136122e-14, -1.7783601e-14,
+			 -5.3805073e-15, 7.9372922e-15, 1.7997285e-14,
+			 2.1892786e-14, 1.8809500e-14, 1.0146682e-14,
+			 -1.0601169e-15, -1.1188766e-14, -1.7193376e-14,
+			 -1.7509479e-14, -1.2436708e-14, -3.9158586e-15,
+			 5.1876918e-15, 1.2036074e-14, 1.4693514e-14,
+			 1.2657383e-14, 6.9063074e-15, -5.1340397e-16,
+			 -7.1998351e-15, -1.1162608e-14, -1.1403387e-14,
+			 -8.1447921e-15, -2.6647521e-15, 3.1810314e-15,
+			 7.5759533e-15, 9.2970380e-15, 8.0412438e-15,
+			 4.4418458e-15, -2.0430209e-16, -4.3903504e-15,
+			 -6.8789815e-15, -7.0581776e-15, -5.0744952e-15,
+			 -1.7221623e-15, 1.8566496e-15, 4.5517834e-15,
+			 5.6215961e-15};
+	double ref2[] = {2.4414063e-16, 1.1882594e-15, 3.4514247e-15,
+		       7.7549994e-15, 1.4852864e-14, 2.5456417e-14,
+		       4.0157853e-14, 5.9355054e-14, 8.3181170e-14,
+		       1.1144163e-13, 1.4356102e-13, 1.7854179e-13,
+		       2.1493645e-13, 2.5083429e-13, 2.8386344e-13,
+		       3.1120843e-13, 3.2964319e-13, 3.3631121e-13,
+		       3.2868989e-13, 3.0451932e-13, 2.6170466e-13,
+		       1.9820115e-13, 1.1189041e-13, 4.5659077e-16,
+		       -1.3873032e-13, -3.0871686e-13, -5.1304851e-13,
+		       -7.5582707e-13, -1.0417395e-12, -1.3760553e-12,
+		       -1.7645912e-12, -2.2136427e-12, -2.7298833e-12,
+		       -3.3202329e-12, -3.9909660e-12, -4.7476247e-12,
+		       -5.5949606e-12, -6.5368976e-12, -7.5765119e-12,
+		       -8.7160225e-12, -9.9567894e-12, -1.1299313e-11,
+		       -1.2743233e-11, -1.4287324e-11, -1.5929484e-11,
+		       -1.7666719e-11, -1.9495116e-11, -2.1409816e-11,
+		       -2.3404968e-11, -2.5473697e-11, -2.7608049e-11,
+		       -2.9798222e-11, -3.2032611e-11, -3.4297925e-11,
+		       -3.6579333e-11, -3.8860657e-11, -4.1124595e-11,
+		       -4.3352960e-11, -4.5526942e-11, -4.7627368e-11,
+		       -4.9634971e-11, -5.1530652e-11, -5.3295727e-11,
+		       -5.4912167e-11, -5.6362813e-11, -5.7631573e-11,
+		       -5.8703596e-11, -5.9565416e-11, -6.0204341e-11,
+		       -6.0608649e-11, -6.0767797e-11, -6.0672650e-11,
+		       -6.0315712e-11, -5.9691347e-11, -5.8795990e-11,
+		       -5.7628334e-11, -5.6189486e-11, -5.4483092e-11,
+		       -5.2515422e-11, -5.0295408e-11, -4.7834644e-11,
+		       -4.5147333e-11, -4.2250192e-11, -3.9162308e-11,
+		       -3.5904956e-11, -3.2500639e-11, -2.8972922e-11,
+		       -2.5346287e-11, -2.1645992e-11, -1.7897941e-11,
+		       -1.4128551e-11, -1.0364613e-11, -6.6331555e-12,
+		       -2.9612847e-12, 6.2397815e-13, 4.0958775e-12,
+		       7.4281174e-12, 1.0595070e-11, 1.3571994e-11,
+		       1.6335269e-11};
+	
+	int r;
+	int rel = 1;
+	int success =1;
+	double tol = 1.e-5;
+	double abs_zero_tol = 1.e-5;
+
+	printf("All-Pole Gammatone Response Test 1:\n");
+	r = testAllPoleGammatoneFramework(1000, 11025, impulse_input, 100,
+					  ref1, tol, rel, abs_zero_tol);
+	if (r == 1){
+		printf("Passed\n");
+	} else {
+		success = -1;
+		printf("Failed\n");
+	}
+
+	printf("All-Pole Gammatone Response Test 2:\n");
+	r = testAllPoleGammatoneFramework(115, 8000, input2, 100,
+					  ref2, tol, rel, abs_zero_tol);
+	if (r == 1){
+		printf("Passed\n");
+	} else {
+		success = -1;
+		printf("Failed\n");
+	}
+
+	free(impulse_input);
+	free(input2);
+	return success;
+
+}
+
+/*
+int main(int argc, char ** argv)
+{
+	testAllPoleCoef();
+	testAllPoleGammatone();
+	return 0;
+}
+*/
