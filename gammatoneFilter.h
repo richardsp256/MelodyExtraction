@@ -40,6 +40,9 @@ void naiveGammatone(float* data, float** output, float centralFreq,
  *  - The implementation needs to be adjusted to detect and actively avoid, 
  *    overflows, underflows and NaNs (because it is recursive, if these appear, 
  *    the rest of the response will be messed up )
+ *
+ * NOTE THIS IS NOT ACTUALLY THE ALLPOLE GAMMATONE FILTER
+ * this is actually the sos gammatone.
  */
 void allPoleGammatone(float* data, float** output, float centralFreq,
 		      int samplerate, int datalen);
