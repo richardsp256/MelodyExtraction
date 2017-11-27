@@ -18,15 +18,61 @@ double ERB(double f)
 //phase, in our case, can be safely ignored and removed.
 //so with the above...
 //g(t) = a t^(3) e^(-2pi t (0.109989841 f + 27.513)) cos(2pi f t)
-void simpleGammatone(float* data, float** output, float centralFreq, int samplerate, int datalen)
+void gammatoneNormalized(float** output, float centralFreq, int samplerate, int datalen)
 {
+  //returns a gammatone filter with amplitude set to 1.
+  double bandwidth = 1.019 * ERB(centralFreq);
+  //printf("making gammatone, datalen %d, centralFreq %f, bandwidth %f\n", datalen, centralFreq, bandwidth);
+  float sum = 0.0f;
   for(int i = 0; i < datalen; i++){
     double t = i/(double)samplerate;
-    double bandwidth = 1.019 * ERB(centralFreq);
-    double amplitude = fabs(data[i]);
-
-    (*output)[i] = (float) ( amplitude * pow(i,3) * exp(-2*M_PI*bandwidth*t) * cos(2*M_PI*centralFreq*t) );
+    (*output)[i] = (float) (pow(i,3) * exp(-2*M_PI*bandwidth*t) * cos(2*M_PI*centralFreq*t) );
+    sum += (*output)[i];
   }
+  //printf("sum %f\n", sum);
+  for(int i = 0; i < datalen; ++i){
+    (*output)[i] = (*output)[i] / sum;
+  }
+}
+
+void simpleGammatone(float* data, float** output, float centralFreq, int samplerate, int datalen)
+{
+  float* gammatone = malloc(sizeof(float)*datalen);
+  gammatoneNormalized(&gammatone, centralFreq, samplerate, datalen);
+
+  for(int i = 0; i < datalen; ++i){
+    (*output)[i] = fabs(data[i]) * gammatone[i];
+  }
+
+  free(gammatone);
+}
+
+void simpleGammatoneImpulseResponse(float* data, float** output, float centralFreq, int samplerate, int datalen)
+{
+  //my understanding of impulse response is gathered mostly from:
+  //https://dsp.stackexchange.com/questions/536/what-is-meant-by-a-systems-impulse-response-and-frequency-response
+  //https://en.wikipedia.org/wiki/Linear_time-invariant_theory#Impulse_response_and_convolution
+  //but im still not entirely confident i am doing it correctly...
+
+  //how quickly the gammatone decays is inversely proportional to its bandwidth.
+  //channel 0 has the smallest bandwidth at 35.9, which decays significantly by index 1850.
+  //we could probably be much stricter (even 1000 would encompass most of the 'significant' signal)
+  int gammaLength = 1850;
+
+  float* gammatone = malloc(sizeof(float)*gammaLength);
+  gammatoneNormalized(&gammatone, centralFreq, samplerate, gammaLength);
+
+  //float sum = 0.0f;
+  for(int i = 0; i < datalen; ++i){
+    (*output)[i] = 0.0f;
+    for(int j = 0; j < gammaLength && i+j < datalen; ++j){
+      (*output)[i] += fabs(data[i+j]) * gammatone[j];
+      //(*output)[i] += data[i+j] * gammatone[j];
+    }
+    //sum += (*output)[i];
+  }
+  //printf("sum %f\n", sum);
+  free(gammatone);
 }
 
 /* MA note: I don't know a lot about Impulse Response Filtering, but going off 
@@ -180,7 +226,8 @@ void recursive_filter_application(float* re_z, float* im_z, float* re_w,
  * only 4 filters.
  */
 void naiveGammatone(float* data, float** output, float centralFreq,
-		    int samplerate, int datalen){
+		    int samplerate, int datalen)
+{
 	int k, doubled_length, result_length;
 	float *doubled, *re_z, *im_z, *re_w, *im_w, *y, delta_t,phi,b;
 
@@ -245,9 +292,9 @@ void naiveGammatone(float* data, float** output, float centralFreq,
 	 */
 	
 	for (k=0; k<doubled_length; k++){
-	         phi = 2*M_PI*centralFreq * delta_t*k;
-		 y[k] = (re_w[k]*cos(phi) - im_w[k] * sin(phi));
-         }
+    phi = 2*M_PI*centralFreq * delta_t*k;
+    y[k] = (re_w[k]*cos(phi) - im_w[k] * sin(phi));
+  }
 	
 	/* finally we downsample back down to the starting frequency */
 	result_length = dataHalving(y, doubled_length, 2*samplerate, output);

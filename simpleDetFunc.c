@@ -321,7 +321,8 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 		//printf("compute channel %d...\n", i);
 		//gammatoneFilter(data, &buffer, centralFreq[i], sampleRate,dataLength);
 		//simpleGammatone(data, &buffer, centralFreq[i], sampleRate, dataLength);
-		naiveGammatone(data, &buffer, centralFreq[i], sampleRate, dataLength);
+		simpleGammatoneImpulseResponse(data, &buffer, centralFreq[i], sampleRate, dataLength);
+		//naiveGammatone(data, &buffer, centralFreq[i], sampleRate, dataLength);
 
 		//printf("   gammatone %d...\n", i);
 		/* compute the sigma values */
