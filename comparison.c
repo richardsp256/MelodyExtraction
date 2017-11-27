@@ -108,20 +108,19 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	int num_notes = ConstructNotes(&noteRanges, &noteFreq, freq,
 				     freqSize, onsets, o_size, activityRanges,
 				     a_size, info, p_unpaddedSize, p_winInt);
+
+	free(activityRanges);
+	free(freq);
+	free(onsets);
+
 	if(num_notes == -1){
 		printf("Construct notes failed!\n");
 		fflush(NULL);
-		free(activityRanges);
-		free(freq);
-		free(onsets);
 		return NULL;
 	}
 	else if(num_notes == 0){
 		printf("No notes detected.");
 		fflush(NULL);
-		free(activityRanges);
-		free(freq);
-		free(onsets);
 		return NULL;
 	}
 	printf("construct notes\n");
@@ -130,18 +129,16 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	if(melodyMidi == NULL){
 		printf("malloc failed\n");
 		fflush(NULL);
-		free(activityRanges);
-		free(freq);
-		free(onsets);
+		free(noteRanges);
+		free(noteFreq);
 		return NULL;
 	}
 	int tmp = FrequenciesToNotes(noteFreq, num_notes, &melodyMidi, tuning);
 	if(tmp == -1){
 		printf("freqToNote failed\n");
 		fflush(NULL);
-		free(activityRanges);
-		free(freq);
-		free(onsets);
+		free(noteRanges);
+		free(noteFreq);
 		free(melodyMidi);
 		return NULL;
 	}
@@ -160,18 +157,17 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	printf("Detected %d Notes:\n", num_notes);
 	for(int i =0; i<num_notes; i++){
 		NoteToName(melodyMidi[i], &noteName);
-		printf("%d - %d,   %d ms - %d ms,   %.2f hz,   %.2f,   %d,   %s\n",
-		       noteRanges[2*i], noteRanges[2*i+1],
-		       (int)(noteRanges[2*i] * (1000.0/info.samplerate)),
-		       (int)(noteRanges[2*i+1] * (1000.0/info.samplerate)),
-		       noteFreq[i], FrequencyToFractionalNote(noteFreq[i]), 
-		       melodyMidi[i], noteName);
+		printf("%d - %d,   ", noteRanges[2*i], noteRanges[2*i+1]);
+		printf("%d ms - %d ms,   ", 
+			(int)(noteRanges[2*i] * (1000.0/info.samplerate)),
+		    (int)(noteRanges[2*i+1] * (1000.0/info.samplerate)));
+		printf("%.2f hz,   ", noteFreq[i]);
+		printf("%.2f,   ", FrequencyToFractionalNote(noteFreq[i]));
+		printf("%d,   ", melodyMidi[i]);
+		printf("%s\n", noteName);
 	}
-	free(noteName);
 
-	free(activityRanges);
-	free(freq);
-	free(onsets);
+	free(noteName);
 	free(noteFreq);
 	
 	//get midi note values of pitch in each bin
