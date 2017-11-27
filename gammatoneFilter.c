@@ -8,7 +8,7 @@
 double ERB(double f)
 {
   //ERB = 24.7(4.37*10^-3 * f + 1)
-  return (0.107939 * f) + 27;
+  return (0.107939 * f) + 24.7;
 }
 
 //g(t) = a t^(n-1) e^(-2pi b t) cos(2pi f t + phase)
