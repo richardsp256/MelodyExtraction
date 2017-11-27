@@ -178,6 +178,7 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	//todo: restructure generateMidi function to also take noteRanges
 	struct Midi* midi = GenerateMIDIFromNotes(melodyMidi, noteRanges,
 				     num_notes, info.samplerate, verbose);
+
 	free(noteRanges);
 	free(melodyMidi);
 
@@ -317,11 +318,17 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 		   int p_size, int* onsets, int onset_size, int* activityRanges,
 		   int aR_size, SF_INFO info, int p_unpaddedSize, int p_winInt)
 {
-	int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
-				     aR_size, noteRanges, info.samplerate);
-	if(nR_size == -1){
-		return -1;
+	//int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
+	//			     aR_size, noteRanges, info.samplerate);
+	//if(nR_size == -1){
+	//	return -1;
+	//}
+
+	(*noteRanges) = malloc(sizeof(int) * onset_size);
+	for(int i = 0; i < onset_size; i++){
+		(*noteRanges)[i] = onsets[i];
 	}
+	int nR_size = onset_size;
 
 	int nF_size = assignNotePitches(pitches, p_size, *noteRanges, nR_size,
 					p_winInt, p_unpaddedSize, info.frames,
