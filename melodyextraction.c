@@ -298,7 +298,7 @@ void me_settings_free(struct me_settings* inst)
 		free(inst->pitch_window);
 	}
 	if(inst->pitch_padded != NULL){
-		free(inst->pitch_window);
+		free(inst->pitch_padded);
 	}
 	if(inst->pitch_spacing != NULL){
 		free(inst->pitch_spacing);
