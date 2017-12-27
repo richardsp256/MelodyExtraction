@@ -275,6 +275,182 @@ void pSMContribution(int correntropyWinSize, int interval,
 }
 
 
+static inline double calcWChannelEntry(float* x, int window_size,
+				       int tau, double sigma)
+{
+	/* Sums the correntropy for all window sizes and a single tau value 
+	 * everywhere. 
+	 * 
+	 * This function exists purely for debugging purposes.
+	 */
+	int i;
+	double out,temp;
+	out=0;
+	for (i=0;i<window_size;i++){
+		temp = x[i]- x[i+tau]; 
+		out+=exp(-1.0 * temp * temp);
+	}
+	out *= M_1_SQRT2PI / sigma;
+	//printf("out = %f\n",(float)out);
+	return out;
+}
+
+void channelContributionW(int correntropyWinSize, int interval,
+			  int numWindows, float *buffer,
+			  float *sigmas,double **w_matrix){
+	/* assuming that the the w_matrix is already allocated.
+	 * It should have shape (numWindows,correntropyWinSize)
+	 */
+
+	int i,start,j,calcBufferLength;
+	float *calcBuffer, denom;
+	double temp;
+	start = 0;
+
+	/* The calcBuffer length is overkill */
+	calcBufferLength = 2*correntropyWinSize +1;
+	calcBuffer = malloc(sizeof(float)*calcBufferLength);
+	for (i=0;i<numWindows;i++){
+		// not sure if the following function will work correctly:
+		denom = M_SQRT1_2/sigmas[i];
+
+		/* The fact that that the first entry in a window is not 
+		 * being placed in the calculation buffer for the correntropy 
+		 * calculation. Per the paper, the correntropy calculation uses 
+		 * the 2*correntropyWinSize elements immediately following the 
+		 * first entry in the window
+		 */
+		for (j=1;j<=calcBufferLength;j++){
+			calcBuffer[j] = (buffer[start+j]) * denom;
+		}
+		/* Now we will add the contribution of tau to each column */
+		for (j=0; j<correntropyWinSize; j++){
+			/* j corresponds to the column number, tau is j+1. */
+			temp = calcWChannelEntry(calcBuffer, correntropyWinSize,
+						 j+1, (double)(sigmas[i]));
+			(*w_matrix)[i*correntropyWinSize+j] = temp;
+		}
+		start+=interval;
+	}
+	free(calcBuffer);
+}
+
+
+void saveWMatrix(char* fileName, int numWindows, int correntropyWinSize,
+		 double *w_matrix,int interval, int samplerate){
+	// Saves the notes and note pitches. This is for use while debugging
+	
+	FILE *fp;
+	fp = fopen(fileName,"w");
+	
+	// write out important comments
+	fprintf(fp, "#shape = (%d,%d)\n", numWindows,correntropyWinSize);
+	fprintf(fp, "#interval = %d\n", interval);
+	fprintf(fp, "#samplerate = %d\n", samplerate);
+	for (int i=0;i<numWindows;i++){
+		if (correntropyWinSize>0){
+			fprintf(fp,"%e",w_matrix[i*correntropyWinSize+1]);
+		}
+		for (int j=1; j<correntropyWinSize;j++){
+			fprintf(fp, "\t%e",w_matrix[i*correntropyWinSize+j]);
+		}
+		if (i != numWindows-1){
+			fprintf(fp,"\n");
+		}
+	}
+
+	fclose(fp);
+}
+
+
+void calcPSMfromW(int numWindows, int correntropyWinSize, double *w_matrix,
+		  float**pooledSummaryMatrix){
+	double running_sum;
+	for (int i=0;i<numWindows;i++){
+		running_sum = 0;
+		for (int j=0; j<correntropyWinSize;j++){
+			running_sum+=w_matrix[i*correntropyWinSize+j];
+		}
+		(*pooledSummaryMatrix)[i] = running_sum;
+	}
+}
+
+
+void instructionalComputePSM(int numChannels, float* data, float **buffer,
+			     float *centralFreq, int sampleRate,
+			     int dataLength, int startIndex, int interval,
+			     float scaleFactor, int sigWindowSize,
+			     int numWindows, float **sigmas,
+			     int correntropyWinSize,
+			     float **pooledSummaryMatrix){
+	/* This method tries to follow the details in the paper more directly. 
+	 * In the process of computing PSM, we compute the W matrix.
+	 */
+	double* w_matrix = calloc(numWindows*correntropyWinSize,
+				  sizeof(double));
+	float averageTime = 0.0f;
+	for (int i = 0;i<numChannels;i++){
+		clock_t c1 = clock();
+
+		//printf("compute channel %d...\n", i);
+		//simpleGammatone(data, buffer, centralFreq[i], sampleRate,
+		//		dataLength);
+		//naiveGammatone(data, buffer, centralFreq[i], sampleRate,
+		//	       dataLength);
+		allPoleGammatone(data, buffer, centralFreq[i], sampleRate,
+				 dataLength);
+		rollSigma(startIndex, interval, scaleFactor, sigWindowSize,
+			  dataLength, numWindows, *buffer, sigmas);
+		channelContributionW(correntropyWinSize, interval,
+				     numWindows, *buffer, *sigmas, &w_matrix);
+		clock_t c2 = clock();
+		float elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
+		printf("  %d\telapsed = %f\n", i, elapsed*1000);
+		averageTime += elapsed;
+	}
+	calcPSMfromW(numWindows, correntropyWinSize, w_matrix,
+		     pooledSummaryMatrix);
+	saveWMatrix("savedWMatrix.txt", numWindows, correntropyWinSize,
+		    w_matrix, interval, sampleRate);
+	printf("  average time: %f\n", (averageTime*1000) / numChannels);
+	free(w_matrix);
+}
+
+void simpleComputePSM(int numChannels, float* data, float **buffer,
+		      float *centralFreq, int sampleRate, int dataLength,
+		      int startIndex, int interval, float scaleFactor,
+		      int sigWindowSize, int numWindows, float **sigmas,
+		      int correntropyWinSize, float **pooledSummaryMatrix){
+	float averageTime = 0.0f;
+	for (int i = 0;i<numChannels;i++){
+		clock_t c1 = clock();
+
+		//printf("compute channel %d...\n", i);
+		//simpleGammatone(data, buffer, centralFreq[i], sampleRate,
+		//		dataLength);
+		//naiveGammatone(data, buffer, centralFreq[i], sampleRate,
+		//	       dataLength);
+		allPoleGammatone(data, buffer, centralFreq[i], sampleRate,
+				 dataLength);
+
+		//printf("   gammatone %d...\n", i);
+		/* compute the sigma values */
+		rollSigma(startIndex, interval, scaleFactor, sigWindowSize,
+			  dataLength, numWindows, *buffer, sigmas);
+		//printf("   sigma %d...\n", i);
+		/* compute the pooledSummaryMatrixValues */
+		pSMContribution(correntropyWinSize, interval, numWindows,
+				*buffer, *sigmas, pooledSummaryMatrix);
+		//printf("   matrix %d...\n", i);
+		
+		clock_t c2 = clock();
+		float elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
+		printf("  %d\telapsed = %f\n", i, elapsed*1000);
+		averageTime += elapsed;
+	}
+	printf("  average time: %f\n", (averageTime*1000) / numChannels);
+}
+
 int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 				 float scaleFactor, int sigWindowSize,
 				 int sampleRate, int numChannels,
@@ -313,39 +489,18 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 	centralFreq = centralFreqMapper(numChannels, minFreq, maxFreq);
 
 	startIndex = correntropyWinSize/2;
+
+	simpleComputePSM(numChannels, data, &buffer, centralFreq, sampleRate, 
+			 dataLength, startIndex, interval, scaleFactor, 
+			 sigWindowSize, numWindows, &sigmas,
+			 correntropyWinSize, 
+			 &pooledSummaryMatrix);
+	//instructionalComputePSM(numChannels, data, &buffer, centralFreq, 
+	//			sampleRate, dataLength, startIndex, interval, 
+	//			scaleFactor, sigWindowSize, numWindows,
+	//                      &sigmas, correntropyWinSize,
+	//			&pooledSummaryMatrix);
 	
-	float averageTime = 0.0f;
-	for (i = 0;i<numChannels;i++){
-		clock_t c1 = clock();
-
-		//printf("compute channel %d...\n", i);
-
-		//simpleGammatone(data, &buffer, centralFreq[i], sampleRate,
-		//		dataLength);
-		//simpleGammatoneImpulseResponse(data, &buffer, centralFreq[i],
-		//		sampleRate, dataLength);
-		//naiveGammatone(data, &buffer, centralFreq[i], sampleRate,
-		//	       dataLength);
-		allPoleGammatone(data, &buffer, centralFreq[i], sampleRate,
-				 dataLength);
-
-		//printf("   gammatone %d...\n", i);
-		/* compute the sigma values */
-		rollSigma(startIndex, interval, scaleFactor, sigWindowSize,
-			  dataLength, numWindows, buffer, &sigmas);
-		//printf("   sigma %d...\n", i);
-		/* compute the pooledSummaryMatrixValues */
-		pSMContribution(correntropyWinSize, interval, numWindows,
-				buffer, sigmas, &pooledSummaryMatrix);
-		//printf("   matrix %d...\n", i);
-		
-		clock_t c2 = clock();
-		float elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
-		printf("  %d\telapsed = %f\n", i, elapsed*1000);
-		averageTime += elapsed;
-	}
-	printf("  average time: %f\n", (averageTime*1000) / numChannels);
-
 	free(sigmas);
 	free(buffer);
 	(*detFunction) = malloc(sizeof(float)*dFLength);
