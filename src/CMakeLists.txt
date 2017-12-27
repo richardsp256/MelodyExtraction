@@ -25,23 +25,7 @@ set(SOURCES
   testOnset.c
 )
 
-SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
-SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-SET(CMAKE_INSTALL_RPATH "../libfvad-master/src/.libs")
 
-INCLUDE_DIRECTORIES(
-  ../libsamplerate-0.1.9/src
-  ../libsndfile-1.0.26/src
-  ../fftw-3.3.4/api
-  ../libfvad-master/include
-)
-
-LINK_DIRECTORIES(
-  ../fftw-3.3.4/.libs
-  ../libsndfile-1.0.26/src/.libs
-  ../libfvad-master/src/.libs
-  ../libsamplerate-0.1.9/src/.libs
-)
 
 add_executable(extract main.c ${SOURCES})
 add_library(melodyextraction SHARED ${SOURCES})
