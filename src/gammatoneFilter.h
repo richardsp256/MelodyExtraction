@@ -49,3 +49,5 @@ void naiveGammatone(float* data, float** output, float centralFreq,
  */
 void allPoleGammatone(float* data, float** output, float centralFreq,
 		      int samplerate, int datalen);
+
+void allPoleCoef(float centralFreq, int samplerate, double *coef);
