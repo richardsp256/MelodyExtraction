@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <check.h>
 #include "../src/gammatoneFilter.h"
 
@@ -12,6 +13,7 @@ START_TEST(test_sos_coefficients)
 {
   double *coef = malloc(sizeof(double)*24);
   allPoleCoef(1000., 11025, coef);
+  printf("%lf\n", coef[0]);
   double diff = abs(6.1031107e-02-coef[0]);
   diff/=6.1031107e-02;
   if (diff < 0){
@@ -20,7 +22,7 @@ START_TEST(test_sos_coefficients)
   ck_assert_double_le(diff,1.e-5);
   free(coef);
 }
-ENDTEST
+END_TEST
 
 Suite *gammatone_suite()
 {
@@ -33,7 +35,7 @@ Suite *gammatone_suite()
 
 int main(void){
   Suite *s = gammatone_suite();
-  SRunner *s = srunner_create(s);
+  SRunner *sr = srunner_create(s);
 
   srunner_run_all(sr, CK_NORMAL);
   int number_failed = srunner_ntests_failed(sr);;

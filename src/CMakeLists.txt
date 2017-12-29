@@ -30,6 +30,7 @@ set(SOURCES
 add_executable(extract main.c ${SOURCES})
 add_library(melodyextraction SHARED ${SOURCES})
 TARGET_LINK_LIBRARIES(extract m fftw3f sndfile fvad samplerate)
+TARGET_LINK_LIBRARIES(melodyextraction m fftw3f sndfile fvad samplerate)
 
 install(TARGETS extract
   RUNTIME DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/../

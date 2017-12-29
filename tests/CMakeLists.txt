@@ -17,11 +17,17 @@ find_package(Check REQUIRED)
 include_directories(
   ${CHECK_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/../libsamplerate-0.1.9/src
-)
+  )
+link_directories(
+  ${CHECK_LIBRARY_DIRS}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
+#set(TEST_SOURCES
+#  ../src/gammatoneFilter.c
+#)
 set(TEST_SOURCES
-  ../src/gammatoneFilter.c
+  check_gammatone.c
 )
 
 add_executable(check_gammatone ${TEST_SOURCES})
-target_link_libraries(check_gammatone melodyextraction ${CHECK_LIBRARIES} samplerate m)
+target_link_libraries(check_gammatone m melodyextraction ${CHECK_LIBRARIES} fftw3f sndfile samplerate fvad)
