@@ -49,5 +49,16 @@ master.zip
 *.h~
 .dir-locals.el
 
+# CMake related files
+CMakeFiles/*
+src/CMakeFiles/*
+tests/CMakeFiles/*
+cmake_install.cmake
+config.h
+CTestTestfile.cmake
+install_manifest.txt
+Makefile
+Testing/*
+
 #Ignore compiled code
 extract
