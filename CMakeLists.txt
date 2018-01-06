@@ -27,6 +27,24 @@ cmake_minimum_required (VERSION 3.0)
 project (MelodyExtraction)
 
 
+
+# Right now we have an issue with linking libmelodyextraction.so to test files.
+# This problem is solved if we set LD_LIBRARY_PATH to point to
+# "${CMAKE_CURRENT_SOURCE_DIR}/src".
+# We could in principle solve this problem by setting rpath to point to
+# "${CMAKE_CURRENT_SOURCE_DIR}/src" while linking the library to the test file,
+# unfortunately, we need to also set the rpath to libfvad.
+# According to https://cmake.org/Wiki/CMake_RPATH_handling, it is possible to
+# have multiple rpaths, however that seems complicated and I am choosing not
+# to work on that right now.
+# For now, I am compiling a static library instead libmelodyextraction.a
+# If we want to use shared libraries instead of static libraries (which we
+# will need based on our licensing choice), I think we will have 2 options:
+# 1. Do what is suggested in https://cmake.org/Wiki/CMake_RPATH_handling for
+#    using multiple RPATH
+# 2. The problem may go away if we actually install the shared library into the
+#    standard shared library directory
+
 ###############################################################################
 # The following section is taken and modified from the "money example" of the
 # Check tutorial.
@@ -122,7 +140,6 @@ LINK_DIRECTORIES(
   ${CMAKE_CURRENT_SOURCE_DIR}/libfvad-master/src/.libs
   ${CMAKE_CURRENT_SOURCE_DIR}/libsamplerate-0.1.9/src/.libs
 )
-
 
 ###############################################################################
 # The following section is also taken and modified from the "money example" of

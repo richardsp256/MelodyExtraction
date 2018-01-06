@@ -28,7 +28,7 @@ set(SOURCES
 
 
 add_executable(extract main.c ${SOURCES})
-add_library(melodyextraction SHARED ${SOURCES})
+add_library(melodyextraction STATIC ${SOURCES})
 TARGET_LINK_LIBRARIES(extract m fftw3f sndfile fvad samplerate)
 TARGET_LINK_LIBRARIES(melodyextraction m fftw3f sndfile fvad samplerate)
 
