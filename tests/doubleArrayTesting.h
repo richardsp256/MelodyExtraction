@@ -15,7 +15,7 @@ struct dblArrayTestEntry{
 
 int isLittleEndian();
 
-int readDoubleArray(char *fileName, int system_little_endian, double *array);
+int readDoubleArray(char *fileName, int system_little_endian, double **array);
 
 void compareArrayEntries(double *ref, double* other, int length,
 			 double tol, int rel,double abs_zero_tol);

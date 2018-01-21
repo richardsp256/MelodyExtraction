@@ -7,14 +7,15 @@
 void float_to_double_array(float* array, int length, double** dblarray){
 	(*dblarray) = malloc(sizeof(double)*length);
 	for (int i=0; i<length; i++){
-		(*dblarray)[i] = (double)array[i];
+		(*dblarray)[i] = (double)(array[i]);
 	}
 }
 
 void double_to_float_array(double* array, int length, float** fltarray){
 	(*fltarray) = malloc(sizeof(float)*length);
 	for (int i=0; i<length; i++){
-		(*fltarray)[i] = (float)array[i];
+		printf("%lf, ", array[i]);
+		(*fltarray)[i] = (float)(array[i]);
 	}
 }
 
@@ -28,12 +29,11 @@ int rollSigmaTestTemplate(int *intInput, int intInputLen, double *dblInput,
 
 	   The result must be converted from a float array to a double array.
 	 */
-	printf("intInputLen %d, dblInputLen %d\n", intInputLen, dblInputLen);
 	ck_assert_int_eq(intInputLen,4);
 	ck_assert_int_eq(dblInputLen,1);
 
 	int numWindows = intInput[3];
-	
+
 	/* load the input array. */
 
 	int input_length;
@@ -42,14 +42,15 @@ int rollSigmaTestTemplate(int *intInput, int intInputLen, double *dblInput,
 	int little_endian = isLittleEndian();
 
 	input_length = readDoubleArray(strInput, little_endian,
-				       original_input);
+				       &original_input);
 
+	/* convert the input array to an array of floats */
 	float *buffer;
-
 	double_to_float_array(original_input, input_length, &buffer);
 
 	free(original_input);
 
+	/* run the rollSigma function */
 	float *original_sigma = malloc(sizeof(float)*numWindows);
 
 	rollSigma(intInput[0], intInput[1], dblInput[0], intInput[2],
@@ -79,8 +80,8 @@ struct dblArrayTestEntry* construct_rollSigma_test_table()
 	sigma_table = malloc(sizeof(struct dblArrayTestEntry)
 			     * sigma_table_length);
 
-	/* Setup the sample test. It is only defined to ensure the framework 
-	 * works. It will not be passed. 
+	/* Setup the sample test. This test was made to ensure that the 
+	 * framework works. It does not give the correct result at all.
 	 */
 
 	int intInput[] = {0,5,13,10};

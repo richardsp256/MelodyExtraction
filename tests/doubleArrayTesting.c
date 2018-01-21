@@ -26,7 +26,6 @@ int getArrayLength(FILE *fp, int object_size){
 	long num_bytes = ftell(fp);
 	long temp = (num_bytes/object_size);
 
-	printf("Number of bytes: %li\n", num_bytes);
 	if ((num_bytes % object_size) != 0){
 		printf("The file does not have the correct number of bytes\n");
 		return -2;
@@ -41,7 +40,7 @@ int getArrayLength(FILE *fp, int object_size){
 	return length;
 }
 
-int readDoubleArray(char *fileName, int system_little_endian, double *array){
+int readDoubleArray(char *fileName, int system_little_endian, double **array){
 	/* Reads in a little-endian double array from a binary file. Returns 
 	 * the size of the array. Sets array to point to the loaded values.
 	 *
@@ -63,11 +62,11 @@ int readDoubleArray(char *fileName, int system_little_endian, double *array){
 		return length;
 	}
 
-	array = malloc(sizeof(double)*length);
-	if (array == NULL){
+	(*array) = malloc(sizeof(double)*length);
+	if ((*array) == NULL){
 		return -4;
 	}
-	fread(array, sizeof(double), length, fp);
+	fread((*array), sizeof(double), length, fp);
 	fclose(fp);
 	return length;
 }
@@ -152,12 +151,12 @@ int process_double_array_test(struct dblArrayTestEntry entry, double tol,
 	}
 
 	// Load in the reference array
-	ref_len = readDoubleArray(entry.resultFname, 1, ref);
+	ref_len = readDoubleArray(entry.resultFname, 1, &ref);
 	if (ref_len<=0){
 		ck_abort_msg(("Encountered an issue while determining "
 			      "reference array.\n"));
 	}
-
+	
 	// run the function to compute to determine the calculated array
 	calc_len = entry.func(entry.intInput, entry.intInputLen, entry.dblInput,
 			      entry.dblInputLen, entry.strInput, &calc);
