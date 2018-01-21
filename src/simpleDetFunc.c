@@ -108,7 +108,7 @@ static inline void add_var(double val, int *nobs, double *mean_x,
 	(*nobs) += 1;
 	delta = (val - *mean_x);
 	(*mean_x) += delta / *nobs;
-	(*ssqdm_x) += (delta * (val - *mean_x));
+	(*ssqdm_x) += (((*nobs-1) * delta * delta) / *nobs);
 }
 
 static inline void remove_var(double val, int *nobs, double *mean_x,
@@ -117,11 +117,11 @@ static inline void remove_var(double val, int *nobs, double *mean_x,
 
 	double delta;
 
-	(*nobs) += 1;
+	(*nobs) -= 1;
 	if (*nobs>0){
 		delta = (val - *mean_x);
 		(*mean_x) -= delta / *nobs;
-		(*ssqdm_x) -= (delta * (val - *mean_x));
+		(*ssqdm_x) -= (((*nobs+1) * delta * delta) / *nobs);
 	} else {
 		*mean_x = 0;
 		*ssqdm_x = 0;
@@ -149,12 +149,13 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 	for (i=0;i<numWindows;i++){
 		winStart = wIndGetStart(wInd);
 		winStop = wIndGetStop(wInd);
-
 		/* Over the first window observations can only be added 
 		 * never removed */
 		if (i == 0){
 			for (j=winStart;j<winStop;j++){
-				add_var(buffer[j], &nobs, &mean_x, &ssqdm_x);
+				//printf("%f\n",buffer[j]);
+				add_var((double)buffer[j], &nobs, &mean_x,
+					&ssqdm_x);
 			}
 		} else {
 			/* after the first window, observations can both be 
@@ -165,14 +166,16 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 			 *  windows, iterates over 0 values)
 			 */
 			for (j=prevStop;j<winStop;j++){
-				add_var(buffer[j], &nobs, &mean_x, &ssqdm_x);
+				add_var((double)buffer[j], &nobs, &mean_x,
+					&ssqdm_x);
 			}
 
 			/* calculate deletes 
 			 * (should always iterates over 1 value)
 			 */
 			for (j = prevStart; j<winStart; j++){
-				remove_var(buffer[j], &nobs, &mean_x, &ssqdm_x);
+				remove_var((double)buffer[j], &nobs, &mean_x,
+					   &ssqdm_x);
 			}
 		}
 		wIndAdvance(wInd);
@@ -202,17 +205,16 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 
 			/* calculate adds */
 			for (j=prevStop;j<winStop;j++){
-				add_var(buffer[j], &nobs, &mean_x, &ssqdm_x);
+				add_var((double)buffer[j], &nobs, &mean_x, &ssqdm_x);
 			}
 
 			/* calculate deletes */
 			for (j = prevStart; j< winStart;j++){
-				remove_var(buffer[j], &nobs, &mean_x, &ssqdm_x);
+				remove_var((double)buffer[j], &nobs, &mean_x, &ssqdm_x);
 			}
 			wIndAdvance(wInd);
 			prevStart = winStart;
 			prevStop = winStop;
-
 		}
 	}
 	windowIndexerDestroy(wInd);	

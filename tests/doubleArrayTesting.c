@@ -85,7 +85,7 @@ void compareArrayEntries(double *ref, double* other, int length,
 	double diff;
 
 	for (i = 0; i< length; i++){
-		diff = abs(ref[i]-other[i]);
+		diff = fabs(ref[i]-other[i]);
 		if (rel >=1){
 			if (ref[i] == 0){
 				// we will just compute abs difference
@@ -96,7 +96,7 @@ void compareArrayEntries(double *ref, double* other, int length,
 					      abs_zero_tol);
 				continue;
 			}
-			diff = diff/abs(ref[i]);
+			diff = diff/fabs(ref[i]);
 		}
 		if (diff>tol){
 			if (rel>=1){
@@ -160,6 +160,7 @@ int process_double_array_test(struct dblArrayTestEntry entry, double tol,
 	// run the function to compute to determine the calculated array
 	calc_len = entry.func(entry.intInput, entry.intInputLen, entry.dblInput,
 			      entry.dblInputLen, entry.strInput, &calc);
+
 	ck_assert_int_eq(calc_len,ref_len);
 
 	compareArrayEntries(ref, calc, ref_len, tol, rel, abs_zero_tol);

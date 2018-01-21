@@ -14,7 +14,6 @@ void float_to_double_array(float* array, int length, double** dblarray){
 void double_to_float_array(double* array, int length, float** fltarray){
 	(*fltarray) = malloc(sizeof(float)*length);
 	for (int i=0; i<length; i++){
-		printf("%lf, ", array[i]);
 		(*fltarray)[i] = (float)(array[i]);
 	}
 }
@@ -80,8 +79,7 @@ struct dblArrayTestEntry* construct_rollSigma_test_table()
 	sigma_table = malloc(sizeof(struct dblArrayTestEntry)
 			     * sigma_table_length);
 
-	/* Setup the sample test. This test was made to ensure that the 
-	 * framework works. It does not give the correct result at all.
+	/* Setup the sample test.
 	 */
 
 	int intInput[] = {0,5,13,10};
