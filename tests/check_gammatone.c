@@ -2,52 +2,12 @@
 #include <stdio.h>
 #include <check.h>
 #include "../src/gammatoneFilter.h"
-
+#include "doubleArrayTesting.h"
 
 /* this is just a basic test to make sure Check is generated correctly. I plan 
  * to construct more of a framework structure presently reflected in 
  * gammatoneFilter.c
  */
-
-void compareArrayEntries(double *ref, double* other, int length,
-			 double tol, int rel,double abs_zero_tol)
-{
-	// if relative < 1, then we compare absolute value of the absolute
-	// difference between values
-	// if relative > 1, we need to specially handle when the reference
-	// value is zero. In that case, we look at the absolute differce and
-	// compare it to abs_zero_tol
-	
-	int i;
-	double diff;
-
-	for (i = 0; i< length; i++){
-		diff = abs(ref[i]-other[i]);
-		if (rel >=1){
-			if (ref[i] == 0){
-				// we will just compute abs difference
-				ck_assert_msg(diff <= abs_zero_tol,
-					      ("ref[%d] = 0, comp[%d] = %e"
-					       " has abs diff > %e\n"),
-					      i, i, other[i],
-					      abs_zero_tol);
-				continue;
-			}
-			diff = diff/abs(ref[i]);
-		}
-		if (diff>tol){
-			if (rel>=1){
-				ck_abort_msg(("ref[%d] = %e, comp[%d] = %e"
-					      " has rel dif > %e"),
-					     i,ref[i],i,other[i], tol);
-			} else {
-				ck_abort_msg(("ref[%d] = %e, comp[%d] = %e"
-					      " has abs dif > %e"),
-					     i,ref[i],i,other[i], tol);
-			}
-		}		
-	}
-}
 
 void stepFunction(double *array,int length, double start, double increment,
 		 int steplength){

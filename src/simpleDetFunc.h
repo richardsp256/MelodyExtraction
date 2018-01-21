@@ -57,3 +57,7 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 				 float minFreq, float maxFreq,
 				 float* data, int dataLength,
 				 float** detFunction);
+
+void rollSigma(int startIndex, int interval, float scaleFactor,
+	       int sigWindowSize, int dataLength, int numWindows,
+	       float *buffer, float **sigmas);
