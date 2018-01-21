@@ -152,3 +152,4 @@ add_subdirectory(tests)
 # Unit tests
 enable_testing()
 add_test(NAME check_gammatone COMMAND check_gammatone)
+add_test(NAME check_detFunction COMMAND check_detFunction)

@@ -26,9 +26,20 @@ link_directories(
 #  ../src/gammatoneFilter.c
 #)
 
-set(TEST_SOURCES
+set(ARRAY_TEST_SOURCES
+  doubleArrayTesting.c
+)
+
+set(GAMMATONE_TEST_SOURCES
   check_gammatone.c
 )
 
-add_executable(check_gammatone ${TEST_SOURCES})
+set(DETFUNCTION_TEST_SOURCES
+  check_detFunction.c
+)
+
+add_executable(check_gammatone ${GAMMATONE_TEST_SOURCES} ${ARRAY_TEST_SOURCES})
+add_executable(check_detFunction ${DETFUNCTION_TEST_SOURCES}
+  ${ARRAY_TEST_SOURCES})
 target_link_libraries(check_gammatone m melodyextraction ${CHECK_LIBRARIES} fftw3f sndfile samplerate fvad)
+target_link_libraries(check_detFunction m melodyextraction ${CHECK_LIBRARIES} fftw3f sndfile samplerate fvad)

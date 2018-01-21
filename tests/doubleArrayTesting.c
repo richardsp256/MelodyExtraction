@@ -1,6 +1,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <check.h>
 #include "doubleArrayTesting.h"
 
@@ -13,30 +14,31 @@ int isLittleEndian()
 	return (numPtr[0] == 1);
 }
 
-int checkSystemFileCompatibility()
-{
-	// Checks that the system can actually run the tests
-	// for now the system must be little endian (later on, we can convert
-	// between endianness if necessary)
-	// also need to make sure sizeof(int) == 2, sizeof(long) == 4,
-	// sizeof(float) == 2, and sizeof(double) == 4
+int getArrayLength(FILE *fp, int object_size){
+	/* Finds the length of the array saved in a file. We assume that the 
+	 * array has no more than INT_MAX objects. 
+	 * https://stackoverflow.com/a/238607
+	 *
+	 * It assumes that the file starts from the begining.
+	 */
 
-	if (isLittleEndian() != 1){
-		printf("Can't read files because system is Big Endian\n");
-		return 0;
+	fseek(fp, 0L, SEEK_END);
+	long num_bytes = ftell(fp);
+	long temp = (num_bytes/object_size);
+
+	printf("Number of bytes: %li\n", num_bytes);
+	if ((num_bytes % object_size) != 0){
+		printf("The file does not have the correct number of bytes\n");
+		return -2;
 	}
 
-	if ((sizeof(int) != 4) || (sizeof(long) != 4) || (sizeof(float) !=4)
-	    || (sizeof(double) != 4)){
-		printf(("Can't properly run tests because dtypes don't meet "
-			"standard sizes.\nThese standard sizes include:\n"
-			"int    : 4 bytes\n"
-			"long   : 4 bytes\n"
-			"float  : 4 bytes\n"
-			"double : 4 bytes\n"));
-		return 0;
+	if (temp > INT_MAX){
+		printf("The array is too long\n");
+		return -3;
 	}
-	return 1;
+	int length = (int)temp;
+	rewind(fp);
+	return length;
 }
 
 int readDoubleArray(char *fileName, int system_little_endian, double *array){
@@ -56,22 +58,11 @@ int readDoubleArray(char *fileName, int system_little_endian, double *array){
 		return -1;
 	}
 
-	/* Identify the size of the array https://stackoverflow.com/a/238607 */
-	fseek(fp, 0L, SEEK_END);
-	long num_bytes = ftell(fp);
-	long temp = (num_bytes/sizeof(double));
+	int length = getArrayLength(fp, sizeof(double));
+	if (length < 0){
+		return length;
+	}
 
-	if (num_bytes % sizeof(double)){
-		printf("The file does not have the correct number of bytes\n");
-		return -2;
-	}
-	
-	if (temp > INT_MAX){
-		printf("The array is too long\n");
-		return -3;
-	}
-	int length = (int)temp;
-	rewind(fp);
 	array = malloc(sizeof(double)*length);
 	if (array == NULL){
 		return -4;
@@ -122,8 +113,32 @@ void compareArrayEntries(double *ref, double* other, int length,
 	}
 }
 
+void setup_dblArrayTestEntry(struct dblArrayTestEntry *test_entry,
+			     int intInput[], int intInputLen,
+			     double dblInput[], int dblInputLen,
+			     char *strInput, char *resultFname,
+			     dblArrayTest func){
+	test_entry->intInput = malloc(sizeof(int) * intInputLen);
+	for (int i=0; i< intInputLen; i++){
+		test_entry->intInput[i] = intInput[i];
+	}
+	test_entry->intInputLen = intInputLen;
+	test_entry->dblInput = malloc(sizeof(double)*dblInputLen);
+	for (int i=0; i< dblInputLen; i++){
+		test_entry->dblInput[i] = dblInput[i];
+	}
+	test_entry->dblInputLen = dblInputLen;
+	test_entry->strInput = strInput;
+	test_entry->resultFname = resultFname;
+	test_entry->func = func;
+}
 
-void process_double_array_test(struct dblArrayTestEntry entry, double tol,
+void clean_up_dblArrayTestEntry(struct dblArrayTestEntry *test_entry){
+	free(test_entry->intInput);
+	free(test_entry->dblInput);
+}
+
+int process_double_array_test(struct dblArrayTestEntry entry, double tol,
 			       int rel, double abs_zero_tol){
 	/* run the double array test. */
 	double *calc = NULL;
@@ -131,7 +146,7 @@ void process_double_array_test(struct dblArrayTestEntry entry, double tol,
 	double *ref = NULL;
 	int ref_len;
 
-	if (isLittleEndian() == 1){
+	if (isLittleEndian() != 1){
 		ck_abort_msg(("Currently unable to run test on Big Endian "
 			      "machine.\n"));
 	}
@@ -145,10 +160,11 @@ void process_double_array_test(struct dblArrayTestEntry entry, double tol,
 
 	// run the function to compute to determine the calculated array
 	calc_len = entry.func(entry.intInput, entry.intInputLen, entry.dblInput,
-			      entry.dblInputLen, entry.strInput, calc);
+			      entry.dblInputLen, entry.strInput, &calc);
 	ck_assert_int_eq(calc_len,ref_len);
 
 	compareArrayEntries(ref, calc, ref_len, tol, rel, abs_zero_tol);
 	free(calc);
 	free(ref);
+	return 1;
 }
