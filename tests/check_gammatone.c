@@ -45,7 +45,7 @@ void testSOSGammatoneFramework(float centralFreq, int samplerate,
 	free(result);
 }
 
-START_TEST(test_sos_coefficients)
+START_TEST(test_sos_coefficients_1)
 {
 	double ref[] = {6.1031107e-02, -1.2118071e-01, 0., 1., -1.5590685e+00,
 			8.5722460e-01, 5.5986645e-02, 2.3877628e-02, 0., 1.,
@@ -53,12 +53,35 @@ START_TEST(test_sos_coefficients)
 			-1.3629211e-01, 0., 1., -1.5590685e+00, 8.5722460e-01,
 			1.2797372e-01, -7.3279486e-02, 0., 1., -1.5590685e+00,
 			8.5722460e-01};
+	int rel = 1;
+	double tol = 1.e-5;
+	double abs_zero_tol = 1.e-5;
+
+	testSOSCoefFramework(1000., 11025, ref,
+			     tol, rel, abs_zero_tol);
+}
+END_TEST
+
+START_TEST(test_sos_coefficients_2)
+{
 	double ref1[] = {9.1368911e-02, -2.0813450e-01, 0., 1., -9.8759824e-01,
 			 7.8999199e-01, 8.6315676e-02, 1.1137823e-01, 0., 1.,
 			 -9.8759824e-01, 7.8999199e-01, 2.0164386e-01,
 			 -1.6129740e-01, 0., 1., -9.8759824e-01, 7.8999199e-01,
 			 1.9219808e-01, -3.6072876e-02, 0., 1., -9.8759824e-01,
 			 7.8999199e-01};
+
+	int rel = 1;
+	double tol = 1.e-5;
+	double abs_zero_tol = 1.e-5;
+
+	testSOSCoefFramework(2500., 16000, ref1,
+			     tol, rel, abs_zero_tol);
+}
+END_TEST
+
+START_TEST(test_sos_coefficients_3)
+{
 	double ref2[] = {2.5925251e-02, -3.0544150e-02, 0., 1., -1.9335553e+00,
 			 9.4232544e-01, 2.0521109e-02, -1.5501504e-02, 0., 1.,
 			 -1.9335553e+00, 9.4232544e-01, 5.8263388e-02,
@@ -69,14 +92,11 @@ START_TEST(test_sos_coefficients)
 	double tol = 1.e-5;
 	double abs_zero_tol = 1.e-5;
 
-	testSOSCoefFramework(1000., 11025, ref,
-			     tol, rel, abs_zero_tol);
-	testSOSCoefFramework(2500., 16000, ref1,
-			     tol, rel, abs_zero_tol);
 	testSOSCoefFramework(115., 8000, ref2,
 			     tol, rel, abs_zero_tol);
 }
 END_TEST
+
 
 START_TEST(test_sos_performance_1)
 {
@@ -185,7 +205,9 @@ Suite *gammatone_suite()
 	TCase *tc_coef = tcase_create("Coef");
 	TCase *tc_performance = tcase_create("Performance");
 
-	tcase_add_test(tc_coef,test_sos_coefficients);
+	tcase_add_test(tc_coef,test_sos_coefficients_1);
+	tcase_add_test(tc_coef,test_sos_coefficients_2);
+	tcase_add_test(tc_coef,test_sos_coefficients_3);
 
 	tcase_add_test(tc_performance,test_sos_performance_1);
 	tcase_add_test(tc_performance,test_sos_performance_2);

@@ -448,12 +448,36 @@ void allPoleCoef(float centralFreq, int samplerate, double *coef){
 		/* We  start by setting b0 */
 		coef[6*i] = delta_t;
 		/* set b1 */
-		coef[6*i+1] = (-((2 * delta_t * cos(2 * cf * M_PI * delta_t)
-				  / exp(b * delta_t))
-				 + (pow(-1,(double)i) * 2
-				    * sqrt(3 + pow(2., 1.5)) * delta_t *
-				    sin(2 * cf * M_PI * delta_t)
-				    / exp(b * delta_t))) / 2.);
+		if (i== 0){
+			coef[6*i+1] = (-((2 * delta_t * cos(2 * cf * M_PI * delta_t)
+					  / exp(b * delta_t))
+					 + (pow(-1,(double)i) * 2
+					    * sqrt(3 + pow(2., 1.5)) * delta_t *
+					    sin(2 * cf * M_PI * delta_t)
+					    / exp(b * delta_t))) / 2.);
+		} else if (i == 1) {
+			coef[6*i+1] = (-((2 * delta_t * cos(2 * cf * M_PI * delta_t)
+					  / exp(b * delta_t))
+					 + (pow(-1,(double)i) * 2
+					    * sqrt(3 + pow(2., 1.5)) * delta_t *
+					    sin(2 * cf * M_PI * delta_t)
+					    / exp(b * delta_t))) / 2.);
+		} else if (i == 2) {
+			coef[6*i+1] = -(2 * delta_t * cos(2 * cf * M_PI *
+							  delta_t)
+					/ exp(b * delta_t) + 
+					2*sqrt(3 - pow(2.,3./2)) * delta_t *
+					sin(2. * cf * M_PI * delta_t)
+					/ exp(b * delta_t)) / 2.;
+		} else {
+			coef[6*i+1] = -(2 * delta_t * cos(2 * cf * M_PI *
+							  delta_t)
+					/ exp(b * delta_t) - 
+					2 * sqrt(3 - pow(2., 3./2)) * delta_t
+					* sin(2. * cf * M_PI * delta_t)
+					/ exp(b * delta_t)) / 2.;
+		}
+		
 		/* set b2 */
 		coef[6*i+2] = 0;
 		/* set a0 */
