@@ -199,6 +199,46 @@ START_TEST(test_sos_performance_2)
 }
 END_TEST
 
+
+int buildInputArray(int *intInput, int intInputLen, double *dblInput,
+		    int dblInputLen, char *strInput, double **inputArray){
+	/* this is where we actually build the input array. */
+
+}
+
+int biquadFilterTestTemplate(int *intInput, int intInputLen, double *dblInput,
+			     int dblInputLen, char *strInput, double **array)
+{
+	/* This is a template for testing the biquadFilter. 
+	 * 
+	 * We always expect the first 6 doubles in dblInput to be the 
+	 * coefficients.
+	 * Things are slightly dependent on strInput. 
+	 *
+	 * Valid strInput values include:
+	 *  -the name of a file. In this case the file is assumed contain 
+	 *   the array to be filtered. intInput should contain no values and 
+	 *   dblInput should only contain the coefficients.
+	 *
+	 * Below are some other potential strInput values I'm considering.
+	 *  -"delta" - the input array is a delta function.
+	 *  -"step" - the input array is a step function. 
+	 */
+
+	ck_assert (dblInputLen>=6);
+	
+	double *inputArray;
+	int length;
+
+	length = buildInputArray(intInput, intInputLen, dblInput+6,
+				 dblInputLen - 6, strInput, &inputArray);
+	(*array) = malloc(sizeof(double) * length);
+
+	//biquadFilter(dblInput, inputArray, *array, length);
+	free(inputArray);
+	return length;
+}
+
 Suite *gammatone_suite()
 {
 	Suite *s = suite_create("Gammatone");

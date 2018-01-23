@@ -7,6 +7,9 @@ void simpleGammatoneImpulseResponse(float* data, float** output, float centralFr
 void naiveGammatone(float* data, float** output, float centralFreq,
 		    int samplerate, int datalen);
 
+void biquadFilter(double *coef, double *x, double *y, int length);
+
+
 /* The All-Pole Gammatone is another attempt at implementing an approximation 
  * for the gammatone filter.
  *
