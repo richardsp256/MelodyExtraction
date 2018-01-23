@@ -14,6 +14,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../src)
 # set(CHECK_INSTALL_DIR "C:/Program Files/check")
 
 find_package(Check REQUIRED)
+find_package(Threads REQUIRED)
 include_directories(
   ${CHECK_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/../libsamplerate-0.1.9/src
@@ -41,5 +42,5 @@ set(DETFUNCTION_TEST_SOURCES
 add_executable(check_gammatone ${GAMMATONE_TEST_SOURCES} ${ARRAY_TEST_SOURCES})
 add_executable(check_detFunction ${DETFUNCTION_TEST_SOURCES}
   ${ARRAY_TEST_SOURCES})
-target_link_libraries(check_gammatone m melodyextraction ${CHECK_LIBRARIES} fftw3f sndfile samplerate fvad)
-target_link_libraries(check_detFunction m melodyextraction ${CHECK_LIBRARIES} fftw3f sndfile samplerate fvad)
+target_link_libraries(check_gammatone m melodyextraction ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
+target_link_libraries(check_detFunction m melodyextraction ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)

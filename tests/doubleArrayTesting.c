@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <check.h>
+#include <math.h>
 #include "doubleArrayTesting.h"
 
 
