@@ -84,9 +84,14 @@ struct dblArrayTestEntry* construct_rollSigma_test_table()
 
 	int intInput[] = {0,5,13,10};
 	double dblInput[] = {2.0};
+	
+	//By listing path names from tests folder, the path will be correct
+	//when we run make test from th emain folder, but incorrect when we 
+	//run ./check_detFunction from the tests folder. If we list path 
+	//names from test_files folder, same problem but reversed...
 	setup_dblArrayTestEntry((sigma_table+0),intInput, 4, dblInput, 1,
-				"test_files/roll_sigma/roll_sigma_sample_input",
-				"test_files/roll_sigma/roll_sigma_sample_test",
+				"tests/test_files/roll_sigma/roll_sigma_sample_input",
+				"tests/test_files/roll_sigma/roll_sigma_sample_test",
 				&rollSigmaTestTemplate);
 }
 
