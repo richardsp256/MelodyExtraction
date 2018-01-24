@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <check.h>
 #include "../src/gammatoneFilter.h"
 #include "doubleArrayTesting.h"
@@ -200,10 +201,45 @@ START_TEST(test_sos_performance_2)
 END_TEST
 
 
-int buildInputArray(int *intInput, int intInputLen, double *dblInput,
-		    int dblInputLen, char *strInput, double **inputArray){
+int buildInputArray(int *intInput, int intInputLen, int intInputStart,
+		    double *dblInput, int dblInputLen, int dblInputStart,
+		    char *strInput, double **inputArray){
 	/* this is where we actually build the input array. */
+	int length;
+	if (strcmp(strInput,"delta") == 0){
+		ck_assert_int_eq(intInputLen-intInputStart,1);
+		ck_assert_int_eq(dblInputLen-dblInputStart,1);
 
+		double amplitude = dblInput[dblInputStart];
+		length = intInput[intInputStart];
+
+		(*inputArray) = malloc(sizeof(double) * length);
+		(*inputArray)[0] = amplitude;
+		for (int i = 1; i < length; i++){
+			(*inputArray)[i] = 0;
+		}
+
+	} else if (strcmp(strInput,"step") == 9) {
+		ck_assert_int_eq(intInputLen - intInputStart, 2);
+		ck_assert_int_eq(dblInputLen - dblInputStart, 2);
+		
+		int length = intInput[intInputStart];
+		int steplength = intInput[intInputStart+1];
+
+		double start = dblInput[dblInputStart];
+		double increment = dblInput[dblInputStart];
+
+		(*inputArray) = malloc(sizeof(double) * length);
+		stepFunction(*inputArray,length, start, increment,
+			     steplength);
+	} else {
+		// we assume that the string is the name of a file
+		ck_assert_int_eq(intInputLen-intInputStart,0);
+		ck_assert_int_eq(dblInputLen-dblInputStart,0);
+		int littleEndian = isLittleEndian();
+		length = readDoubleArray(strInput, littleEndian, inputArray);
+	}
+	return length;
 }
 
 int biquadFilterTestTemplate(int *intInput, int intInputLen, double *dblInput,
@@ -230,20 +266,113 @@ int biquadFilterTestTemplate(int *intInput, int intInputLen, double *dblInput,
 	double *inputArray;
 	int length;
 
-	length = buildInputArray(intInput, intInputLen, dblInput+6,
-				 dblInputLen - 6, strInput, &inputArray);
+	length = buildInputArray(intInput, intInputLen, 0, dblInput,
+				 dblInputLen, 6, strInput, &inputArray);
 	(*array) = malloc(sizeof(double) * length);
 
-	//biquadFilter(dblInput, inputArray, *array, length);
+	biquadFilter(dblInput, inputArray, *array, length);
 	free(inputArray);
 	return length;
 }
+
+static struct dblArrayTestEntry *biquad_filter_table;
+static int biquad_table_length=0;
+
+
+
+struct dblArrayTestEntry* construct_biquad_test_table()
+{
+	/* I am unsure of whether or not an unchecked fixture is called before 
+	 * every loop in a loop test, or if it's called once at the start. 
+	 * If the former case is true, then this is better off as an unchecked
+	 * test fixture.
+	 */
+	biquad_table_length = 4;
+	biquad_filter_table = malloc(sizeof(struct dblArrayTestEntry)
+				     * biquad_table_length);
+
+	/* Setup the simplest test.
+	 * We are literally just running a biquad filter with the value the 
+	 * only non-zero coefficient value of 13.
+	 *
+	 * We could honestly package this test differently because we just 
+	 * expect the result to be an array of 100 values where all values are 
+	 * 0, except for the very first value which has a value of 13
+	 */
+
+	int intInput[] = {100};
+	// the first 6 values correspond to the biquad coefficients
+	double dblInput[] = {13.,0.,0.,1.,0.,0.,
+			     1.};
+	
+	setup_dblArrayTestEntry((biquad_filter_table+0),intInput, 1,
+				dblInput, 7, "delta",
+				("tests/test_files/gammatone/"
+				 "simple_biquad_test_result"),
+				&biquadFilterTestTemplate);
+
+	/* Setup the test with all non-zero coeficients in the numerator of the 
+	 * transfer function. Again, the output is very simple and could be 
+	 * easily formatted differently */
+	
+	double dblInput2[] = {13.,-4.,7.,1.,0.,0.,
+			      1.};
+	setup_dblArrayTestEntry((biquad_filter_table+1),intInput, 1,
+				dblInput2, 7, "delta",
+				("tests/test_files/gammatone/"
+				 "simple_biquad_numerator_result"),
+				&biquadFilterTestTemplate);
+
+	/* Setup the test with all non-zero coeficients in the denominator of 
+	 * the transfer function. 
+	 */
+	
+	double dblInput3[] = {1.,0.,0.,1.,6.,-5.,
+			      1.};
+	setup_dblArrayTestEntry((biquad_filter_table+2),intInput, 1,
+				dblInput3, 7, "delta",
+				("tests/test_files/gammatone/"
+				 "simple_biquad_denominator_result"),
+				&biquadFilterTestTemplate);
+
+	/* Setup the test with all non-zero coeficients in the transfer 
+	 * function.
+	 */
+	
+	double dblInput4[] = {13.,-4.,7.,1.,6.,-5.,
+			      1.};
+	setup_dblArrayTestEntry((biquad_filter_table+3),intInput, 1,
+				dblInput4, 7, "delta",
+				("tests/test_files/gammatone/"
+				 "simple_biquad_all_coef_result"),
+				&biquadFilterTestTemplate);
+	
+}
+
+void destroy_biquad_test_table(){
+	if (biquad_table_length!=0){
+		for (int i =0; i<biquad_table_length; i++){
+			clean_up_dblArrayTestEntry(biquad_filter_table + i);
+		}
+		free(biquad_filter_table);
+		biquad_table_length = 0;
+	}
+}
+
+START_TEST (check_biquad_filter_table)
+{
+	ck_assert (process_double_array_test(biquad_filter_table[_i],
+					     1.e-5, 1, 1.e-5));
+}
+END_TEST
+
 
 Suite *gammatone_suite()
 {
 	Suite *s = suite_create("Gammatone");
 	TCase *tc_coef = tcase_create("Coef");
 	TCase *tc_performance = tcase_create("Performance");
+	TCase *tc_biquad = tcase_create("Biquad Filter");
 
 	tcase_add_test(tc_coef,test_sos_coefficients_1);
 	tcase_add_test(tc_coef,test_sos_coefficients_2);
@@ -251,18 +380,31 @@ Suite *gammatone_suite()
 
 	tcase_add_test(tc_performance,test_sos_performance_1);
 	tcase_add_test(tc_performance,test_sos_performance_2);
+
+	if (isLittleEndian() == 1){
+		tcase_add_loop_test(tc_biquad,check_biquad_filter_table,0,
+				    biquad_table_length);
+	} else {
+		printf("Cannot add biquad filter tests because the tests are \n"
+		       "not presently equipped to run on Big Endian machines"
+		       "\n");
+	}
+	suite_add_tcase(s, tc_biquad);
+	
 	suite_add_tcase(s, tc_coef);
 	suite_add_tcase(s, tc_performance);
 	return s;
 }
 
 int main(void){
+	construct_biquad_test_table();
 	Suite *s = gammatone_suite();
 	SRunner *sr = srunner_create(s);
 
 	srunner_run_all(sr, CK_NORMAL);
-	int number_failed = srunner_ntests_failed(sr);;
+	int number_failed = srunner_ntests_failed(sr);
 	srunner_free(sr);
+	destroy_biquad_test_table();
 	if (number_failed == 0){
 		return EXIT_SUCCESS;
 	} else {
