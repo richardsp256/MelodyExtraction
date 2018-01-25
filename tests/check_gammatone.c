@@ -5,24 +5,19 @@
 #include "../src/gammatoneFilter.h"
 #include "doubleArrayTesting.h"
 
-/* this is just a basic test to make sure Check is generated correctly. I plan 
- * to construct more of a framework structure presently reflected in 
- * gammatoneFilter.c
- */
 
-void stepFunction(double *array,int length, double start, double increment,
-		 int steplength){
-	double cur;
+void stepFunction(double **array,int length, double start, double increment,
+		  int steplength){
+	double cur = start;
 	int i=0;
-	int j=1;
-	cur = start;
+	int j=0;
 	while (i<length){
 		if (i < j*steplength){
-			array[i] = cur;
+			(*array)[i] = cur;
 		} else {
 			j++;
-			cur = increment*(double)j+start;
-			array[i] = cur;
+			cur = increment*((double)j)+start;
+			(*array)[i] = cur;
 		}
 		i++;
 	}
@@ -154,7 +149,7 @@ END_TEST
 START_TEST(test_sos_performance_2)
 {
 	double *input2 = calloc(100,sizeof(double));
-	stepFunction(input2,100, -2.0, 3.0,17);
+	stepFunction(&input2,100, -2.0, 3.0,17);
 
 	double ref2[] = {2.4414063e-16, 1.1882594e-15, 3.4514247e-15,
 		       7.7549994e-15, 1.4852864e-14, 2.5456417e-14,
@@ -219,18 +214,21 @@ int buildInputArray(int *intInput, int intInputLen, int intInputStart,
 			(*inputArray)[i] = 0;
 		}
 
-	} else if (strcmp(strInput,"step") == 9) {
+	} else if (strcmp(strInput,"step") == 0) {
 		ck_assert_int_eq(intInputLen - intInputStart, 2);
 		ck_assert_int_eq(dblInputLen - dblInputStart, 2);
-		
-		int length = intInput[intInputStart];
+
+
+		length = intInput[intInputStart];
 		int steplength = intInput[intInputStart+1];
 
 		double start = dblInput[dblInputStart];
-		double increment = dblInput[dblInputStart];
+		double increment = dblInput[dblInputStart+1];
 
 		(*inputArray) = malloc(sizeof(double) * length);
-		stepFunction(*inputArray,length, start, increment,
+		//stepFunction(double *array,int length, double start,
+		//	     double increment, int steplength)
+		stepFunction(inputArray,length, start, increment,
 			     steplength);
 	} else {
 		// we assume that the string is the name of a file
@@ -269,7 +267,6 @@ int biquadFilterTestTemplate(int *intInput, int intInputLen, double *dblInput,
 	length = buildInputArray(intInput, intInputLen, 0, dblInput,
 				 dblInputLen, 6, strInput, &inputArray);
 	(*array) = malloc(sizeof(double) * length);
-
 	biquadFilter(dblInput, inputArray, *array, length);
 	free(inputArray);
 	return length;
@@ -287,7 +284,7 @@ struct dblArrayTestEntry* construct_biquad_test_table()
 	 * If the former case is true, then this is better off as an unchecked
 	 * test fixture.
 	 */
-	biquad_table_length = 4;
+	biquad_table_length = 5;
 	biquad_filter_table = malloc(sizeof(struct dblArrayTestEntry)
 				     * biquad_table_length);
 
@@ -314,7 +311,7 @@ struct dblArrayTestEntry* construct_biquad_test_table()
 	/* Setup the test with all non-zero coeficients in the numerator of the 
 	 * transfer function. Again, the output is very simple and could be 
 	 * easily formatted differently */
-	
+
 	double dblInput2[] = {13.,-4.,7.,1.,0.,0.,
 			      1.};
 	setup_dblArrayTestEntry((biquad_filter_table+1),intInput, 1,
@@ -326,7 +323,7 @@ struct dblArrayTestEntry* construct_biquad_test_table()
 	/* Setup the test with all non-zero coeficients in the denominator of 
 	 * the transfer function. 
 	 */
-	
+
 	double dblInput3[] = {1.,0.,0.,1.,6.,-5.,
 			      1.};
 	setup_dblArrayTestEntry((biquad_filter_table+2),intInput, 1,
@@ -346,7 +343,16 @@ struct dblArrayTestEntry* construct_biquad_test_table()
 				("tests/test_files/gammatone/"
 				 "simple_biquad_all_coef_result"),
 				&biquadFilterTestTemplate);
-	
+
+	double dblInput5[] = {13.,-4.,7.,1.,6.,-5.,
+			      3.,18.};
+	int intInput5[] = {10,2};
+	setup_dblArrayTestEntry((biquad_filter_table+4),intInput5, 2,
+				dblInput5, 8, "step",
+				("tests/test_files/gammatone/"
+				 "step_function_biquad_response"),
+				&biquadFilterTestTemplate);
+
 }
 
 void destroy_biquad_test_table(){
