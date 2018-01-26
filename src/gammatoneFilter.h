@@ -9,6 +9,8 @@ void naiveGammatone(float* data, float** output, float centralFreq,
 
 void biquadFilter(double *coef, double *x, double *y, int length);
 
+void cascadeBiquad(int num_stages, double *coef, double *x, double *y,
+		   int length);
 
 /* The All-Pole Gammatone is another attempt at implementing an approximation 
  * for the gammatone filter.

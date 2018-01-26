@@ -395,12 +395,12 @@ void instructionalComputePSM(int numChannels, float* data, float **buffer,
 		clock_t c1 = clock();
 
 		//printf("compute channel %d...\n", i);
-		simpleGammatone(data, buffer, centralFreq[i], sampleRate,
-				dataLength);
+		//simpleGammatone(data, buffer, centralFreq[i], sampleRate,
+		//		dataLength);
 		//naiveGammatone(data, buffer, centralFreq[i], sampleRate,
 		//	       dataLength);
-		//allPoleGammatone(data, buffer, centralFreq[i], sampleRate,
-		//		 dataLength);
+		allPoleGammatone(data, buffer, centralFreq[i], sampleRate,
+				 dataLength);
 		rollSigma(startIndex, interval, scaleFactor, sigWindowSize,
 			  dataLength, numWindows, *buffer, sigmas);
 		channelContributionW(correntropyWinSize, interval,
