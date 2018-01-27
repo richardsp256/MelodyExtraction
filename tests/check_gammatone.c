@@ -26,7 +26,7 @@ void stepFunction(double **array,int length, double start, double increment,
 void testSOSCoefFramework(float centralFreq, int samplerate, double *ref,
 			      double tol, int rel, double abs_zero_tol){
 	double *coef = malloc(sizeof(double)*24);
-	allPoleCoef(centralFreq, samplerate, coef);
+	sosCoef(centralFreq, samplerate, coef);
 	compareArrayEntries(ref, coef, 24, tol, rel, abs_zero_tol);
 	free(coef);
 }
@@ -36,7 +36,7 @@ void testSOSGammatoneFramework(float centralFreq, int samplerate,
 				   double tol, int rel, double abs_zero_tol){
 
 	double *result = malloc(sizeof(double)*length);
-	allPoleGammatoneHelper(input, &result, centralFreq, samplerate, length);
+	sosGammatoneHelper(input, &result, centralFreq, samplerate, length);
 	compareArrayEntries(ref, result, length, tol, rel, abs_zero_tol);
 	free(result);
 }
