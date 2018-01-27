@@ -119,15 +119,17 @@ START_TEST(test_sos_performance_2)
 {
 	double *input2 = calloc(100,sizeof(double));
 	stepFunction(&input2,100, -2.0, 3.0,17);
+
 	int length;
 	double *ref2;
 	length = readDoubleArray(("tests/test_files/gammatone/"
-				  "sos_gammatone_response1"),
+				  "sos_gammatone_response2"),
 				 isLittleEndian(), &ref2);
 
 	int rel = 1;
 	double tol = 1.e-5;
 	double abs_zero_tol = 1.e-5;
+
 	testSOSGammatoneFramework(115, 8000, input2, 100,
 				  ref2, tol, rel, abs_zero_tol);
 	free(input2);
