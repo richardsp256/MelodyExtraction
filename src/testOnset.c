@@ -54,22 +54,25 @@ void freeKernels(float** kernels, int numKernels){
 }
 
 float FitnessOnset(float* kernel, float* window, int start, int len)
-{
+{	
+	//In the paper, the equation for the onset fitness (Fig 6) had kernel[i] positive, and the offset had kernel[i] negative.
+	//but the related graph of the fitness functions (Fig 4) showed their signs flipped.
+	//after empirical testing, the sign flipped kernel in Fig 4 seems correct, and Fig 6 seems incorrect
 	float sum = 0.0f;
 	float* winptr = &window[start];
 	for(int i = 0; i < len; ++i, ++winptr){
-		sum += (kernel[i] - (*winptr))*(kernel[i] - (*winptr));
+		sum += (-kernel[i] - (*winptr))*(-kernel[i] - (*winptr));
 	}
 	return sum/len;
 }
 
 float FitnessOffset(float* kernel, float* window, int start, int len)
 {
-	//only difference from FitnessOnset is kernel[i] is negated
+	//only difference from FitnessOnset is kernel[i] is not negated
 	float sum = 0.0f;
 	float* winptr = &window[start];
 	for(int i = 0; i < len; ++i, ++winptr){
-		sum += (-kernel[i] - (*winptr))*(-kernel[i] - (*winptr));
+		sum += (kernel[i] - (*winptr))*(kernel[i] - (*winptr));
 	}
 	return sum/len;
 }
@@ -121,13 +124,12 @@ int detectTransients(int** transients, float* detection_func, int len){
 
 		//printf("start while index - %d\n", detect_index);
 
-		bestFitness = -FLT_MAX;
+		bestFitness = FLT_MAX;
 		bestInd = 0;
 		tmpMax = maxkernel < (len - detect_index) ? maxkernel : (len - detect_index);
 		for(i = minkernel; i < tmpMax; ++i){ 
-			//printf("test onset %d of %d\n", i, tmpMax);
 			curFitness = FitnessOnset(Kernels[i - minkernel], detection_func, detect_index, i);
-			if(curFitness > bestFitness){
+			if(curFitness < bestFitness){
 				bestFitness = curFitness;
 				bestInd = i;
 			}
@@ -139,6 +141,7 @@ int detectTransients(int** transients, float* detection_func, int len){
 			break;
 		}
 
+		//printf("    ONSET   FITNESS:  %f  AT INDEX:  %d   AT TIME:  %f\n", bestFitness, bestInd, detect_index/200.0f);
 		AddTransientAt(transients, &transients_capacity, detect_index, transient_index);
 		if(transients_capacity == -1){ //resize failed
 			printf("Resizing transients failed. Exitting.\n");
@@ -148,18 +151,19 @@ int detectTransients(int** transients, float* detection_func, int len){
 		}
 		transient_index += 1;
 
-		bestFitness = -FLT_MAX;
+		bestFitness = FLT_MAX;
 		bestInd = 0;
 		tmpMax = maxkernel < (len - detect_index) ? maxkernel : (len - detect_index);
 		for(i = minkernel; i < tmpMax; ++i){
 			curFitness = FitnessOffset(Kernels[i - minkernel], detection_func, detect_index, i);
-			if(curFitness > bestFitness){
+			if(curFitness < bestFitness){
 				bestFitness = curFitness;
 				bestInd = i;
 			}
 		}
 		detect_index += bestInd;
 
+		//printf("    OFFSET   FITNESS:  %f  AT INDEX:  %d   AT TIME:  %f\n", bestFitness, bestInd, detect_index/200.0f);
 		AddTransientAt(transients, &transients_capacity, detect_index, transient_index);
 		if(transients_capacity == -1){ //resize failed
 			printf("Resizing transients failed. Exitting.\n");

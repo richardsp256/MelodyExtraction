@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
+#include <float.h>
 #include "onsetsds.h"
 #include "samplerate.h"
 #include "onsetStrat.h"
@@ -139,6 +140,25 @@ int Resample(float** data, float **resampleData, int length, int samplerateOld, 
 	return RALength;
 }
 
+void normalizeDetFunction(float ** detFunction, int length)
+{
+	float maxVal = -FLT_MAX;
+	for(int i = 0; i < length; ++i){
+		if(fabs((*detFunction)[i]) > maxVal){
+			maxVal = fabs((*detFunction)[i]);
+		}
+	}
+	//printf("maxVal: %f\n", maxVal);
+
+	//instead of normalizing detfunction between -1 and 1, we normalize between -6.666 and 6.666, 
+	//as each kernel we compare to ranges between +/- 6.666 (more precisly, +/- 1/0.15)
+	maxVal = maxVal / 6.666f;
+	for(int i = 0; i < length; ++i){
+		(*detFunction)[i] = (*detFunction)[i] / maxVal;
+		//printf("    index %d, time %f,     %f\n", i, i/200.0f, (*detFunction)[i]);
+	}
+}
+
 int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize, int samplerate, int** onsets)
 {
 	printf("in transientDetectionStrategy\n");
@@ -170,6 +190,8 @@ int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize, in
 				     ResampledAudio, RALength, &detectionFunction);
 
 	printf("detect func created\n");
+
+	normalizeDetFunction(&detectionFunction, detectionFunctionLength);
 
 	//4. generate transients
 	int transientsLength = detectTransients(onsets, detectionFunction, detectionFunctionLength);
