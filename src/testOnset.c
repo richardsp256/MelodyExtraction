@@ -178,6 +178,13 @@ int detectTransients(int** transients, float* detection_func, int len){
 
 	freeKernels(Kernels, numKernels);
 
+	//the transient detection algorithm, by its design, will (almost) always have an extra false positive note at the end.
+	//we only go up to transientsLength-2 to remove this note
+	transient_index -= 2;
+	if(transient_index < 0){
+		transient_index = 0;
+	}
+
 	if(transient_index == 0){ //if no transients found, do not realloc here. Unable to realloc array to size 0
 		return transient_index;
 	}
