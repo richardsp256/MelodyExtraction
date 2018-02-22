@@ -185,8 +185,6 @@ int main(int argc, char ** argv)
 
 		struct Midi* midi  = me_process(&input, info, inst);
 
-		printf("MIDI\n");
-
 		me_settings_free(settings);
 		me_data_free(inst);
 

@@ -119,7 +119,7 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 		return NULL;
 	}
 	else if(num_notes == 0){
-		printf("No notes detected.");
+		printf("No notes detected.\n");
 		fflush(NULL);
 		return NULL;
 	}
