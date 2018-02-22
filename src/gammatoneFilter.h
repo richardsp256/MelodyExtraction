@@ -7,13 +7,13 @@ void simpleGammatoneImpulseResponse(float* data, float** output, float centralFr
 void naiveGammatone(float* data, float** output, float centralFreq,
 		    int samplerate, int datalen);
 
-/* The All-Pole Gammatone is another attempt at implementing an approximation 
+void biquadFilter(double *coef, double *x, double *y, int length);
+
+void cascadeBiquad(int num_stages, double *coef, double *x, double *y,
+		   int length);
+
+/* The sosGammatone is another attempt at implementing an approximation 
  * for the gammatone filter.
- *
- * MA: I presently have more faith in this implementation than the 
- * naiveGammatone approximation - (I have completed basic testing and confirmed 
- * that this returns very similar repsonse to an implementation made in python 
- * that visually resembles a gammatone).
  *
  * Although it is not currently implemented, I believe it is possible to set 
  * the coefficients of the cascaded biquad filter such that the response is 
@@ -43,13 +43,14 @@ void naiveGammatone(float* data, float** output, float centralFreq,
  *  - The implementation needs to be adjusted to detect and actively avoid, 
  *    overflows, underflows and NaNs (because it is recursive, if these appear, 
  *    the rest of the response will be messed up )
- *
- * NOTE THIS IS NOT ACTUALLY THE ALLPOLE GAMMATONE FILTER
- * this is actually the sos gammatone.
+ *  - There may be some benefits to using a finite impulse response filter 
+ *    instead of an sosGammatone
+ *  - In the future (especially when/if we rewrite this to work with floats 
+ *    rather
  */
-void allPoleGammatone(float* data, float** output, float centralFreq,
-		      int samplerate, int datalen);
-void allPoleGammatoneHelper(double* data, double** output, float centralFreq,
-			    int samplerate, int datalen);
+void sosGammatone(float* data, float** output, float centralFreq,
+		  int samplerate, int datalen);
+void sosGammatoneHelper(double* data, double** output, float centralFreq,
+			int samplerate, int datalen);
 
-void allPoleCoef(float centralFreq, int samplerate, double *coef);
+void sosCoef(float centralFreq, int samplerate, double *coef);

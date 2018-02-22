@@ -430,7 +430,7 @@ void numericalNormalize(float centralFreq, int samplerate, double *coef){
 	coef[2] = coef[2]/gain;
 }
 
-void allPoleCoef(float centralFreq, int samplerate, double *coef){
+void sosCoef(float centralFreq, int samplerate, double *coef){
 	/* taken from Slaney 1993 
 	 * https://engineering.purdue.edu/~malcolm/apple/tr35/PattersonsEar.pdf
 	 * Expects coef to be already allocated and have room for 24 
@@ -448,36 +448,22 @@ void allPoleCoef(float centralFreq, int samplerate, double *coef){
 		/* We  start by setting b0 */
 		coef[6*i] = delta_t;
 		/* set b1 */
-		if (i== 0){
+		if (i<2){
 			coef[6*i+1] = (-((2 * delta_t * cos(2 * cf * M_PI * delta_t)
 					  / exp(b * delta_t))
 					 + (pow(-1,(double)i) * 2
 					    * sqrt(3 + pow(2., 1.5)) * delta_t *
 					    sin(2 * cf * M_PI * delta_t)
 					    / exp(b * delta_t))) / 2.);
-		} else if (i == 1) {
-			coef[6*i+1] = (-((2 * delta_t * cos(2 * cf * M_PI * delta_t)
-					  / exp(b * delta_t))
-					 + (pow(-1,(double)i) * 2
-					    * sqrt(3 + pow(2., 1.5)) * delta_t *
-					    sin(2 * cf * M_PI * delta_t)
-					    / exp(b * delta_t))) / 2.);
-		} else if (i == 2) {
-			coef[6*i+1] = -(2 * delta_t * cos(2 * cf * M_PI *
-							  delta_t)
-					/ exp(b * delta_t) + 
-					2*sqrt(3 - pow(2.,3./2)) * delta_t *
-					sin(2. * cf * M_PI * delta_t)
-					/ exp(b * delta_t)) / 2.;
 		} else {
 			coef[6*i+1] = -(2 * delta_t * cos(2 * cf * M_PI *
 							  delta_t)
-					/ exp(b * delta_t) - 
-					2 * sqrt(3 - pow(2., 3./2)) * delta_t
-					* sin(2. * cf * M_PI * delta_t)
+					/ exp(b * delta_t)
+					+ pow(-1,(double)i) * 2
+					* sqrt(3 - pow(2.,1.5)) * delta_t *
+					sin(2. * cf * M_PI * delta_t)
 					/ exp(b * delta_t)) / 2.;
-		}
-		
+		}		
 		/* set b2 */
 		coef[6*i+2] = 0;
 		/* set a0 */
@@ -493,31 +479,25 @@ void allPoleCoef(float centralFreq, int samplerate, double *coef){
 }
 
 
-/* this is where the main work for the allPoleGammatoneFilter is done. 
+/* this is where the main work for the sosGammatoneFilter is done. 
  * It is maintained separately for testing. It does not upsample, downsample, 
  * or convert two and from floats 
  */
-void allPoleGammatoneHelper(double* data, double** output, float centralFreq,
+void sosGammatoneHelper(double* data, double** output, float centralFreq,
 			    int samplerate, int datalen){
 	double *coef = malloc(sizeof(double)*24);
-	allPoleCoef(centralFreq, samplerate, coef);
+	sosCoef(centralFreq, samplerate, coef);
 	cascadeBiquad(4, coef, data, (*output), datalen);
 	free(coef);
 }
 
 
-/* The allPoleGammatone approximates the gammatone function. 
- * The All-Pole Gammatone Filter (APGF) is described by Slaney 1993:
+/* The sosGammatone approximates the gammatone function. 
+ *
+ * The sos Gammatone Filter is described by Slaney 1993:
  *    https://engineering.purdue.edu/~malcolm/apple/tr35/PattersonsEar.pdf
  * Our entire implementation is based on his description (It is implemented 
- * using a cascade of 4 biquad filters).
- *
- * I believe there is further disccusionabout the filter by Lyon 1996:
- *   http://www.dicklyon.com/tech/Hearing/APGF_Lyon_1996.pdf
- * I believe that they may also discuss how to normalize the frequency 
- * response. He also discuses how the One-Zero Gammatone Filter (OZGF) is a 
- * better approximation for a gammatone than the APGF. It is slightly modified 
- * from the APGF.
+ * using a cascade of 4 biquad filters or using 4 second order sections - sos).
  *
  * Need to be careful about sampling rate. We can definitely run into aliasing 
  * problems due to the Nyquist Frequency being close to the highest central 
@@ -536,8 +516,19 @@ void allPoleGammatoneHelper(double* data, double** output, float centralFreq,
  * definitely using this function, we could also modify our filtering to know 
  * that b2 is always 0 (this would remove datalen*4 unnecessary multiplications
  * and subtractions).
+ *
+ * Note that in the future, it may be worthwhile to implement a different 
+ * approximation of the gammatone function.
+ * The All-Pole Gammatone Filter (APGF) is described by Slaney 1993:
+ *   https://engineering.purdue.edu/~malcolm/apple/tr35/PattersonsEar.pdf
+ * The all-pole Gammatone filter should have better complexity.
+ * I believe there is further disccusionabout the filter by Lyon 1996:
+ *   http://www.dicklyon.com/tech/Hearing/APGF_Lyon_1996.pdf
+ * He also discuses how the One-Zero Gammatone Filter (OZGF) is a 
+ * better approximation for a gammatone than the APGF. It is slightly modified 
+ * from the APGF.
  */
-void allPoleGammatone(float* data, float** output, float centralFreq,
+void sosGammatone(float* data, float** output, float centralFreq,
 		      int samplerate, int datalen){
 	double *ddoubled, *dresult;
 	float *fdoubled, *fresult;
@@ -565,8 +556,8 @@ void allPoleGammatone(float* data, float** output, float centralFreq,
 	dresult = malloc(sizeof(double)*doubled_length);
 
 	// perform filtering
-	allPoleGammatoneHelper(ddoubled, &dresult, centralFreq,
-			       2*samplerate, doubled_length);
+	sosGammatoneHelper(ddoubled, &dresult, centralFreq,
+			   2*samplerate, doubled_length);
 	// no longer need ddoubled
 	free(ddoubled);
 
