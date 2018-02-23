@@ -224,21 +224,21 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 
 
 
-#define M_1_SQRT2PI 0.3989422804
+#define M_1_SQRT2PI 0.3989422804f
 static inline float calcPSMEntryContrib(float* x, int window_size, float sigma)
 {
 	int i,j;
-	double out,temp;
+	float out,temp;
 	out=0;
 	for (i=0;i<window_size;i++){
 		for (j=1; j<=window_size;j++){
 			temp = x[i]- x[i+j]; 
-			out+=exp(-1.0 * temp * temp);
+			out+=expf(-1.0 * temp * temp);
 		}
 	}
 	out *= M_1_SQRT2PI / sigma;
 	//printf("out = %f\n",(float)out);
-	return (float)out;
+	return out;
 }
 
 void pSMContribution(int correntropyWinSize, int interval,
