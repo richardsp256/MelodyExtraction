@@ -232,8 +232,8 @@ static inline float calcPSMEntryContrib(float* x, int window_size, float sigma)
 	out=0;
 	for (i=0;i<window_size;i++){
 		for (j=1; j<=window_size;j++){
-			temp = x[i]- x[i+j]; 
-			out+=expf(-1.0 * temp * temp);
+			temp = x[i] - x[i+j]; 
+			out+=expf(-1.0f * temp * temp);
 		}
 	}
 	out *= M_1_SQRT2PI / sigma;
