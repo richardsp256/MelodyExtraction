@@ -62,3 +62,4 @@ Testing/*
 
 #Ignore compiled code
 extract
+tests/check_gammatone
