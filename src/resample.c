@@ -30,7 +30,6 @@ int Resample(float** input, int len, float sampleRatio, float **output)
 	}
 
 	result_length = (int)(sampler->output_frames_gen);
-	printf("resample %f: %d %d\n", sampleRatio, result_length, (int)(len*sampleRatio));
 	free(sampler);
 	return result_length;
 }
