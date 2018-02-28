@@ -3,7 +3,7 @@
 #include <math.h>
 #include <time.h>
 #include <assert.h>
-#include "samplerate.h"
+#include "resample.h"
 
 
 /* MA note: I don't know a lot about Impulse Response Filtering, but going off 
@@ -13,66 +13,6 @@
  * really, costly so I might not know what I am talking about. Below I attempt 
  * to implement a version taken from a paper*/
 
-
-int dataDoubling(float* data,int datalen, int samplerate, float **doubled)
-{
-	/* Helper function for sosGammatone. It handles data doubling. It 
-	 * might be fine just to repeat entries, but I am not sure how we 
-	 * would handle downsampling - thus we will use libsamplerate  */
-
-	int success_code,result_length;
-
-	(*doubled) = malloc(sizeof(float)* 2*datalen); 
-	SRC_DATA *resampleData = malloc(sizeof(SRC_DATA));
-	resampleData -> data_in = data;
-	resampleData -> data_out = *doubled;
-	resampleData -> input_frames = (long)datalen;
-	resampleData -> output_frames = (long)(2 * datalen);
-	resampleData -> src_ratio = 2.0;
-
-	success_code = src_simple(resampleData, 0, 1);
-
-	if (success_code != 0){
-		printf("libsamplerate Error:\n %s\n",
-		       src_strerror(success_code));
-		free(resampleData);
-		free(doubled);
-		return -1;
-	}
-
-	result_length = (int)(resampleData->output_frames_gen);
-	free(resampleData);
-	return result_length;
-}
-
-int dataHalving(float* data,int datalen, int samplerate, float **halved)
-{
-	/* Helper function for sosGammatone. It handles data halving*/
-
-	int success_code,result_length;
-
-	(*halved) = malloc(sizeof(float)* datalen/2); 
-	SRC_DATA *resampleData = malloc(sizeof(SRC_DATA));
-	resampleData -> data_in = data;
-	resampleData -> data_out = *halved;
-	resampleData -> input_frames = (long)datalen;
-	resampleData -> output_frames = (long)(datalen/2);
-	resampleData -> src_ratio = 0.5;
-
-	success_code = src_simple(resampleData, 0, 1);
-
-	if (success_code != 0){
-		printf("libsamplerate Error:\n %s\n",
-		       src_strerror(success_code));
-		free(resampleData);
-		free(halved);
-		return -1;
-	}
-
-	result_length = (int)(resampleData->output_frames_gen);
-	free(resampleData);
-	return result_length;
-}
 
 
 /* We are implementing the biquad filter with a Direct Form II Transposed 
@@ -303,7 +243,7 @@ void sosGammatone(float* data, float** output, float centralFreq,
 	int doubled_length,result_length,i;
 	// first we do data doubling - to avoid aliasing
 	fdoubled = NULL;
-	doubled_length = dataDoubling(data,datalen, samplerate, &fdoubled);
+	doubled_length = Resample(&data, datalen, 2, &fdoubled);
 	if (doubled_length == (2*datalen-1)){
 		fdoubled[doubled_length] = 0;
 		doubled_length++;
@@ -341,7 +281,7 @@ void sosGammatone(float* data, float** output, float centralFreq,
 	free(dresult);
 
 	/* finally we downsample back down to the starting frequency */
-	result_length = dataHalving(fresult, doubled_length, 2*samplerate,
+	result_length = Resample(&fresult, doubled_length, 0.5,
 				    output);
 	if (result_length == (datalen-1)){
 		(*output)[result_length]=0;

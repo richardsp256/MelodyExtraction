@@ -1,0 +1,1 @@
+int Resample(float** input, int len, float sampleRatio, float **output);

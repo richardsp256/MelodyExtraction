@@ -23,6 +23,7 @@ set(SOURCES
   gammatoneFilter.c
   filterBank.c
   testOnset.c
+  resample.c
 )
 
 

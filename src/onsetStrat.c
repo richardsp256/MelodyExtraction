@@ -6,7 +6,7 @@
 #include <math.h>
 #include <float.h>
 #include "onsetsds.h"
-#include "samplerate.h"
+#include "resample.h"
 #include "onsetStrat.h"
 #include "testOnset.h"
 #include "simpleDetFunc.h"
@@ -115,31 +115,6 @@ void AddOnsetAt(int** onsets, int* size, int value, int index ){
 	(*onsets)[index] = value;
 }
 
-int Resample(float** data, float **resampleData, int length, int samplerateOld, int samplerateNew)
-{
-	SRC_DATA *resampler = malloc(sizeof(SRC_DATA));
-
-	resampler -> data_in = (*data);
-	resampler -> data_out = malloc(sizeof(float) * length); //length is larger than needed
-	resampler -> input_frames = (long)length;
-	resampler -> output_frames = (long)length;
-	resampler -> src_ratio = samplerateNew/((double)samplerateOld);
-
-	int response = src_simple(resampler, 0, 1);
-
-	if (response != 0){ //conversion failed
-		free(resampler -> data_out);
-		free(resampler);
-		return -1;
-	}
-
-	(*resampleData) = resampler -> data_out;
-	int RALength = resampler -> output_frames_gen;
-	free(resampler);
-
-	return RALength;
-}
-
 void normalizeDetFunction(float ** detFunction, int length)
 {
 	float maxVal = -FLT_MAX;
@@ -167,7 +142,8 @@ int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize, in
 	int samplerateOld = samplerate;
 	samplerate = 11025;
 	float* ResampledAudio = NULL;
-	int RALength = Resample(AudioData, &ResampledAudio, size, samplerateOld, samplerate);
+	float sampleRatio = samplerate/((float)samplerateOld);
+	int RALength = Resample(AudioData, size, sampleRatio, &ResampledAudio);
 	if(RALength == -1){
 		return -1;
 	}
