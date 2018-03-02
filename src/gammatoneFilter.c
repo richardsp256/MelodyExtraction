@@ -290,3 +290,135 @@ void sosGammatone(float* data, float** output, float centralFreq,
 	assert((result_length == datalen));
 	free(fresult);
 }
+
+
+
+
+
+
+
+//float version of biquadFilter
+void biquadFilterf(float *coef, float *x, float *y, int length)
+{
+	float d1, d2, cur_x, cur_y, a0,a1,a2,b0,b1,b2;
+	int n;
+	/* d1 and d2 are state variables, for now asssume they start at 0,
+	 * because before a recording there is silence. If we are chunking the 
+	 * recording we will need to track d1 and d2 between chunks. */
+	d1 = 0;
+	d2 = 0;
+
+	/* set the feedforward coefficients */
+	b0 = coef[0]; b1 = coef[1]; b2 = coef[2];
+	/* set the feedback coefficients */
+	a0 = coef[3]; a1 = coef[4]; a2 = coef[5];
+
+	for (n = 0; n<length; n++){
+		cur_x = x[n];
+		/* first difference equation: y[n] = (b0 * x[n] + d1[n-1])/a0 
+		 */
+		cur_y = (b0 * cur_x + d1)/a0;
+
+		/* next difference equation: 
+		 *     d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
+		 */
+		d1 = b1 * cur_x - a1 * cur_y + d2;
+		/* final difference equation: d2[n] = b2 * x[n] - a2 * y[n]
+		 */
+		d2 = b2 * cur_x - a2 * cur_y;
+
+		/* finally set y to cur_y */
+		y[n] = cur_y;
+	}
+}
+
+//float version of cascadeBiquad
+void cascadeBiquadf(int num_stages, float *coef, float *x, float *y,
+		   int length)
+{
+	/* run the filter the first time to produce y */
+	biquadFilterf(coef, x, y, length);
+
+	/* run the biquad filter num_stages-1 more times, updating y in place 
+	 */
+	for (int i= 1; i<num_stages; i++){
+		biquadFilterf((coef + (6*i)), y, y, length);
+	}
+}
+
+//float version of numericalNormalize
+void numericalNormalizef(float centralFreq, int samplerate, float *coef)
+{
+	float TWO_PI = (float)(2 * M_PI);
+	float x1, x2, gain;
+	x1 = TWO_PI * centralFreq/samplerate;
+	x2 = 2 * TWO_PI * centralFreq/samplerate;
+
+	gain = sqrtf((powf(coef[2]+coef[1]*cosf(x1) + coef[0]* cosf(x2),2.0f)
+                 + powf(coef[1]*sinf(x1) + coef[0] * sinf(x2),2.0f))
+                /( powf(coef[5]+coef[4]*cosf(x1) + coef[3]* cosf(x2),2.0f)
+                   + powf(coef[4]*sinf(x1) + coef[3] * sinf(x2),2.)));
+	coef[0] = coef[0]/gain;
+	coef[1] = coef[1]/gain;
+	coef[2] = coef[2]/gain;
+}
+
+//float version of sosCoeff
+void sosCoeff(float centralFreq, int samplerate, float* coef)
+{
+	/* taken from Slaney 1993 
+	 * https://engineering.purdue.edu/~malcolm/apple/tr35/PattersonsEar.pdf
+	 * Expects coef to be already allocated and have room for 24 
+	 * entries
+	 */
+	float TWO_PI = (float)(2 * M_PI);
+	float delta_t = 1.0f/samplerate;
+	float b = TWO_PI*1.019f*24.7f*(4.37f*centralFreq/1000.0f + 1); //bandwidth
+	int i;
+
+	/* Now to actually set the coefficients for each stae of filtering.
+	 * The only coefficient that changes between stages is b1
+	 */
+	for (i=0;i<4;i++){
+		/* We  start by setting b0 */
+		coef[6*i] = delta_t;
+		/* set b1 */
+		if (i<2){
+			coef[6*i+1] = (-((2 * delta_t * cosf(TWO_PI * centralFreq * delta_t)
+					  / expf(b * delta_t))
+					 + (powf(-1,(float)i) * 2
+					    * sqrtf(3 + powf(2.0f, 1.5f)) * delta_t *
+					    sinf(TWO_PI * centralFreq * delta_t)
+					    / expf(b * delta_t))) / 2.0f);
+		} else {
+			coef[6*i+1] = -(2 * delta_t * cosf(TWO_PI * centralFreq * delta_t)
+					/ expf(b * delta_t)
+					+ powf(-1,(float)i) * 2
+					* sqrtf(3 - powf(2.0f,1.5f)) * delta_t *
+					sinf(TWO_PI * centralFreq * delta_t)
+					/ expf(b * delta_t)) / 2.0f;
+		}		
+		/* set b2 */
+		coef[6*i+2] = 0;
+		/* set a0 */
+		coef[6*i+3] = 1;
+		/* set a1 */
+		coef[6*i+4] = -2*cosf(TWO_PI*centralFreq*delta_t)/expf(b*delta_t);
+		/* set a2 */
+		coef[6*i+5] = expf(-2*b*delta_t);
+
+		/* now to numerically normalize */
+		numericalNormalizef(centralFreq, samplerate, coef+6*i);
+	}
+}
+
+void sosGammatoneFast(float* data, float** output, float centralFreq,
+			    int samplerate, int datalen)
+{
+	//modified sosGammatone that does not double the samplerate and uses floats instead of doubles.
+	//If the loss in accuracy is negligible, we should switch to this as it is significantly faster
+	float *coef = malloc(sizeof(float)*24);
+	sosCoeff(centralFreq, samplerate, coef);
+	cascadeBiquadf(4, coef, data, (*output), datalen);
+	free(coef);
+}

@@ -45,3 +45,6 @@ void sosGammatoneHelper(double* data, double** output, float centralFreq,
 			int samplerate, int datalen);
 
 void sosCoef(float centralFreq, int samplerate, double *coef);
+
+void sosGammatoneFast(float* data, float** output, float centralFreq,
+			    int samplerate, int datalen);
