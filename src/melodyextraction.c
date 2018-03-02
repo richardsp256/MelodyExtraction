@@ -4,7 +4,6 @@
 #include <limits.h>
 #include <stdio.h>
 #include <math.h>
-//#include <unistd.h>
 
 #include "comparison.h"
 #include "sndfile.h"
@@ -12,24 +11,6 @@
 #include "onsetStrat.h"
 #include "silenceStrat.h"
 
-/*struct me_data{
-	char * prefix;
-	int pitch_window;
-	int pitch_padded;
-	int pitch_spacing;
-	PitchStrategyFunc pitch_strategy;
-	int onset_window;
-	int onset_padded;
-	int onset_spacing;
-	OnsetStrategyFunc onset_strategy;
-	int silence_window;
-	int silence_spacing;
-	SilenceStrategyFunc silence_strategy;
-	int silence_mode;
-	int hps;
-	int tuning;
-	int verbose;
-};*/
 
 //default arg settings:
 //for pitch and onset, default padding = windowsize, default spacing = windowsize/2
@@ -107,7 +88,7 @@ struct me_data{
 
 char* me_data_init(struct me_data** inst, struct me_settings* settings, SF_INFO info)
 {
-	(*inst) = (struct me_data*) malloc(sizeof(struct me_data));
+	(*inst) = (struct me_data*) calloc(1, sizeof(struct me_data));
 
 	if(settings->prefix != NULL){
 		(*inst)->prefix = strdup(settings->prefix);
@@ -274,7 +255,7 @@ char* me_data_init(struct me_data** inst, struct me_settings* settings, SF_INFO 
 }
 
 struct me_settings* me_settings_new(){
-	struct me_settings *inst = malloc(sizeof(struct me_settings));
+	struct me_settings *inst = calloc(1, sizeof(struct me_settings));
 	inst->silence_mode = 3;
 	inst->hps = 2;
 	inst->verbose = 0;
