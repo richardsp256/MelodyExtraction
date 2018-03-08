@@ -24,6 +24,7 @@ set(SOURCES
   filterBank.c
   testOnset.c
   resample.c
+  tripleBuffer.c
 )
 
 
