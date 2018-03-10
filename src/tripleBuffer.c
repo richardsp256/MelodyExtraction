@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <limits.h>
 #include "tripleBuffer.h"
 
 struct tripleBuffer
@@ -13,6 +14,12 @@ struct tripleBuffer
 
 tripleBuffer *tripleBufferCreate(int num_channels, int buffer_length)
 {
+	if ((num_channels <= 0) || (buffer_length <= 0)) {
+		return NULL;
+	} else if ((INT_MAX / buffer_length) < num_channels) {
+		return NULL;
+	}
+	
 	tripleBuffer *tB = malloc(sizeof(tripleBuffer));
 
 	if (tB == NULL)
