@@ -19,13 +19,16 @@ START_TEST(test_tripleBufferCreate)
 	ck_assert_int_eq(tripleBufferNumChannels(four_channel_tB), 4);
 	ck_assert_int_eq(tripleBufferBufferLength(four_channel_tB), 56);
 	ck_assert_int_eq(tripleBufferNumBuffers(four_channel_tB),0);
+	ck_assert_int_eq(tripleBufferIsTerminatedStream(four_channel_tB),0);
+	ck_assert_int_eq(tripleBufferGetTerminalIndex(four_channel_tB),-1);
 }
 END_TEST
 
 START_TEST(test_tripleBufferAddBuffers)
 {
 	for (int i= 0; i<3;i++){
-		tripleBufferAddLeadingBuffer(four_channel_tB);
+		int temp = tripleBufferAddLeadingBuffer(four_channel_tB);
+		ck_assert_int_eq(temp,1);
 		ck_assert_int_eq(tripleBufferNumBuffers(four_channel_tB),i+1);
 	}
 }
@@ -77,7 +80,6 @@ int checkUniqueBufferVals(tripleBuffer *tB, int numChannels, int bufferNum,
 	}
 }
 
-
 START_TEST(test_tripleBufferAdjustBuffers)
 {
 	for (int i= 0; i<3;i++){
@@ -91,6 +93,126 @@ START_TEST(test_tripleBufferAdjustBuffers)
 		
 }
 END_TEST
+
+START_TEST(test_tripleBufferCycle_Basic){
+
+	for (int i= 0; i<3;i++){
+		tripleBufferAddLeadingBuffer(four_channel_tB);
+		setUniqueBufferVals(four_channel_tB, 4, i, i);
+	}
+	int cycle_result = tripleBufferCycle(four_channel_tB);
+	ck_assert_int_eq(cycle_result, 1);
+	checkUniqueBufferVals(four_channel_tB,4, 2, 1);
+	checkUniqueBufferVals(four_channel_tB,4, 1, 0);
+	checkUniqueBufferVals(four_channel_tB,4, 0, 2);
+}
+END_TEST
+
+START_TEST(test_tripleBufferCycle_Complex){
+	for (int i= 0; i<3;i++){
+		tripleBufferAddLeadingBuffer(four_channel_tB);
+		setUniqueBufferVals(four_channel_tB, 4, i, i);
+	}
+
+	for (int i= 3; i<8;i++){
+		int cycle_result = tripleBufferCycle(four_channel_tB);
+		ck_assert_int_eq(cycle_result, 1);
+		tripleBufferAddLeadingBuffer(four_channel_tB);
+		setUniqueBufferVals(four_channel_tB, 4, i, 2);
+	}
+
+	for (int i = 0; i<3; i++){
+		checkUniqueBufferVals(four_channel_tB, 4, i+5, i);
+	}
+}
+END_TEST
+
+
+START_TEST(test_tripleBufferRemoveTrailingBuffer_Basic){
+	for (int i= 0; i<3;i++){
+		tripleBufferAddLeadingBuffer(four_channel_tB);
+		setUniqueBufferVals(four_channel_tB, 4, i, i);
+	}
+
+	int temp;
+	//remove buffer 1 of 3
+	temp = tripleBufferRemoveTrailingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,1);
+	ck_assert_int_eq(tripleBufferNumBuffers(four_channel_tB),2);
+	checkUniqueBufferVals(four_channel_tB, 4, 1,0);
+	checkUniqueBufferVals(four_channel_tB, 4, 2,1);
+
+	// remove buffer 2 of 3
+	temp = tripleBufferRemoveTrailingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,1);
+	ck_assert_int_eq(tripleBufferNumBuffers(four_channel_tB),1);
+	checkUniqueBufferVals(four_channel_tB, 4, 2,0);
+
+	// remove buffer 3 of 3
+	temp = tripleBufferRemoveTrailingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,1);
+	ck_assert_int_eq(tripleBufferNumBuffers(four_channel_tB),0);
+}
+END_TEST
+
+START_TEST(test_tripleBufferRemoveTrailingBuffer_AddRemove){
+	// we may want to break this up into more tests.
+	// the main purpose of this test is to ensure that addition and removals
+	// of buffers do not interfere with each other
+	for (int i= 0; i<3;i++){
+		tripleBufferAddLeadingBuffer(four_channel_tB);
+		setUniqueBufferVals(four_channel_tB, 4, i, i);
+	}
+
+	int temp;
+	//remove buffer 3
+	temp = tripleBufferRemoveTrailingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,1);
+	
+
+	// add buffer 3
+	temp = tripleBufferAddLeadingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,1);
+	setUniqueBufferVals(four_channel_tB, 4, 3, 2);
+	ck_assert_int_eq(tripleBufferNumBuffers(four_channel_tB),3);
+	checkUniqueBufferVals(four_channel_tB, 4, 1,0);
+	checkUniqueBufferVals(four_channel_tB, 4, 2,1);
+	checkUniqueBufferVals(four_channel_tB, 4, 3,2);
+
+	// remove buffers 3 and 2
+	temp = tripleBufferRemoveTrailingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,1);
+	temp = tripleBufferRemoveTrailingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,1);
+
+	// let's check that buffer 1 is the only remaining buffer
+	ck_assert_int_eq(tripleBufferNumBuffers(four_channel_tB),1);
+	checkUniqueBufferVals(four_channel_tB, 4, 3,0);
+
+	// add buffer 2
+	temp = tripleBufferAddLeadingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,1);
+	setUniqueBufferVals(four_channel_tB, 4, 4, 1);
+	ck_assert_int_eq(tripleBufferNumBuffers(four_channel_tB),2);
+	checkUniqueBufferVals(four_channel_tB, 4, 3,0);
+	checkUniqueBufferVals(four_channel_tB, 4, 4,1);
+
+	// remove buffer 2
+	temp = tripleBufferRemoveTrailingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,1);
+
+	// let's check that buffer 1 is the only remaining buffer
+	ck_assert_int_eq(tripleBufferNumBuffers(four_channel_tB),1);
+	checkUniqueBufferVals(four_channel_tB, 4, 4,0);
+
+	// remove the final buffer
+	temp = tripleBufferRemoveTrailingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,1);
+	ck_assert_int_eq(tripleBufferNumBuffers(four_channel_tB),0);	
+}
+END_TEST
+
+
 
 START_TEST(test_tripleBufferCreate_TooLarge)
 {
@@ -155,7 +277,12 @@ START_TEST(test_tripleBufferAddBuffers_TooMany)
 	tripleBuffer *tB;
 	tB = tripleBufferCreate(4, 56);
 	for (int i=0;i<5;i++){
-		tripleBufferAddLeadingBuffer(tB);
+		int temp = tripleBufferAddLeadingBuffer(tB);
+		if (i<3){
+			ck_assert_int_eq(temp,1);
+		} else {
+			ck_assert_int_eq(temp,0);
+		}
 	}
 	ck_assert_msg(tripleBufferNumBuffers(tB) == 3,
 		      "Any additional buffer after tripleBuffer already "
@@ -163,6 +290,23 @@ START_TEST(test_tripleBufferAddBuffers_TooMany)
 	tripleBufferDestroy(tB);
 }
 END_TEST
+
+START_TEST(test_tripleBufferCycle_Empty)
+{
+	tripleBuffer *tB;
+	tB = tripleBufferCreate(4, 56);
+	ck_assert_int_eq(tripleBufferCycle(tB),0);
+}
+END_TEST
+
+START_TEST(test_tripleBufferRemoveTrailingBuffer_Empty)
+{
+	tripleBuffer *tB;
+	tB = tripleBufferCreate(4, 56);
+	ck_assert_int_eq(tripleBufferRemoveTrailingBuffer(tB),0);
+}
+END_TEST
+
 
 Suite *tripleBuffer_suite(void)
 {
@@ -180,6 +324,11 @@ Suite *tripleBuffer_suite(void)
 	tcase_add_test(tc_core,test_tripleBufferAddBuffers);
 	tcase_add_test(tc_core,test_tripleBufferGetBufferPointer);
 	tcase_add_test(tc_core,test_tripleBufferAdjustBuffers);
+	tcase_add_test(tc_core,test_tripleBufferCycle_Basic);
+	tcase_add_test(tc_core,test_tripleBufferCycle_Complex);
+	tcase_add_test(tc_core,test_tripleBufferRemoveTrailingBuffer_Basic);
+	tcase_add_test(tc_core,test_tripleBufferRemoveTrailingBuffer_AddRemove);
+
 	suite_add_tcase(s, tc_core);
 
 	/* Limits test case */
@@ -190,6 +339,9 @@ Suite *tripleBuffer_suite(void)
 	tcase_add_test(tc_limits,test_tripleBufferCreate_ZeroBufferLength);
 	tcase_add_test(tc_limits,test_tripleBufferCreate_NegBufferLength);
 	tcase_add_test(tc_limits,test_tripleBufferAddBuffers_TooMany);
+	tcase_add_test(tc_limits,test_tripleBufferCycle_Empty);
+	tcase_add_test(tc_limits,test_tripleBufferRemoveTrailingBuffer_Empty);
+
 	suite_add_tcase(s,tc_limits);
 	
 	return s;

@@ -7,14 +7,18 @@ void tripleBufferDestroy(tripleBuffer *tB);
 int tripleBufferNumChannels(tripleBuffer *tB);
 int tripleBufferBufferLength(tripleBuffer *tB);
 int tripleBufferNumBuffers(tripleBuffer *tB);
-void tripleBufferAddLeadingBuffer(tripleBuffer *tB);
+int tripleBufferAddLeadingBuffer(tripleBuffer *tB);
+int tripleBufferRemoveTrailingBuffer(tripleBuffer *tB);
 float *tripleBufferGetBufferPtr(tripleBuffer *tB, int bufferIndex,
 				int channelNum);
+int tripleBufferCycle(tripleBuffer *tB);
 
-//void tripleBufferRemoveTrailingBuffer(tripleBuffer *tB);
-//float *tripleBufferGetLeadingBuffer(tripleBuffer *tB, int channel);
-//float *tripleBufferGetCentralBuffer(tripleBuffer *tB, int channel);
-//float *tripleBufferGetTrailingBuffer(tripleBuffer *tB, int channel);
-//float *tripleBufferCycleBuffers(tripleBuffer *tB);
+int tripleBufferIsTerminatedStream(tripleBuffer *tB);
+int tripleBufferGetTerminalIndex(tripleBuffer *tB);
+
+//int tripleBufferSetTerminalIndex(tripleBuffer *tB,
+//				  int terminalBufferIndex);
+
+
 
 #endif /* TRIPLEBUFFER_H */
