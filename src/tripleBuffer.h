@@ -12,13 +12,8 @@ int tripleBufferRemoveTrailingBuffer(tripleBuffer *tB);
 float *tripleBufferGetBufferPtr(tripleBuffer *tB, int bufferIndex,
 				int channelNum);
 int tripleBufferCycle(tripleBuffer *tB);
-
 int tripleBufferIsTerminatedStream(tripleBuffer *tB);
 int tripleBufferGetTerminalIndex(tripleBuffer *tB);
-
-//int tripleBufferSetTerminalIndex(tripleBuffer *tB,
-//				  int terminalBufferIndex);
-
-
+int tripleBufferSetTerminalIndex(tripleBuffer *tB, int terminalBufferIndex);
 
 #endif /* TRIPLEBUFFER_H */

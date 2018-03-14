@@ -77,6 +77,9 @@ int tripleBufferNumBuffers(tripleBuffer *tB)
 
 int tripleBufferAddLeadingBuffer(tripleBuffer *tB)
 {
+	if (tB->termination_index!=-1){
+		return 0;
+	}
 	// write a test for when termination_index is not 0
 	if (tB->first_buffer == -1){
 		tB->first_buffer = 0;
@@ -174,4 +177,16 @@ int tripleBufferIsTerminatedStream(tripleBuffer *tB){
 
 int tripleBufferGetTerminalIndex(tripleBuffer *tB){
 	return tB->termination_index;
+}
+
+int tripleBufferSetTerminalIndex(tripleBuffer *tB, int terminalBufferIndex)
+{
+	if ((tripleBufferNumBuffers(tB) == 0) ||
+	    (terminalBufferIndex < 0) ||
+	    (terminalBufferIndex >= tripleBufferBufferLength(tB)) ||
+	    (tB->termination_index!=-1)){
+		return 0;
+	}
+	tB->termination_index = terminalBufferIndex;
+	return 1;
 }

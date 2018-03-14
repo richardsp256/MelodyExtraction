@@ -212,7 +212,25 @@ START_TEST(test_tripleBufferRemoveTrailingBuffer_AddRemove){
 }
 END_TEST
 
+START_TEST(test_tripleBufferSetTerminalIndex)
+{
+	int temp;
+	for (int i= 0; i<3;i++){
+		tripleBufferAddLeadingBuffer(four_channel_tB);
+		setUniqueBufferVals(four_channel_tB, 4, i, i);
+	}
+	tripleBufferSetTerminalIndex(four_channel_tB, 7);
+	temp = tripleBufferRemoveTrailingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,1);
 
+	temp = tripleBufferAddLeadingBuffer(four_channel_tB);
+	ck_assert_int_eq(temp,0);
+
+	temp = tripleBufferCycle(four_channel_tB);
+	ck_assert_int_eq(temp, 0);
+	
+}
+END_TEST
 
 START_TEST(test_tripleBufferCreate_TooLarge)
 {
@@ -307,6 +325,31 @@ START_TEST(test_tripleBufferRemoveTrailingBuffer_Empty)
 }
 END_TEST
 
+START_TEST(test_tripleBufferSetTerminalIndex_Empty)
+{
+	tripleBuffer *tB;
+	tB = tripleBufferCreate(4, 56);
+	ck_assert_int_eq(tripleBufferSetTerminalIndex(tB,55),0);
+}
+END_TEST
+
+START_TEST(test_tripleBufferSetTerminalIndex_NegIndex)
+{
+	tripleBuffer *tB;
+	tB = tripleBufferCreate(4, 56);
+	tripleBufferAddLeadingBuffer(tB);
+	ck_assert_int_eq(tripleBufferSetTerminalIndex(tB,-1),0);
+}
+END_TEST
+
+START_TEST(test_tripleBufferSetTerminalIndex_TooLarge)
+{
+	tripleBuffer *tB;
+	tB = tripleBufferCreate(4, 56);
+	tripleBufferAddLeadingBuffer(tB);
+	ck_assert_int_eq(tripleBufferSetTerminalIndex(tB,56),0);
+}
+END_TEST
 
 Suite *tripleBuffer_suite(void)
 {
@@ -328,7 +371,7 @@ Suite *tripleBuffer_suite(void)
 	tcase_add_test(tc_core,test_tripleBufferCycle_Complex);
 	tcase_add_test(tc_core,test_tripleBufferRemoveTrailingBuffer_Basic);
 	tcase_add_test(tc_core,test_tripleBufferRemoveTrailingBuffer_AddRemove);
-
+	tcase_add_test(tc_core,test_tripleBufferSetTerminalIndex);
 	suite_add_tcase(s, tc_core);
 
 	/* Limits test case */
@@ -341,6 +384,10 @@ Suite *tripleBuffer_suite(void)
 	tcase_add_test(tc_limits,test_tripleBufferAddBuffers_TooMany);
 	tcase_add_test(tc_limits,test_tripleBufferCycle_Empty);
 	tcase_add_test(tc_limits,test_tripleBufferRemoveTrailingBuffer_Empty);
+
+	tcase_add_test(tc_limits,test_tripleBufferSetTerminalIndex_Empty);
+	tcase_add_test(tc_limits,test_tripleBufferSetTerminalIndex_NegIndex);
+	tcase_add_test(tc_limits,test_tripleBufferSetTerminalIndex_TooLarge);
 
 	suite_add_tcase(s,tc_limits);
 	
