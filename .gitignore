@@ -64,3 +64,5 @@ Testing/*
 extract
 tests/check_gammatone
 tests/check_tripleBuffer
+
+tests/check_sigOpt
