@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include "sigOpt.h"
 
 /* For simplicity, windowSize must be an integral multiple of hopsize. If this 
@@ -207,8 +208,6 @@ int bufferIndexLe(bufferIndex *bI, bufferIndex *other){
 
 struct sigOpt{
 	int variable; /* expects 1 or 0 */
-	//int sizeLeft;
-	//int sizeRight;
 	int winSize;
 	int hopsize;
 	float scaleFactor;
@@ -216,15 +215,6 @@ struct sigOpt{
 	                   // of the first calculaton interval that is
 	                   // considered the center of the window which is the
 	                   // center of the window.
-	//int numTrailingIntervals; // this is the number of intervals where the
-	//                          // left index of the window refers to an
-	//                          // index of the trailing buffer
-	//int centralBufferStart; // where the left most index should be for
-	//                        // computing the interval just after the left
-	//                        // window edge was moved to the central buffer
-	//int rightBufferStart; // where the right most index should be for the 
-	//                      // first interval after starting a new buffer
-	//int numCurBuffers;
 	int bufferLength;
 	int bufferTerminationIndex;
 	int numChannels;
@@ -239,29 +229,6 @@ struct sigOptChannel{
 	bufferIndex *windowRight;
 };
 
-/*
-sigOptChannel *sigOptChannelCreate(int bufferLength)
-{
-	if (bufferLength<=0){
-		return NULL;
-	}
-	sigOptChannel *sOC = malloc(sizeof(sigOptChannel));
-	sOC->windowLeft = bufferIndexCreate(0,0, bufferLength);
-	sOC->windowRight = bufferIndexCreate(0,0, bufferLength);
-	sOC->nobs = 0;
-	sOC->ssqdm_x =0;
-	sOC->mean_x = 0;
-	return sOC;
-}
-
-
-void sigOptChannelDestroy(sigOptChannel *sOC)
-{
-	bufferIndexDestroy(sOC->windowLeft);
-	bufferIndexDestroy(sOC->windowRight);
-	free(sOC);
-}
-*/
 sigOpt *sigOptCreate(int variable, int winSize, int hopsize, int startIndex,
 		     int bufferLength, int numChannels, float scaleFactor)
 {
@@ -272,6 +239,8 @@ sigOpt *sigOptCreate(int variable, int winSize, int hopsize, int startIndex,
 		return NULL;
 	} else if (hopsize <= 0) {
 		return NULL;
+	} else if (scaleFactor <=0) {
+		return NULL;
 	} else if ((startIndex < 0) || (startIndex>=winSize)) {
 		return NULL;
 	} else if (bufferLength<=0){
@@ -280,8 +249,6 @@ sigOpt *sigOptCreate(int variable, int winSize, int hopsize, int startIndex,
 		return NULL;
 	}
 	sigOpt *sO = malloc(sizeof(sigOpt));
-	// need to set the rest of the values
-	//return NULL;
 	sO->variable = variable;
 	sO->winSize = winSize;
 	sO->hopsize = hopsize;
@@ -313,4 +280,77 @@ void sigOptDestroy(sigOpt *sO)
 	free((sO->channels));
 	free(sO);
 }
-	
+
+/* the following draws HEAVY inspiration from implementation of pandas 
+ * roll_variance. 
+ * https://github.com/pandas-dev/pandas/blob/master/pandas/_libs/window.pyx
+ * The next 3 functions have been copied from simpleDetFunc.c
+ */
+
+static inline double calc_var(double nobs, double ssqdm_x){
+	double result;
+	/* Variance is unchanged if no observation is added or removed
+	 */
+	if (nobs == 1){
+		result = 0;
+	} else {
+		result = ssqdm_x / (nobs - 1);
+		if (result < 0){
+			result = 0;
+		}
+	}
+	return result;
+}
+
+static inline void add_var(double val, int *nobs, double *mean_x,
+			   double *ssqdm_x){
+	/* add a value from the var calc */
+	double delta;
+
+	(*nobs) += 1;
+	delta = (val - *mean_x);
+	(*mean_x) += delta / *nobs;
+	(*ssqdm_x) += (((*nobs-1) * delta * delta) / *nobs);
+}
+
+static inline void remove_var(double val, int *nobs, double *mean_x,
+			      double *ssqdm_x){
+	/* remove a value from the var calc */
+
+	double delta;
+
+	(*nobs) -= 1;
+	if (*nobs>0){
+		delta = (val - *mean_x);
+		(*mean_x) -= delta / *nobs;
+		(*ssqdm_x) -= (((*nobs+1) * delta * delta) / *nobs);
+	} else {
+		*mean_x = 0;
+		*ssqdm_x = 0;
+	}
+}
+
+float sigOptGetSigma(sigOpt *sO, int channel){
+	if ((sO->channels)[channel].nobs <= 1){
+		return -1;
+	}
+	float std = sqrtf((float)calc_var((sO->channels)[channel].nobs,
+					  (sO->channels)[channel].ssqdm_x));
+
+	return (sO->scaleFactor) * std / powf((sO->channels)[channel].nobs,
+					      0.2);
+}
+
+int sigOptSetTerminationIndex(sigOpt *sO,int index)
+{
+	if (sO->bufferTerminationIndex != -1){
+		return -1;
+	} else if (index < 0) {
+		return -2;
+	} else if (index >= sO->bufferLength) {
+		return -3;
+	} else {
+		sO->bufferTerminationIndex=index;
+		return 1;
+	}
+}

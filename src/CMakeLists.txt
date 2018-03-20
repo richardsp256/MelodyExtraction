@@ -25,6 +25,7 @@ set(SOURCES
   testOnset.c
   resample.c
   tripleBuffer.c
+  sigOpt.c
 )
 
 

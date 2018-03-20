@@ -234,6 +234,26 @@ START_TEST(test_sigOptCreate)
 }
 END_TEST
 
+START_TEST(test_sigOptSetTerminationIndex)
+{
+	int temp;
+	sigOpt *sO =sigOptCreate(1,33075/2,55,22,33075/2,4,1.06);
+	ck_assert_ptr_nonnull(sO);
+	temp = sigOptSetTerminationIndex(sO,-1);
+	ck_assert_int_ne(temp,1);
+	temp = sigOptSetTerminationIndex(sO,33075/2);
+	ck_assert_int_ne(temp,1);
+	temp = sigOptSetTerminationIndex(sO,33075/2+1);
+	ck_assert_int_ne(temp,1);
+	temp = sigOptSetTerminationIndex(sO,4);
+	ck_assert_int_eq(temp,1);
+	temp = sigOptSetTerminationIndex(sO,8);
+	ck_assert_int_ne(temp,1);
+	sigOptDestroy(sO);
+}
+END_TEST
+
+
 START_TEST(test_sigOptCreate_badVariableValue)
 {
 	sigOpt *sO =sigOptCreate(-1,33075/2,55,22,33075/2,4,1.06);
@@ -265,6 +285,20 @@ END_TEST
 START_TEST(test_sigOptCreate_zeroHopsize)
 {
 	sigOpt *sO =sigOptCreate(1,33075/2,0,22,33075/2,4,1.06);
+	ck_assert_ptr_null(sO);
+}
+END_TEST
+
+START_TEST(test_sigOptCreate_negScaleFactor)
+{
+	sigOpt *sO =sigOptCreate(1,33075/2,55,22,33075/2,4,-1.06);
+	ck_assert_ptr_null(sO);
+}
+END_TEST
+
+START_TEST(test_sigOptCreate_zeroScaleFactor)
+{
+	sigOpt *sO =sigOptCreate(1,33075/2,0,22,33075/2,4,0);
 	ck_assert_ptr_null(sO);
 }
 END_TEST
@@ -335,6 +369,7 @@ Suite *sigOpt_suite(void)
 	/* Core test case */
 	tc_sOcore = tcase_create("sigOpt Core");
 	tcase_add_test(tc_sOcore,test_sigOptCreate);
+	tcase_add_test(tc_sOcore,test_sigOptSetTerminationIndex);
 	suite_add_tcase(s, tc_sOcore);
 
 	tc_sOlimits = tcase_create("sigOpt Limits");
@@ -343,6 +378,8 @@ Suite *sigOpt_suite(void)
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroWinSize);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_negHopsize);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroHopsize);
+	tcase_add_test(tc_sOlimits,test_sigOptCreate_negScaleFactor);
+	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroScaleFactor);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_negStartIndex);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroStartIndex);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_StartIndexWinSize);

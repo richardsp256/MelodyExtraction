@@ -26,10 +26,10 @@ void sigOptChannelDestroy(sigOptChannel *sOC);
 sigOpt *sigOptCreate(int variable, int winSize, int hopsize, int startIndex,
 		     int bufferLength, int numChannels, float scaleFactor);
 void sigOptDestroy(sigOpt *sO);
-//int sigOptAdvance(sigOpt *sO, float *trailingBuffer, float *centralBuffer,
-//                  float *leadingBuffer, int channel);
-//float sigOptGetSigma(sigOpt *sO, int channel);
+int sigOptAdvance(sigOpt *sO, float *trailingBuffer, float *centralBuffer,
+                  float *leadingBuffer, int channel);
+float sigOptGetSigma(sigOpt *sO, int channel);
+int sigOptSetTerminationIndex(sigOpt *sO,int index);
 //int sigOptAdvanceBuffer(sigOpt *sO);
-//int sigOptSetTerminationIndex(sigOpt *sO);
 
 #endif /* SIGOPT_H */
