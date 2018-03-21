@@ -228,22 +228,28 @@ END_TEST
 
 START_TEST(test_sigOptCreate)
 {
-	sigOpt *sO =sigOptCreate(1,33075/2,55,22,33075/2,4,1.06);
+	// using a buffer size of ~70 ms for samplerate of 11025 Hz
+	// since 55 samples is ~ 5ms. This means the window size is 770
+	// samples
+	sigOpt *sO =sigOptCreate(770,55,22,4,1.06);
 	ck_assert_ptr_nonnull(sO);
+	ck_assert_int_eq(sigOptGetBufferLength(sO),462);
+	ck_assert_int_eq(sigOptGetSigmasPerBuffer(sO),8);
 	sigOptDestroy(sO);
 }
 END_TEST
 
+
 START_TEST(test_sigOptSetTerminationIndex)
 {
 	int temp;
-	sigOpt *sO =sigOptCreate(1,33075/2,55,22,33075/2,4,1.06);
+	sigOpt *sO =sigOptCreate(770,55,22,4,1.06);
 	ck_assert_ptr_nonnull(sO);
 	temp = sigOptSetTerminationIndex(sO,-1);
 	ck_assert_int_ne(temp,1);
-	temp = sigOptSetTerminationIndex(sO,33075/2);
+	temp = sigOptSetTerminationIndex(sO,462);
 	ck_assert_int_ne(temp,1);
-	temp = sigOptSetTerminationIndex(sO,33075/2+1);
+	temp = sigOptSetTerminationIndex(sO,463);
 	ck_assert_int_ne(temp,1);
 	temp = sigOptSetTerminationIndex(sO,4);
 	ck_assert_int_eq(temp,1);
@@ -254,103 +260,82 @@ START_TEST(test_sigOptSetTerminationIndex)
 END_TEST
 
 
-START_TEST(test_sigOptCreate_badVariableValue)
-{
-	sigOpt *sO =sigOptCreate(-1,33075/2,55,22,33075/2,4,1.06);
-	ck_assert_ptr_null(sO);
-}
-END_TEST
-
 START_TEST(test_sigOptCreate_negWinSize)
 {
-	sigOpt *sO =sigOptCreate(1,-33075/2,55,22,33075/2,4,1.06);
+	sigOpt *sO =sigOptCreate(-770,55,22,4,1.06);
 	ck_assert_ptr_null(sO);
 }
 END_TEST
 
 START_TEST(test_sigOptCreate_zeroWinSize)
 {
-	sigOpt *sO =sigOptCreate(1,0,55,22,33075/2,4,1.06);
+	sigOpt *sO =sigOptCreate(0,55,22,4,1.06);
 	ck_assert_ptr_null(sO);
 }
 END_TEST
 
 START_TEST(test_sigOptCreate_negHopsize)
 {
-	sigOpt *sO =sigOptCreate(1,33075/2,-55,22,33075/2,4,1.06);
+	sigOpt *sO =sigOptCreate(770,-55,22,4,1.06);
 	ck_assert_ptr_null(sO);
 }
 END_TEST
 
 START_TEST(test_sigOptCreate_zeroHopsize)
 {
-	sigOpt *sO =sigOptCreate(1,33075/2,0,22,33075/2,4,1.06);
+	sigOpt *sO =sigOptCreate(770,0,22,4,1.06);
 	ck_assert_ptr_null(sO);
 }
 END_TEST
 
 START_TEST(test_sigOptCreate_negScaleFactor)
 {
-	sigOpt *sO =sigOptCreate(1,33075/2,55,22,33075/2,4,-1.06);
+	sigOpt *sO =sigOptCreate(770,55,22,4,-1.06);
 	ck_assert_ptr_null(sO);
 }
 END_TEST
 
 START_TEST(test_sigOptCreate_zeroScaleFactor)
 {
-	sigOpt *sO =sigOptCreate(1,33075/2,0,22,33075/2,4,0);
+	sigOpt *sO =sigOptCreate(770,0,22,4,0);
 	ck_assert_ptr_null(sO);
 }
 END_TEST
 
-START_TEST(test_sigOptCreate_negStartIndex)
+START_TEST(test_sigOptCreate_negInitialOffset)
 {
-	sigOpt *sO =sigOptCreate(1,33075/2,55,-22,33075/2,4,1.06);
+	sigOpt *sO =sigOptCreate(770,55,-22,4,1.06);
 	ck_assert_ptr_null(sO);
 }
 END_TEST
 
-START_TEST(test_sigOptCreate_zeroStartIndex)
+START_TEST(test_sigOptCreate_zeroInitialOffset)
 {
-	sigOpt *sO =sigOptCreate(1,33075/2,55,0,33075/2,4,1.06);
+	sigOpt *sO =sigOptCreate(770,55,0,4,1.06);
 	ck_assert_ptr_nonnull(sO);
 	sigOptDestroy(sO);
 }
 END_TEST
 
-START_TEST(test_sigOptCreate_StartIndexWinSize)
+START_TEST(test_sigOptCreate_InitialOffsetWinSize)
 {
-	sigOpt *sO =sigOptCreate(1,33075/2,55,33075/2,33075/2,4,1.06);
+	sigOpt *sO =sigOptCreate(770,55,770,4,1.06);
 	ck_assert_msg(sO == NULL,
 		      "NULL should be returned as result of attempt to create "
 		      "a sigOpt with a startIndex>= winSize.");
 }
 END_TEST
 
-START_TEST(test_sigOptCreate_negBufferLength)
-{
-	sigOpt *sO =sigOptCreate(1,33075/2,55,22,-33075/2,4,1.06);
-	ck_assert_ptr_null(sO);
-}
-END_TEST
-
-START_TEST(test_sigOptCreate_zeroBufferLength)
-{
-	sigOpt *sO =sigOptCreate(1,33075/2,55,22,0,4,1.06);
-	ck_assert_ptr_null(sO);
-}
-END_TEST
-
 START_TEST(test_sigOptCreate_negChannel)
 {
-	sigOpt *sO =sigOptCreate(1,33075/2,55,22,33075/2,-4,1.06);
+	sigOpt *sO =sigOptCreate(770,55,22,-4,1.06);
 	ck_assert_ptr_null(sO);
 }
 END_TEST
 
 START_TEST(test_sigOptCreate_zeroChannel)
 {
-	sigOpt *sO =sigOptCreate(1,33075/2,55,22,33075/2,0,1.06);
+	sigOpt *sO =sigOptCreate(770,55,22,0,1.06);
 	ck_assert_ptr_null(sO);
 }
 END_TEST
@@ -373,18 +358,15 @@ Suite *sigOpt_suite(void)
 	suite_add_tcase(s, tc_sOcore);
 
 	tc_sOlimits = tcase_create("sigOpt Limits");
-	tcase_add_test(tc_sOlimits,test_sigOptCreate_badVariableValue);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_negWinSize);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroWinSize);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_negHopsize);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroHopsize);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_negScaleFactor);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroScaleFactor);
-	tcase_add_test(tc_sOlimits,test_sigOptCreate_negStartIndex);
-	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroStartIndex);
-	tcase_add_test(tc_sOlimits,test_sigOptCreate_StartIndexWinSize);
-	tcase_add_test(tc_sOlimits,test_sigOptCreate_negBufferLength);
-	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroBufferLength);
+	tcase_add_test(tc_sOlimits,test_sigOptCreate_negInitialOffset);
+	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroInitialOffset);
+	tcase_add_test(tc_sOlimits,test_sigOptCreate_InitialOffsetWinSize);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_negChannel);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroChannel);
 	suite_add_tcase(s, tc_sOlimits);

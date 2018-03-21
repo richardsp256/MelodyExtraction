@@ -207,7 +207,6 @@ int bufferIndexLe(bufferIndex *bI, bufferIndex *other){
 }
 
 struct sigOpt{
-	int variable; /* expects 1 or 0 */
 	int winSize;
 	int hopsize;
 	float scaleFactor;
@@ -229,31 +228,54 @@ struct sigOptChannel{
 	bufferIndex *windowRight;
 };
 
-sigOpt *sigOptCreate(int variable, int winSize, int hopsize, int startIndex,
-		     int bufferLength, int numChannels, float scaleFactor)
+int computeSigOptBufferLength(int initialOffset, int winSize, int hopsize){
+	/* initialOffset: is the number of indices of the offset from the left 
+	 *                edge of the very start of the stream where we 
+	 *                consider the center of the first window to be. 
+	 * winSize:       is the window size used in sigOpt in units of 
+	 *                samples. It must be greater than hopsize and be an 
+	 *                integer multiple of hopsize. If it is not, then -1 is 
+	 *                returned.
+	 * hopsize:       the number of samples that a window must shift 
+	 *                between calculations of sigma.
+	 *
+	 * The buffer length is given by: 
+	 *     (winSize//hopsize//2 +1)*hopsize+initialOffset
+	 * where "//" denotes integer division 
+	 */
+	if ((winSize <hopsize) || (winSize % hopsize != 0)){
+		return -1;
+	}
+	return (winSize/hopsize/2 +1)*hopsize+initialOffset;
+}
+
+
+sigOpt *sigOptCreate(int winSize, int hopsize, int initialOffset,
+		    int numChannels, float scaleFactor)
 {
-	if (variable != 1){
-		// for now this must be 1. In principal it could be 0.
-		return NULL;
-	} else if (winSize <= 0) {
+	if (winSize <= 0) {
 		return NULL;
 	} else if (hopsize <= 0) {
 		return NULL;
 	} else if (scaleFactor <=0) {
 		return NULL;
-	} else if ((startIndex < 0) || (startIndex>=winSize)) {
-		return NULL;
-	} else if (bufferLength<=0){
+	} else if ((initialOffset < 0) || (initialOffset>=winSize)) {
 		return NULL;
 	} else if (numChannels<=0){
 		return NULL;
 	}
+
+	int bufferLength = computeSigOptBufferLength(initialOffset, winSize,
+						     hopsize);
+	if (bufferLength<=0){
+		return NULL;
+	}
+	
 	sigOpt *sO = malloc(sizeof(sigOpt));
-	sO->variable = variable;
 	sO->winSize = winSize;
 	sO->hopsize = hopsize;
 	sO->scaleFactor = scaleFactor;
-	sO->initialOffset = startIndex;
+	sO->initialOffset = initialOffset;
 	sO->bufferLength = bufferLength;
 	sO->numChannels = numChannels;
 	sO->bufferTerminationIndex = -1;
@@ -279,6 +301,22 @@ void sigOptDestroy(sigOpt *sO)
 	}
 	free((sO->channels));
 	free(sO);
+}
+
+int sigOptGetBufferLength(sigOpt *sO){
+	return sO->bufferLength;
+}
+
+int sigOptGetSigmasPerBuffer(sigOpt *sO){
+	return sO->bufferLength/sO->hopsize;
+}
+
+int sigOptAdvanceBuffer(sigOpt *sO)
+{
+	for (int i = 0; i<(sO->numChannels); i++){
+		bufferIndexAdvanceBuffer((sO->channels)[i].windowLeft);
+		bufferIndexAdvanceBuffer((sO->channels)[i].windowRight);
+	}
 }
 
 /* the following draws HEAVY inspiration from implementation of pandas 

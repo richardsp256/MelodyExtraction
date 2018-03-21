@@ -20,16 +20,17 @@ int bufferIndexGe(bufferIndex *bI, bufferIndex *other);
 int bufferIndexLt(bufferIndex *bI, bufferIndex *other);
 int bufferIndexLe(bufferIndex *bI, bufferIndex *other);
 
-sigOptChannel *sigOptChannelCreate(int bufferLength);
-void sigOptChannelDestroy(sigOptChannel *sOC);
 
-sigOpt *sigOptCreate(int variable, int winSize, int hopsize, int startIndex,
-		     int bufferLength, int numChannels, float scaleFactor);
+sigOpt *sigOptCreate(int winSize, int hopsize, int initialOffset,
+		     int numChannels, float scaleFactor);
 void sigOptDestroy(sigOpt *sO);
+int sigOptGetBufferLength(sigOpt *sO);
+int sigOptGetSigmasPerBuffer(sigOpt *sO);
 int sigOptAdvance(sigOpt *sO, float *trailingBuffer, float *centralBuffer,
                   float *leadingBuffer, int channel);
 float sigOptGetSigma(sigOpt *sO, int channel);
+// tells you how many time you can compute Sigma Per Buffer
 int sigOptSetTerminationIndex(sigOpt *sO,int index);
-//int sigOptAdvanceBuffer(sigOpt *sO);
+int sigOptAdvanceBuffer(sigOpt *sO);
 
 #endif /* SIGOPT_H */
