@@ -169,3 +169,17 @@ int process_double_array_test(struct dblArrayTestEntry entry, double tol,
 	free(ref);
 	return 1;
 }
+
+void float_to_double_array(float* array, int length, double** dblarray){
+	(*dblarray) = malloc(sizeof(double)*length);
+	for (int i=0; i<length; i++){
+		(*dblarray)[i] = (double)(array[i]);
+	}
+}
+
+void double_to_float_array(double* array, int length, float** fltarray){
+	(*fltarray) = malloc(sizeof(float)*length);
+	for (int i=0; i<length; i++){
+		(*fltarray)[i] = (float)(array[i]);
+	}
+}

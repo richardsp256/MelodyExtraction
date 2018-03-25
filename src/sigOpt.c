@@ -556,6 +556,11 @@ int sigOptSetup(sigOpt *sO, int channel, float *buffer)
 	}
 
 	int window_stop = (sO->initialOffset) + (sO->sizeRight) - sO->hopsize;
+	if (sO->bufferTerminationIndex!=-1){
+		if (window_stop > sO->bufferTerminationIndex){
+			window_stop = sO->bufferTerminationIndex;
+		}
+	}
 
 	for (int i=0; i++; i<window_stop){
 		add_var(buffer[i], &nobs, &mean_x, &ssqdm_x);
@@ -794,4 +799,91 @@ int sigOptSetTerminationIndex(sigOpt *sO,int index)
 		sO->bufferTerminationIndex=index;
 		return 1;
 	}
+}
+
+
+int sigOptFullRollSigma(int initialOffset, int hopsize, float scaleFactor,
+			int winSize, int dataLength, int numWindows,
+			float *input, float **sigma)
+{
+	sigOpt *sO = sigOptCreate(winSize, hopsize, initialOffset, 1,
+				  scaleFactor);
+	if (sO == NULL){
+		return -1;
+	}
+
+	int bufferLength = sigOptGetBufferLength(sO);
+	int sigPerBuffer = sigOptGetSigmasPerBuffer(sO);
+	int niter = numWindows/sigPerBuffer;
+	int termination_index = (numWindows % sigPerBuffer);
+
+	if (termination_index!=0){
+		niter++;
+	}
+
+	float *trailingBuffer = NULL;
+	// set the central buffer equal to the very start of the input
+	float* centralBuffer = input;
+
+	int result;
+	// setup sigOpt with the first buffer
+	result = sigOptSetup(sO, 0, centralBuffer);
+	if (result <1){
+		sigOptDestroy(sO);
+		return -1;
+	}
+
+	// I am not sure this will work for short enough arrays
+
+	float *leadingBuffer = input + bufferLength;
+
+	int k=0;
+	for (int i=0;i<(niter-2);i++){		
+		for (int j=0;j<sigPerBuffer;j++){
+			float sig = sigOptAdvanceWindow(sO, trailingBuffer,
+							centralBuffer,
+							leadingBuffer, 0);
+			if (sig<0){
+				sigOptDestroy(sO);
+				return -1;
+			}
+			(*sigma)[k] = sig;
+			k++;
+		}
+		trailingBuffer = centralBuffer;
+		centralBuffer = leadingBuffer;
+		leadingBuffer = input + ((i+1)*bufferLength);
+	}
+
+	// now set the termination index
+	sigOptSetTerminationIndex(sO,termination_index);
+	// now calculate the second to last one
+	for (int j=0;j<sigPerBuffer;j++){
+		float sig = sigOptAdvanceWindow(sO, trailingBuffer,
+						centralBuffer,leadingBuffer,0);
+		if (sig<0){
+			sigOptDestroy(sO);
+			return -1;
+		}
+		(*sigma)[k] = sig;
+		k++;
+	}
+	trailingBuffer = centralBuffer;
+	centralBuffer = leadingBuffer;
+	leadingBuffer = NULL;
+
+	// now calculate the remaining values.
+	for (k; k<numWindows; k++){
+		float sig = sigOptAdvanceWindow(sO, trailingBuffer,
+						centralBuffer, leadingBuffer,0);
+		if (sig<0){
+			sigOptDestroy(sO);
+			return -1;
+		}
+		(*sigma)[k] = sig;
+	}
+
+	// finally, clean up.
+	sigOptDestroy(sO);
+	return 1;
 }

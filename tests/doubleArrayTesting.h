@@ -29,3 +29,6 @@ void clean_up_dblArrayTestEntry(struct dblArrayTestEntry *test_entry);
 
 int process_double_array_test(struct dblArrayTestEntry entry, double tol,
 			      int rel, double abs_zero_tol);
+
+void float_to_double_array(float* array, int length, double** dblarray);
+void double_to_float_array(double* array, int length, float** fltarray);

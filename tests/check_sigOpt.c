@@ -3,6 +3,8 @@
 #include <check.h>
 #include <limits.h>
 #include "../src/sigOpt.h"
+#include "../src/simpleDetFunc.h"
+#include "doubleArrayTesting.h"
 
 bufferIndex *buff0Ind4;
 
@@ -340,11 +342,71 @@ START_TEST(test_sigOptCreate_zeroChannel)
 }
 END_TEST
 
+
+/* The next set of tests will actually demonstrate sigOpt in action. */
+double *dblrollSigma(int initialOffset, int hopsize, float scaleFactor,
+		     int winSize, int dataLength, int numWindows,
+		     float *input, int testFunc)
+{
+	float *fltSigma= malloc(sizeof(float)*numWindows);
+	if (testFunc == 1){
+		int temp = sigOptFullRollSigma(initialOffset, hopsize,
+					       scaleFactor, winSize, dataLength,
+					       numWindows, input, &fltSigma);
+		if (temp < 0){
+			free(fltSigma);
+			return NULL;
+		}
+	} else {
+		rollSigma(initialOffset, hopsize, scaleFactor, winSize,
+			  dataLength, numWindows, input, &fltSigma);
+	}
+	double *result = NULL;
+	float_to_double_array(fltSigma, numWindows, &result);
+	free(fltSigma);
+	return result;
+}
+
+START_TEST(test_sigOptFullRollSigma_Simple)
+{
+	double *original_input;
+	int inputLength;
+	inputLength = readDoubleArray(("tests/test_files/roll_sigma/"
+				       "roll_sigma_sample_input"),
+				      isLittleEndian(), &original_input);
+	//inputLength is 51
+	float *fltInput;
+	double_to_float_array(original_input, inputLength, &fltInput);
+	free(original_input);
+
+	int numWindows = 10; // not sure if this is a good value. May need to
+	                     // come back and fix this.
+	int initialOffset = 1;
+	int winSize = 15;
+	int hopsize = 5;
+
+	double *reference = dblrollSigma(initialOffset, hopsize, 1.06,
+					 winSize, inputLength, numWindows,
+					 fltInput, 0); //rollSigma
+	double *result = dblrollSigma(initialOffset, hopsize, 1.06,
+				      winSize, inputLength, numWindows,
+				      fltInput, 1); //sigOptRollSigma
+	free(fltInput);
+	ck_assert_ptr_nonnull(result);
+
+	compareArrayEntries(reference, result, numWindows, 1.e-5, 1, 1.e-5);
+
+	free(reference);
+	free(result);
+}
+END_TEST
+
 Suite *sigOpt_suite(void)
 {
 	Suite *s;
 	TCase *tc_sOcore;
 	TCase *tc_sOlimits;
+	TCase *tc_sOrun;
 	TCase *tc_bIcore;
 	TCase *tc_bIlimits;
 	TCase *tc_bIcomp;
@@ -370,6 +432,15 @@ Suite *sigOpt_suite(void)
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_negChannel);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroChannel);
 	suite_add_tcase(s, tc_sOlimits);
+
+	tc_sOrun = tcase_create("sigOpt Run Examples");
+	if (isLittleEndian() == 1){
+		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_Simple);
+	} else {
+		printf("Cannot add rollSigma tests because the tests are not \n"
+		       "presently equipped to run on Big Endian machines\n");
+	}
+	suite_add_tcase(s,tc_sOrun);
 
 	tc_bIcore = tcase_create("bufferIndex Core");
 	tcase_add_checked_fixture(tc_bIcore, setup_buff0Ind4,
@@ -398,6 +469,7 @@ Suite *sigOpt_suite(void)
 	tcase_add_test(tc_bIlimits,test_bufferIndexCreate_IndexBufferSize);
 	suite_add_tcase(s, tc_bIlimits);
 
+	
 	return s;
 }
 
