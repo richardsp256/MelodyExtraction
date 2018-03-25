@@ -26,8 +26,9 @@ sigOpt *sigOptCreate(int winSize, int hopsize, int initialOffset,
 void sigOptDestroy(sigOpt *sO);
 int sigOptGetBufferLength(sigOpt *sO);
 int sigOptGetSigmasPerBuffer(sigOpt *sO);
-int sigOptAdvance(sigOpt *sO, float *trailingBuffer, float *centralBuffer,
-                  float *leadingBuffer, int channel);
+float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
+			  float *centralBuffer, float *leadingBuffer,
+			  int channel);
 float sigOptGetSigma(sigOpt *sO, int channel);
 // tells you how many time you can compute Sigma Per Buffer
 int sigOptSetTerminationIndex(sigOpt *sO,int index);

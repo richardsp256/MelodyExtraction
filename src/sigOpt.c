@@ -104,7 +104,8 @@ int bufferIndexGetBufferLength(bufferIndex *bI){
 }
 
 int bufferIndexIncrement(bufferIndex *bI){
-	// if (bI->index == INT_MAX){
+	//if (((bI->index +1) == bI->bufferLength) &&
+	//    (bI->buffer_num == INT_MAX)){
 	//     return 0;
 	// }
 	(bI->index)++;
@@ -130,6 +131,20 @@ bufferIndex *bufferIndexAddScalarIndex(bufferIndex *bI, int val){
 	int buffer_num = bI->buffer_num + (index / buffer_length);
 	index = index % buffer_length;
 	return bufferIndexCreate(buffer_num,index, buffer_length);
+}
+
+int bufferIndexModifyVal(bufferIndex *bI, int buffer_num, int index){
+	/* This function modifies the values of an existing bufferIndex object.
+	 */
+	if (index <0) {
+		return 0;
+	} else if (index >= bI->buffer_length){
+		return 0;
+	}
+
+	bI->buffer_num = buffer_num;
+	bI->index = index;
+	return 1;
 }
 
 int bufferIndexEq(bufferIndex *bI, bufferIndex *other){
@@ -206,8 +221,12 @@ int bufferIndexLe(bufferIndex *bI, bufferIndex *other){
 	return 0;
 }
 
+
+
 struct sigOpt{
 	int winSize;
+	int sizeLeft;
+	int sizeRight;
 	int hopsize;
 	float scaleFactor;
 	int initialOffset; // The number of indices from the left of the start
@@ -226,16 +245,30 @@ struct sigOptChannel{
 	double ssqdm_x;
 	bufferIndex *windowLeft;
 	bufferIndex *windowRight;
+	int leftEdgeCounter; // this is used to determine when we must start advancing the left edge of the window.
 };
+
+int numZeroLeftEdgeAdvancements(int hopsize, int sizeLeft, int initialOffset){
+	/* This tells you how many times we advance the window calculate sigma,
+	 * before the left edge has a non-zero value. This accounts for the 
+	 * fact that we advance the window before EVERY sigma calculation -
+	 * including the first calculation 
+	 */
+	return (sizeLeft - initialOffset)/hopsize + 1;
+}
 
 int computeSigOptBufferLength(int initialOffset, int winSize, int hopsize){
 	/* initialOffset: is the number of indices of the offset from the left 
 	 *                edge of the very start of the stream where we 
 	 *                consider the center of the first window to be. 
 	 * winSize:       is the window size used in sigOpt in units of 
-	 *                samples. It must be greater than hopsize and be an 
-	 *                integer multiple of hopsize. If it is not, then -1 is 
-	 *                returned.
+	 *                samples. It must be an integer multiple of hopsize. 
+	 *                If it is not, then -1 is returned. Furthermore, 
+	 *                winSize must be greater than the sum of initialOffset 
+	 *                and hopsize (technically it only NEEDS to be greater 
+	 *                than hopsize, but by requiring it to be greater than 
+         *                initialOffset + hopsize, it simplifies some behavior).
+	 *                If it is not, then -2 is returned.
 	 * hopsize:       the number of samples that a window must shift 
 	 *                between calculations of sigma.
 	 *
@@ -243,7 +276,10 @@ int computeSigOptBufferLength(int initialOffset, int winSize, int hopsize){
 	 *     (winSize//hopsize//2 +1)*hopsize+initialOffset
 	 * where "//" denotes integer division 
 	 */
-	if ((winSize <hopsize) || (winSize % hopsize != 0)){
+	if (winSize <(hopsize+initialOffset)){
+		// should probably check that this actually gets called.
+		return -2;
+	} else if (winSize % hopsize != 0) {
 		return -1;
 	}
 	return (winSize/hopsize/2 +1)*hopsize+initialOffset;
@@ -279,8 +315,24 @@ sigOpt *sigOptCreate(int winSize, int hopsize, int initialOffset,
 	sO->bufferLength = bufferLength;
 	sO->numChannels = numChannels;
 	sO->bufferTerminationIndex = -1;
+
+	// for now we assume that the location of the window is given by the
+	// center of the window
+	sO->sizeLeft = winSize/2;
+	sO->sizeRight = sO->sizeLeft + 1;
+	if (winSize % 2 == 0){
+		(sO->sizeLeft)-=1;
+	}
+	if ((sO->sizeRight + sO->initialOffset)> sO->bufferLength){
+		return NULL;
+	}
+
 	(sO ->channels) = malloc(sizeof(sigOptChannel)*numChannels);
 
+	int initial_counter = numZeroLeftEdgeAdvancements(hopsize,
+							  sO->sizeLeft,
+							  initialOffset);
+	
 	for (int i=0; i<numChannels; i++){
 		(sO->channels)[i].windowLeft = bufferIndexCreate(0, 0,
 								 bufferLength);
@@ -289,6 +341,7 @@ sigOpt *sigOptCreate(int winSize, int hopsize, int initialOffset,
 		(sO->channels)[i].nobs = 0;
 		(sO->channels)[i].ssqdm_x = 0;
 		(sO->channels)[i].mean_x = 0;
+		(sO->channels)[i].leftEdgeCounter = initial_counter;
 	}
 	return sO;
 }
@@ -325,7 +378,8 @@ int sigOptAdvanceBuffer(sigOpt *sO)
  * The next 3 functions have been copied from simpleDetFunc.c
  */
 
-static inline double calc_var(double nobs, double ssqdm_x){
+static inline double calc_var(double nobs, double ssqdm_x)
+{
 	double result;
 	/* Variance is unchanged if no observation is added or removed
 	 */
@@ -341,7 +395,8 @@ static inline double calc_var(double nobs, double ssqdm_x){
 }
 
 static inline void add_var(double val, int *nobs, double *mean_x,
-			   double *ssqdm_x){
+			   double *ssqdm_x)
+{
 	/* add a value from the var calc */
 	double delta;
 
@@ -352,7 +407,8 @@ static inline void add_var(double val, int *nobs, double *mean_x,
 }
 
 static inline void remove_var(double val, int *nobs, double *mean_x,
-			      double *ssqdm_x){
+			      double *ssqdm_x)
+{
 	/* remove a value from the var calc */
 
 	double delta;
@@ -368,7 +424,354 @@ static inline void remove_var(double val, int *nobs, double *mean_x,
 	}
 }
 
-float sigOptGetSigma(sigOpt *sO, int channel){
+int advanceLeftEdgeHelper(bufferIndex *leftEdge, bufferIndex *stopIndex,
+			  int *nobs, double *mean_x, double *ssqdm_x,
+			  float *firstArray, float *secondArray)
+{
+	/* first array must always be non-null. startIndex is always assumed to
+	 * be part of the first array.
+	 * second array is only ever expected if the buffer num of start and
+	 * stop index are different
+	 */
+	int start_buffer_num = bufferIndexGetBufferNum(leftEdge);
+	//int stop_buffer_num = bufferIndexGetBufferNum(stopIndex);
+
+	// this could be updated so that we are not incrementing startIndex
+	/* First we would check to see if startIndex and stopIndex have the 
+	 * same buffer num. If so, then we just temporary variables to 
+	 * represent the indices and increment the indices. At the end, we 
+	 * update the value of the leftEdge.
+	 * If leftEdge and stopIndex do not share the same buffer num, then we 
+	 * use temporary variables to increment left edge to the termination of 
+	 * the first array and then use temporary variables to increment the 
+	 * start of the second arry to the stop index.
+	 */
+
+	for (leftEdge; bufferIndexLt(leftEdge,stopIndex);
+	     bufferIndexIncrement(leftEdge)) {
+		double val;
+		int buffer_num = bufferIndexGetBufferNum(leftEdge);
+		int i = bufferIndexGetIndex(leftEdge);
+		if (buffer_num == start_buffer_num){
+			val = firstArray[i];
+		} else {
+			val = secondArray[i];
+		}
+		remove_var(val, nobs, mean_x,ssqdm_x);
+	}
+	return 1;
+}
+
+int advanceLeftEdge(bufferIndex *leftEdge, bufferIndex *stopIndex, int *nobs,
+		    double *mean_x, double *ssqdm_x, float *trailingBuffer,
+		    float *centralBuffer)
+{
+	int bufferNum = bufferIndexGetBufferNum(leftEdge);
+	int result = 0;
+	if (bufferNum == -1){
+		result = advanceLeftEdgeHelper(leftEdge, stopIndex, nobs,
+					       mean_x, ssqdm_x, trailingBuffer,
+					       centralBuffer);
+	} else if (bufferNum == 0) {
+		result = advanceLeftEdgeHelper(leftEdge, stopIndex, nobs,
+					       mean_x, ssqdm_x, centralBuffer,
+					       NULL);
+	}
+	return result;
+}
+
+int advanceRightEdgeHelper(bufferIndex *rightEdge, bufferIndex *stopIndex,
+			   int *nobs, double *mean_x, double *ssqdm_x,
+			   float *firstArray, float *secondArray)
+{
+	/* first array must always be non-null. startIndex is always assumed to
+	 * be part of the first array.
+	 * second array is only ever expected if the buffer num of start and
+	 * stop index are different
+	 */
+
+	int start_buffer_num = bufferIndexGetBufferNum(rightEdge);
+	// Again, we can update this so we are not always incrementing rightEdge
+	for (rightEdge; bufferIndexLt(rightEdge,stopIndex);
+	     bufferIndexIncrement(rightEdge)) {
+		double val;
+		int buffer_num = bufferIndexGetBufferNum(rightEdge);
+		int i = bufferIndexGetIndex(rightEdge);
+		if (buffer_num == start_buffer_num){
+			val = firstArray[i];
+		} else {
+			val = secondArray[i];
+		}
+		add_var(val, nobs, mean_x, ssqdm_x);
+	}
+	return 1;
+}
+
+int advanceRightEdge(bufferIndex *rightEdge, bufferIndex *stopIndex, int *nobs,
+		     double *mean_x, double *ssqdm_x, float *centralBuffer,
+		     float *leadingBuffer)
+{
+	int bufferNum = bufferIndexGetBufferNum(rightEdge);
+	int result = 0;
+	if (bufferNum == 0) {
+		result = advanceRightEdge(rightEdge, stopIndex, nobs, mean_x,
+					  ssqdm_x, centralBuffer,leadingBuffer);
+	} else if (bufferNum == 1){
+		result = advanceRightEdge(rightEdge, stopIndex, nobs, mean_x,
+					  ssqdm_x, leadingBuffer, NULL);
+	} else if ((bufferNum == 2) &&
+		   (bufferIndexNe(rightEdge,stopIndex))) {
+		result = advanceRightEdge(rightEdge, stopIndex, nobs, mean_x,
+					  ssqdm_x, leadingBuffer, NULL);
+	}
+	return result;
+}
+
+int sigOptSetup(sigOpt *sO, int channel, float *buffer)
+{
+	/* this should only be called once per channel before calling
+	 * sigOptAdvance basically this sets up the window, so calling it
+	 * sigOptAdvance once will lead the buffer to be centered on the very
+	 * first calculation index of the stream.
+	 *
+	 * basically, this means we want the right edge to be located at
+	 * winSize - initialOffset - hopsize at the end of this function.
+	 *
+	 * NOTE: if we alter the requirements such that winSize can be less 
+	 * than (initialOffset + hopsize) then the behavior of the function 
+	 * must be modified. 
+	 */
+	if ((channel>=(sO->numChannels)) || channel<0){
+		return -1;
+	}
+	double mean_x = 0, ssqdm_x = 0;
+	int nobs=0;
+
+	int window_start = (sO->initialOffset - sO->sizeLeft - sO->hopsize);
+	if ((window_start + sO->hopsize) > 0){
+		// this would mean that the very first window is so far to the
+		// right that the an entire window is included - this is
+		// unintended
+		return -1;
+	}
+
+	int window_stop = (sO->initialOffset) + (sO->sizeRight) - sO->hopsize;
+
+	for (int i=0; i++; i<window_stop){
+		add_var(buffer[i], &nobs, &mean_x, &ssqdm_x);
+		// this should be optimized - inefficient to increment
+		// bufferIndex
+		bufferIndexIncrement((sO->channels)[channel].windowRight);
+	}
+	(sO->channels)[channel].nobs = nobs;
+	(sO->channels)[channel].mean_x = mean_x;
+	(sO->channels)[channel].ssqdm_x = ssqdm_x;
+	return 1;
+}
+
+void terminationRightEdgeStop(int termination_index, bufferIndex *stopIndex,
+			      float *centralBuffer, float *leadingBuffer)
+{
+	/* This adjusts the stopIndex of the right edge if it is past the 
+	 * termination index of the stream.
+	 */
+	if (termination_index <0){
+		return;
+	}
+	int stopBufferNum = bufferIndexGetBufferNum(stopIndex);
+	int stopIndexVal = bufferIndexGetIndex(stopIndex);
+	int bufferLength = bufferIndexGetBufferLength(stopIndex);
+
+	int terminationBuffer;
+	if (leadingBuffer != NULL) {
+		// if leadingBuffer is not NULL then the stream terminates in
+		// the leading buffer.
+		if (stopBufferNum < 1) {
+			return;
+		}
+		terminationBuffer = 1;
+	} else {
+		terminationBuffer = 0;
+	}
+
+	if (stopIndexVal > termination_index) {
+		// we just need to adjust the stopIndex to be equal to the
+		// termination_index
+		if (termination_index == bufferLength) {
+			bufferIndexModifyVal(stopIndex, terminationBuffer + 1,
+					     0);
+		} else {
+			bufferIndexModifyVal(stopIndex, terminationBuffer,
+					     termination_index);
+		}
+	}
+}
+
+bufferIndex *computeRightStopEdge(int hopsize, int termination_index,
+				  bufferIndex *rightEdge, float *centralBuffer,
+				  float *leadingBuffer)
+{
+	bufferIndex *stopIndex = bufferIndexAddScalarIndex(rightEdge, hopsize);
+	/* make sure that the right edge is not past the termination of the 
+	 * stream. */ 
+	terminationRightEdgeStop(termination_index, stopIndex,
+				 centralBuffer, leadingBuffer);
+	return stopIndex;
+}
+
+bufferIndex *firstNonZLeftEdge(int hopsize, int initialOffset, int sizeLeft,
+			       bufferIndex *leftEdge)
+{
+	// not totally sure we are computing this correctly
+	// an edge case here is if initialOffset is 0. Then the left edge may
+	// actually be equal to 0. With the way that
+	// numZeroLeftEdgeAdvancements is written, there could be problems if
+	// bufferLength == sizeLeft+hopsize.
+	// If this turns out to be a problem, we could redefine this as the
+	// first non-negative Left edge - this would alleviate any problems
+
+        /* leftEdge is always equal to the very first index in the stream.
+	 *
+	 * We start by computing finalCenterLoc for the current advancement - 
+	 * which is defined as the center of window at the end of the current 
+	 * advancement. By definition, this is the location where leftEdge has 
+	 * a non-zero value.
+	 */
+	int n_adv = numZeroLeftEdgeAdvancements(hopsize, sizeLeft,
+						initialOffset);
+	/* sigOptAdvanceWindow was called n_adv times before this function was 
+	 * called. This function is called during the currently (n_adv+1) call 
+	 * of sigOptAdvanceWindow. The first time sigOptAdvanceWindow was 
+	 * called the window advanced so that it was centered at initialOffset.
+	 * This means that the center of the window at the end of this current 
+	 * advancement will be:
+	 */
+	int finalCenterLoc = initialOffset + hopsize*n_adv;
+	return bufferIndexAddScalarIndex(leftEdge, finalCenterLoc-sizeLeft);
+}
+
+float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
+			  float *centralBuffer, float *leadingBuffer,
+			  int channel)
+{
+	/* This function always adds hopsize to the left edge and right edge 
+	 * (unless the right edge already up against the termination edge).
+	 *
+	 * After making the advancement, it returns the value of std.
+	 *
+	 * this function always expects a non-NULL value for centralBuffer. It 
+	 * is possible for trailingBuffer and leadingBuffer to be NULL (at the 
+	 * start and ends of the stream).
+	 * 
+	 * the function returns -1 if an erro is encountered
+	 *
+	 * NOTE: if we alter the requirements such that winSize can be less 
+	 * than (initialOffset + hopsize) then the behavior of the function 
+	 * must be modified. 
+	 */
+	int hopsize = sO->hopsize;
+	int termination_index = sO->bufferTerminationIndex;
+	int nobs = (sO->channels)[channel].nobs;
+	double mean_x = (sO->channels)[channel].mean_x;
+	double ssqdm_x = (sO->channels)[channel].ssqdm_x;
+	bufferIndex *leftEdge = (sO->channels)[channel].windowRight;
+	bufferIndex *rightEdge = (sO->channels)[channel].windowRight;
+	bufferIndex *stopIndex;
+	int result;
+
+	// I think there is a slight edge case here - If total stream length,
+	// streamLength, satisfies winSize/2< streamLength <winSize
+	// specifically think about if the initialOffset = 22 and
+	// streamLength = winSize/2 + 21
+	// if this is a problem, the way to solve it would be to add a counter
+	// to each sigOptChannel. Then increment it every time that we advance
+	// the buffer while nobs<0 and left edge has not moved. After a certain
+	// number of increments, you will know to advance the left edge. Then,
+	// you can completely disregard this counter.
+	if (nobs < (sO->winSize)){
+		if ((sO->channels)[channel].leftEdgeCounter >= 0){
+			/* The leftEdge of the window is at zero */
+			if ((sO->channels)[channel].leftEdgeCounter == 0){
+				/* advance the left edge */
+				stopIndex = firstNonZLeftEdge(hopsize,
+							      sO->initialOffset,
+							      sO->sizeLeft,
+							      leftEdge);
+				result = advanceLeftEdge(leftEdge, stopIndex,
+							 &nobs, &mean_x,
+							 &ssqdm_x,
+							 centralBuffer, NULL);
+				bufferIndexDestroy(stopIndex);
+				if (result == 0){
+					return 0;
+				}
+			}
+
+			(sO->channels)[channel].leftEdgeCounter--;
+
+			/* only advance the right edge to 
+			 * min(right_edge + hopsize, termination_index)
+			 * this minimization is accounted for in 
+			 * computeRightStopEdge
+			 * If I call advanceRightEdge, and 
+			 * rightEdge == stopEdge, then the window does not
+			 * get advanced - we just introduce extra overhead
+			 */
+			stopIndex = computeRightStopEdge(hopsize,
+							 termination_index,
+							 rightEdge,
+							 centralBuffer,
+							 leadingBuffer);
+			result = advanceRightEdge(rightEdge, stopIndex, &nobs,
+						  &mean_x, &ssqdm_x,
+						  centralBuffer, leadingBuffer);
+		} else {
+			/* In this case the right edge is up against the 
+			 * termination index. Thus we only advance the left
+			 * edge. We handle this case separately from below to 
+			 * avoid unescesary overhead of calling 
+			 * advanceRightEdge (however it would know not to 
+			 * advance the right edge).
+			 */
+			stopIndex = bufferIndexAddScalarIndex(leftEdge,
+							      hopsize);
+			result = advanceLeftEdge(leftEdge, stopIndex, &nobs,
+						 &mean_x, &ssqdm_x,
+						 trailingBuffer, centralBuffer);
+		}
+	} else {
+		/* first lets advance the left edge. */
+		stopIndex = bufferIndexAddScalarIndex(leftEdge, hopsize);
+		result = advanceLeftEdge(leftEdge, stopIndex, &nobs, &mean_x,
+					 &ssqdm_x, trailingBuffer,
+					 centralBuffer);
+		bufferIndexDestroy(stopIndex);
+		if (result == 0){
+			return 0;
+		}
+
+		/* Next lets advance the right edge. */
+		stopIndex = computeRightStopEdge(hopsize, termination_index,
+						 rightEdge, centralBuffer,
+						 leadingBuffer);
+		result = advanceRightEdge(rightEdge, stopIndex, &nobs, &mean_x,
+					  &ssqdm_x, centralBuffer,
+					  leadingBuffer);
+	}
+	bufferIndexDestroy(stopIndex);
+
+	if (result == 0){
+		return 0;
+	}
+
+	(sO->channels)[channel].nobs = nobs;
+	(sO->channels)[channel].mean_x = mean_x;
+	(sO->channels)[channel].ssqdm_x = ssqdm_x;
+	return sigOptGetSigma(sO, channel);
+}
+
+float sigOptGetSigma(sigOpt *sO, int channel)
+{
 	if ((sO->channels)[channel].nobs <= 1){
 		return -1;
 	}
