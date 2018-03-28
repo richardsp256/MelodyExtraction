@@ -367,18 +367,26 @@ double *dblrollSigma(int initialOffset, int hopsize, float scaleFactor,
 	return result;
 }
 
-START_TEST(test_sigOptFullRollSigma_Simple)
-{
+float* fltInput;
+int inputLength;
+
+void setup_sigOptRunExamples(void){
 	double *original_input;
-	int inputLength;
 	inputLength = readDoubleArray(("tests/test_files/roll_sigma/"
 				       "roll_sigma_sample_input"),
 				      isLittleEndian(), &original_input);
 	//inputLength is 51
-	float *fltInput;
 	double_to_float_array(original_input, inputLength, &fltInput);
 	free(original_input);
+}
 
+void teardown_sigOptRunExamples(void){
+	free(fltInput);
+}
+
+
+START_TEST(test_sigOptFullRollSigma_Simple)
+{
 	int numWindows = 10; // not sure if this is a good value. May need to
 	                     // come back and fix this.
 	int initialOffset = 1;
@@ -388,12 +396,62 @@ START_TEST(test_sigOptFullRollSigma_Simple)
 	double *reference = dblrollSigma(initialOffset, hopsize, 1.06,
 					 winSize, inputLength, numWindows,
 					 fltInput, 0); //rollSigma
+
+	// this time we will run sigOpt manually for debugging.
+	sigOpt *sO = sigOptCreate(winSize, hopsize, initialOffset, 1,
+				  1.06);
+	ck_assert_ptr_nonnull(sO);
+	int bufferLength = sigOptGetBufferLength(sO);
+	ck_assert_int_eq(bufferLength,11);
+	int sigPerBuffer = sigOptGetSigmasPerBuffer(sO);
+	ck_assert_int_eq(sigPerBuffer,2);
+
+	float *centralBuffer = fltInput;
+	int intermed_result = sigOptSetup(sO, 0, centralBuffer);
+	ck_assert_int_eq(intermed_result,1);
+	float *leadingBuffer = fltInput + bufferLength;
+	float *trailingBuffer = NULL;
+	printf("%f,%f\n",centralBuffer[bufferLength],leadingBuffer[0]);
+	float sig = sigOptAdvanceWindow(sO, NULL,
+					centralBuffer,leadingBuffer,0);
+	printf("%f\n",sig);
+	printf("%lf\n",reference[0]);
+	ck_assert_float_eq(sig,(float)(reference[0]));
+	fflush(stdout);
+
+	// now the window is centered on index 6
+	// the left edge extends to 0 (it theoretically includes index -1)
+	// the stop index is index 14, or the 4 th index of leadingBuffer
+	sig = sigOptAdvanceWindow(sO, NULL, centralBuffer, leadingBuffer,
+				  0);
+	ck_assert_float_eq(sig,(float)(reference[1]));
+
+	// now for advancement across buffers
+	trailingBuffer = centralBuffer;
+	centralBuffer = leadingBuffer;
+	leadingBuffer = fltInput + 2*bufferLength;
+	sigOptAdvanceBuffer(sO);
+	// now the window is centered at index 11 (the first index of the
+	// central/ second buffer)
+	// at this point the left edge should now include index 4 and the right
+	// edge should stop at index 19 (i.e. index 19 should not be included).
+	// In other words the right edge should stop at index 9 of the second
+	// (central) buffer
+	sig = sigOptAdvanceWindow(sO, trailingBuffer, centralBuffer,
+				  leadingBuffer, 0);
+	ck_assert_float_eq(sig,(float)(reference[2]));
+	
+	
+	
+
+	sigOptDestroy(sO);
+	ck_abort();
+	// I would like to run this after we solve our problems
 	double *result = dblrollSigma(initialOffset, hopsize, 1.06,
 				      winSize, inputLength, numWindows,
 				      fltInput, 1); //sigOptRollSigma
-	free(fltInput);
 	ck_assert_ptr_nonnull(result);
-
+	
 	compareArrayEntries(reference, result, numWindows, 1.e-5, 1, 1.e-5);
 
 	free(reference);
@@ -435,6 +493,8 @@ Suite *sigOpt_suite(void)
 
 	tc_sOrun = tcase_create("sigOpt Run Examples");
 	if (isLittleEndian() == 1){
+		tcase_add_checked_fixture(tc_sOrun, setup_sigOptRunExamples,
+					  teardown_sigOptRunExamples);
 		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_Simple);
 	} else {
 		printf("Cannot add rollSigma tests because the tests are not \n"

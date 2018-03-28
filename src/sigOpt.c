@@ -514,64 +514,20 @@ int advanceRightEdge(bufferIndex *rightEdge, bufferIndex *stopIndex, int *nobs,
 	int bufferNum = bufferIndexGetBufferNum(rightEdge);
 	int result = 0;
 	if (bufferNum == 0) {
-		result = advanceRightEdge(rightEdge, stopIndex, nobs, mean_x,
-					  ssqdm_x, centralBuffer,leadingBuffer);
+		result = advanceRightEdgeHelper(rightEdge, stopIndex, nobs,
+						mean_x, ssqdm_x, centralBuffer,
+						leadingBuffer);
 	} else if (bufferNum == 1){
-		result = advanceRightEdge(rightEdge, stopIndex, nobs, mean_x,
-					  ssqdm_x, leadingBuffer, NULL);
+		result = advanceRightEdgeHelper(rightEdge, stopIndex, nobs,
+						mean_x, ssqdm_x, leadingBuffer,
+						NULL);
 	} else if ((bufferNum == 2) &&
 		   (bufferIndexNe(rightEdge,stopIndex))) {
-		result = advanceRightEdge(rightEdge, stopIndex, nobs, mean_x,
-					  ssqdm_x, leadingBuffer, NULL);
+		result = advanceRightEdgeHelper(rightEdge, stopIndex, nobs,
+						mean_x, ssqdm_x, leadingBuffer,
+						NULL);
 	}
 	return result;
-}
-
-int sigOptSetup(sigOpt *sO, int channel, float *buffer)
-{
-	/* this should only be called once per channel before calling
-	 * sigOptAdvance basically this sets up the window, so calling it
-	 * sigOptAdvance once will lead the buffer to be centered on the very
-	 * first calculation index of the stream.
-	 *
-	 * basically, this means we want the right edge to be located at
-	 * winSize - initialOffset - hopsize at the end of this function.
-	 *
-	 * NOTE: if we alter the requirements such that winSize can be less 
-	 * than (initialOffset + hopsize) then the behavior of the function 
-	 * must be modified. 
-	 */
-	if ((channel>=(sO->numChannels)) || channel<0){
-		return -1;
-	}
-	double mean_x = 0, ssqdm_x = 0;
-	int nobs=0;
-
-	int window_start = (sO->initialOffset - sO->sizeLeft - sO->hopsize);
-	if ((window_start + sO->hopsize) > 0){
-		// this would mean that the very first window is so far to the
-		// right that the an entire window is included - this is
-		// unintended
-		return -1;
-	}
-
-	int window_stop = (sO->initialOffset) + (sO->sizeRight) - sO->hopsize;
-	if (sO->bufferTerminationIndex!=-1){
-		if (window_stop > sO->bufferTerminationIndex){
-			window_stop = sO->bufferTerminationIndex;
-		}
-	}
-
-	for (int i=0; i++; i<window_stop){
-		add_var(buffer[i], &nobs, &mean_x, &ssqdm_x);
-		// this should be optimized - inefficient to increment
-		// bufferIndex
-		bufferIndexIncrement((sO->channels)[channel].windowRight);
-	}
-	(sO->channels)[channel].nobs = nobs;
-	(sO->channels)[channel].mean_x = mean_x;
-	(sO->channels)[channel].ssqdm_x = ssqdm_x;
-	return 1;
 }
 
 void terminationRightEdgeStop(int termination_index, bufferIndex *stopIndex,
@@ -623,6 +579,58 @@ bufferIndex *computeRightStopEdge(int hopsize, int termination_index,
 				 centralBuffer, leadingBuffer);
 	return stopIndex;
 }
+
+int sigOptSetup(sigOpt *sO, int channel, float *buffer)
+{
+	/* this should only be called once per channel before calling
+	 * sigOptAdvance basically this sets up the window, so calling it
+	 * sigOptAdvance once will lead the buffer to be centered on the very
+	 * first calculation index of the stream.
+	 *
+	 * basically, this means we want the right edge to be located at
+	 * winSize - initialOffset - hopsize at the end of this function.
+	 *
+	 * NOTE: if we alter the requirements such that winSize can be less 
+	 * than (initialOffset + hopsize) then the behavior of the function 
+	 * must be modified. 
+	 */
+	if ((channel>=(sO->numChannels)) || channel<0){
+		return -1;
+	}
+	double mean_x = 0, ssqdm_x = 0;
+	int nobs=0;
+
+	int window_start = (sO->initialOffset - sO->sizeLeft - sO->hopsize);
+	if ((window_start + sO->hopsize) > 0){
+		// this would mean that the very first window is so far to the
+		// right that the an entire window is included by entries in
+		// the first 2 buffers - this is unintended
+		return -1;
+	}
+
+	// need to make sure we can't have a negative window stop
+	int window_stop = (sO->initialOffset) + (sO->sizeRight) - sO->hopsize;
+
+	if (sO->bufferTerminationIndex!=-1){
+		if (window_stop > sO->bufferTerminationIndex){
+			window_stop = sO->bufferTerminationIndex;
+		}
+	}
+	bufferIndex *rightEdge = (sO->channels)[channel].windowRight;
+	bufferIndex *stopIndex = bufferIndexAddScalarIndex(rightEdge,
+							   window_stop);
+
+	advanceRightEdge(rightEdge, stopIndex, &nobs, &mean_x, &ssqdm_x,
+			 buffer, NULL);
+
+	bufferIndexDestroy(stopIndex);
+	(sO->channels)[channel].nobs = nobs;
+	(sO->channels)[channel].mean_x = mean_x;
+	(sO->channels)[channel].ssqdm_x = ssqdm_x;
+	return 1;
+}
+
+
 
 bufferIndex *firstNonZLeftEdge(int hopsize, int initialOffset, int sizeLeft,
 			       bufferIndex *leftEdge)
@@ -679,7 +687,7 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 	int nobs = (sO->channels)[channel].nobs;
 	double mean_x = (sO->channels)[channel].mean_x;
 	double ssqdm_x = (sO->channels)[channel].ssqdm_x;
-	bufferIndex *leftEdge = (sO->channels)[channel].windowRight;
+	bufferIndex *leftEdge = (sO->channels)[channel].windowLeft;
 	bufferIndex *rightEdge = (sO->channels)[channel].windowRight;
 	bufferIndex *stopIndex;
 	int result;
@@ -711,7 +719,6 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 					return 0;
 				}
 			}
-
 			(sO->channels)[channel].leftEdgeCounter--;
 
 			/* only advance the right edge to 
@@ -727,6 +734,13 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 							 rightEdge,
 							 centralBuffer,
 							 leadingBuffer);
+			//printf("stopIndex = %d,%d\n",
+			//       bufferIndexGetBufferNum(stopIndex),
+			//       bufferIndexGetIndex(stopIndex));
+			//printf("rightEdge = %d,%d\n",
+			//       bufferIndexGetBufferNum(rightEdge),
+			//       bufferIndexGetIndex(rightEdge));
+
 			result = advanceRightEdge(rightEdge, stopIndex, &nobs,
 						  &mean_x, &ssqdm_x,
 						  centralBuffer, leadingBuffer);
@@ -853,6 +867,7 @@ int sigOptFullRollSigma(int initialOffset, int hopsize, float scaleFactor,
 		trailingBuffer = centralBuffer;
 		centralBuffer = leadingBuffer;
 		leadingBuffer = input + ((i+1)*bufferLength);
+		sigOptAdvanceBuffer(sO);
 	}
 
 	// now set the termination index
@@ -871,6 +886,7 @@ int sigOptFullRollSigma(int initialOffset, int hopsize, float scaleFactor,
 	trailingBuffer = centralBuffer;
 	centralBuffer = leadingBuffer;
 	leadingBuffer = NULL;
+	sigOptAdvanceBuffer(sO);
 
 	// now calculate the remaining values.
 	for (k; k<numWindows; k++){
