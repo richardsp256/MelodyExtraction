@@ -131,9 +131,8 @@ void sorted_clustering(int num_centers, float* centers, float *min_diff,
 	//sorted_clustering_recompute(num_centers, centers, min_diff, min_dist_locs, x, length_x);
 
 	//now compute min_diff anf min_dist_locs
-	int low, high, mid, index;
+	int index;
 	int maxIndex = num_centers - 1;
-	//note:should probably store x[i] in temp variable
 
 	//center_offsets[i] holds the avg distance from center[i] to its points, used to update the centers.
 	for(i = 0; i < num_centers; i++){
@@ -141,41 +140,21 @@ void sorted_clustering(int num_centers, float* centers, float *min_diff,
 		cluster_sizes[i] = 0;
 	}
 
+	//now compute min_diff and min_dist_locs
 	for(i = 0; i < length_x; i++)
 	{
-		//this while loop is essentially binary insertion sort, but we just get the index
-		low = 0;
-		high = maxIndex;
-		while(1)
-		{
-			if(low >= high){
-				index = (x[i] > centers[low]) ? (low + 1) : low;
-				break;
-			}
-
-			mid = (low + high)/2;
-
-			if(x[i] == centers[mid]){
-				index = mid+1;
-				break;
-			}
-
-			if(x[i] > centers[mid]){
-				low = mid+1;
-			}else{
-				high = mid-1;
-			}
+		index = 0;
+		while(index < num_centers && centers[index] < x[i]){
+			index++;
 		}
 
-		//center for x[j] is now either centers[index], or centers[index - 1]
-		//note:the way this is set up, in last 2 cases i calculate centers[index]-x[j] twice. store as var?
 		if(index == 0){
 			min_dist_locs[i] = 0;
 			min_diff[i] = centers[0] - x[i];
 		}else if(index == num_centers){
 			min_dist_locs[i] = maxIndex;
 			min_diff[i] = centers[maxIndex] - x[i];
-		}else if(fabs(centers[index] - x[i]) < fabs(centers[index - 1] - x[i])){
+		}else if((centers[index] - x[i]) < (x[i] - centers[index-1])){
 			min_dist_locs[i] = index;
 			min_diff[i] = centers[index] - x[i];
 		}else{
@@ -205,12 +184,8 @@ void sorted_clustering(int num_centers, float* centers, float *min_diff,
 void sorted_clustering_recompute(int num_centers, float* centers, float* min_diff,
 			      int *min_dist_locs, float *x, int length_x, float* center_offsets, int* cluster_sizes)
 {	
-	int low, high, mid, index, i;
+	int index, i;
 	int maxIndex = num_centers - 1;
-
-	//NOTE: for p = 1 (which i beleive it should be), I think cluster_sizes,
-	// which i was calculating here to help update centers, is actually identical to cluster_diffs.
-	// if true, compute_cluster_diffs will no longer be needed! will help greatly!
 
 	//center_offsets[i] holds the avg distance from center[i] to its points, used to update the centers.
 	for(i = 0; i < num_centers; i++){
@@ -218,45 +193,29 @@ void sorted_clustering_recompute(int num_centers, float* centers, float* min_dif
 		cluster_sizes[i] = 0;
 	}
 
-	//now compute min_diff anf min_dist_locs
-	//note:should probably store x[i] in temp variable
-	for(i = 0; i < length_x; i++)
+	//now compute min_diff and min_dist_locs
+	for(i = 0; i < length_x-1; i++)
 	{
-		//printf("  point %d of %d\n", i, length_x);
-		//fflush(NULL);
-
-		low = 0;
-		high = maxIndex;
-		while(1) //while loop is essentially binary insertion sort, but we just get the index
-		{
-			if(low >= high){
-				index = (x[i] > centers[low]) ? (low + 1) : low;
-				break;
+		index = min_dist_locs[i+1]; //bc for future rows, array is essentially shifted one index, we check i+1.
+		
+		if(centers[index] > x[i]){
+			while(index > 0 && centers[index-1] > x[i]){
+				index--;
 			}
-
-			mid = (low + high)/2;
-
-			if(x[i] == centers[mid]){
-				index = mid+1;
-				break;
-			}
-
-			if(x[i] > centers[mid]){
-				low = mid+1;
-			}else{
-				high = mid-1;
+		}
+		else{
+			while(index < num_centers && centers[index] < x[i]){
+				index++;
 			}
 		}
 
-		//center for x[i] is now either centers[index], or centers[index - 1]
-		//note: we dont need fabs! centers[index] must be equal or greater, centers[index-1] must be equal or less...
 		if(index == 0){
 			min_dist_locs[i] = 0;
 			min_diff[i] = centers[0] - x[i];
 		}else if(index == num_centers){
 			min_dist_locs[i] = maxIndex;
 			min_diff[i] = centers[maxIndex] - x[i];
-		}else if(fabs(centers[index] - x[i]) < fabs(centers[index - 1] - x[i])){
+		}else if((centers[index] - x[i]) < (x[i] - centers[index-1])){
 			min_dist_locs[i] = index;
 			min_diff[i] = centers[index] - x[i];
 		}else{
@@ -267,6 +226,33 @@ void sorted_clustering_recompute(int num_centers, float* centers, float* min_dif
 		center_offsets[min_dist_locs[i]] += min_diff[i];
 		cluster_sizes[min_dist_locs[i]] += 1;
 	}
+
+	//last point is new, so just search up from 0
+	i = length_x-1;
+	index = 0;
+	while(index < num_centers && centers[index] < x[i]){
+		index++;
+	}
+
+	//center for x[i] is now either centers[index], or centers[index - 1]
+	//guaranteed that centers[index] >= x[i], centers[index-1] <= x[i], if centers[index] and centers[indes-1] are in range
+	if(index == 0){
+		min_dist_locs[i] = 0;
+		min_diff[i] = centers[0] - x[i];
+	}else if(index == num_centers){
+		min_dist_locs[i] = maxIndex;
+		min_diff[i] = centers[maxIndex] - x[i];
+	}else if((centers[index] - x[i]) < (x[i] - centers[index-1])){
+		min_dist_locs[i] = index;
+		min_diff[i] = centers[index] - x[i];
+	}else{
+		min_dist_locs[i] = index-1;
+		min_diff[i] = centers[index-1] - x[i];
+	}
+
+	center_offsets[min_dist_locs[i]] += min_diff[i];
+	cluster_sizes[min_dist_locs[i]] += 1;
+
 
 	//update centers
 	//note: we can be sure that centers stay sorted as they are updated.
