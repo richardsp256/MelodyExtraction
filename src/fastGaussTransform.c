@@ -489,7 +489,7 @@ void PSMTEST()
 	int length_x = 137;
 	float* x = malloc(sizeof(float)*length_x*2);
 	float sigma = 1;
-	int r = 1000;
+	int r = 1500;
 	int i;
 	float elapsed, result;
 	clock_t c1, c2;
@@ -499,37 +499,41 @@ void PSMTEST()
 		x[i] = uniform_rand_inclusive()*2;
 	}
 
-	c1 = clock();
-	for(i = 0; i < r; i++){
-		result = calcPSMEntryContrib(x, length_x, sigma);
-	}	
-	c2 = clock();
-	elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
-	printf("PSMEntryContrib        : %f\t  time: %f\n", result, ((elapsed/r) * 1000));
+	for(int j = 0; j < 5; j++){
+		c1 = clock();
+		for(i = 0; i < r; i++){
+			result = calcPSMEntryContrib(x, length_x, sigma);
+		}	
+		c2 = clock();
+		elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
+		printf("PSMEntryContrib        : %f\t  time: %f\n", result, ((elapsed*1000)/r));
 
-	c1 = clock();
-	for(i = 0; i < r; i++){
-		result = PSM_Gauss_Real(x, length_x, sigma);
-	}	
-	c2 = clock();
-	elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
-	printf("PSM_Gauss_Real         : %f\t  time: %f\n", result, ((elapsed/r) * 1000));
+		c1 = clock();
+		for(i = 0; i < r; i++){
+			result = PSM_Gauss_Real(x, length_x, sigma);
+		}	
+		c2 = clock();
+		elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
+		printf("PSM_Gauss_Real         : %f\t  time: %f\n", result, ((elapsed*1000)/r));
 
-	c1 = clock();
-	for(i = 0; i < r; i++){
-		result = PSM_Gauss_Fast_Variable(x, length_x, sigma);
-	}	
-	c2 = clock();
-	elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
-	printf("PSM_Gauss_Fast_Variable: %f\t  time: %f\n", result, ((elapsed/r) * 1000));
+		c1 = clock();
+		for(i = 0; i < r; i++){
+			result = PSM_Gauss_Fast_Variable(x, length_x, sigma);
+		}	
+		c2 = clock();
+		elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
+		printf("PSM_Gauss_Fast_Variable: %f\t  time: %f\n", result, ((elapsed*1000)/r));
 
-	c1 = clock();
-	for(i = 0; i < r; i++){
-		result = PSM_Gauss_Fast(x, length_x, sigma);
-	}	
-	c2 = clock();
-	elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
-	printf("PSM_Gauss_Fast         : %f\t  time: %f\n", result, ((elapsed/r) * 1000));
+		c1 = clock();
+		for(i = 0; i < r; i++){
+			result = PSM_Gauss_Fast(x, length_x, sigma);
+		}	
+		c2 = clock();
+		elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
+		printf("PSM_Gauss_Fast         : %f\t  time: %f\n", result, ((elapsed*1000)/r));
+
+		printf("\n");
+	}
 }
 
 int main(int argc, char *argv[])
