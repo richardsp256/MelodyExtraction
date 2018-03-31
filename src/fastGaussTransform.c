@@ -21,7 +21,7 @@ void compute_cluster_diffs(float* centers, float* cluster_diffs,
 	 * for which centers[i] is the closest center) of the difference, 
 	 * between centers[i] and an element for which centers[i] is the 
 	 * closest center, quantity raised to power of n. The resulting 
-	 * sum of every term is divided by (2 * sigma)^n 
+	 * sum of every term is divided by (sqrt(2) * sigma)^n 
 	 * To be clear every individual difference in the summation is raised 
 	 * to power.*/
 	int i,j,offset,n;
@@ -45,10 +45,10 @@ void compute_cluster_diffs(float* centers, float* cluster_diffs,
 			cluster_diffs[offset+n] += temp;
 		}
 	}
-	/* Now, we just need to divide all entries by (2*sigma)^n. Note that 
-	 * when n = 0 we are just dividing by 1 */
+	/* Now, we just need to divide all entries by (sqrt(2)*sigma)^n. Note 
+	 * that when n = 0 we are just dividing by 1 */
 	temp = 1;
-	denom = 1./2*sigma;
+	denom = M_SQRT1_2/sigma;
 	// handle when n>0
 	for (n=1; n<stop_n;n++){
 		temp*=denom;
@@ -269,63 +269,144 @@ void sorted_clustering_recompute(int num_centers, float* centers, float* min_dif
 	}
 }
 
-float RealGaussEval(float* x, float* y, int length_x, int length_y,
-		    float sigma){
-	//simple implementation of gauss transform, for reference/testing. 
+float PSM_Gauss_Real(float* x, int winSize, float sigma)
+{
+	//a simple test example of calculating PMS using the gauss tranform.
+	//just for testing - the goal is to get as accurate a value as possible
 
-	//note, in matts pdf, the denominators are WRONG! 
-	//in the FGT paper he references, eq(7) has the equation with correct denominators
-	float denom = 1/(4 * sigma * sigma);
-
-	float out,temp;
-	int i,j;
-	out = 0;
-	for (i=0;i<length_x;i++){
-		for (j=0;j<length_y;j++){
-			temp = x[i]-y[j];
-			out += expf(-1.0f * temp * temp * denom);
+	// here we use Kahan addition, I think it probably has a minimal impact
+	double out = 0;
+	double c = 0;
+	for (int i = 0; i < winSize; i++){
+		for (int j = 1; j <= winSize; j++){
+			double temp = x[i]-x[i+j];
+			double y = exp(-0.5f * temp * temp/((double) sigma * sigma)) - c;
+			double t = out+y;
+			c = (t - out) - y;
+			out = t;
+			// need to be carful about agressive compiler optimization
 		}
 	}
+	out /= (sqrt(2.*M_PI) * (double) sigma);
 	return out;
 }
 
 #define M_1_SQRT2PI 0.3989422804f
 float calcPSMEntryContrib(float* x, int winSize, float sigma)
 {
-	//computes the correct PMS calculation, as done in actual app.
-	//note: im 99% sure this function is correct, but maybe matt should double check juuust in case.
+	// at this point the PSMEntryContrib reflects a normal, "efficient" summation of directly
+	// evaluated Gaussians. We no longer divide the input by sqrt(2)*sigma ahead of time. It
+	// turns out that the floating point error that occurs from first dividing the input array
+	// by sqrt(2)*sigma and then later subtracting the elements from each other in a separate
+	// step rather than handling both operations simultaneously, becomes significant. It
+	// becomes significant because the result of those operations is multiplied by -1 and used
+	// to call expf. This is repeated 137^2 times and the results are all summed together.
+	// Consequently this small floating point can blow up to be a 10% difference in the final
+	// result.
+
+	// The actual app needs to be update to calculate the PSM using this function
+	// computes the correct PMS calculation, as done in actual app.
+
 	//This is just here to test approximation for correctness, and compare speed.
 	int i, j;
 	float out, temp;
+	float denom = -0.5/(sigma * sigma);
 	out = 0;
 	for (i = 0; i < winSize; i++){
 		for (j = 1; j <= winSize; j++){
-			temp = x[i] - x[i+j]; 
-			out += expf(-1.0f * temp * temp);
+			temp = x[i] - x[i+j];
+			out += expf(temp * temp * denom);
 		}
 	}
 	out *= M_1_SQRT2PI / sigma;
 	return out;
 }
 
-float PSM_Gauss_Real(float* x, int winSize, float sigma)
+
+float PSM_Gauss_Real_Comp(float* x, float* y, int winSize, float sigma)
 {
 	//a simple test example of calculating PMS using the gauss tranform.
 	//just for testing.
-	int i;
-	float out;
+
+	// this function assumes that y = x/(sqrt(2)*sigma)
+	// this function demonstrates that using y instead of x (while faster) can lead to errors
+	// of ~10%
+
+	int i,j;
+	double out,out2;
+	double denom = 1./((double)sigma*sqrt(2.));
 	out = 0;
+	out2 = 0;
+
+	double stop = 1500;
 	for (i = 0; i < winSize; i++){
-		//instead of passing sigma to RealGaussEval, we pass 0.5f.
-		//this is so the denom becomes 1, to match PSM.
-		out += RealGaussEval(&x[i], &x[i+1], 1, winSize, 0.5f);
+		if (fabsf(out2 - out) > stop){
+			break;
+		}
+		for (j = 1; j <= winSize; j++){
+			if (fabsf(out2 - out) > stop){
+				printf("out = %f, out2 = %f, i = %d\n",out,out2,i);
+				break;
+			}
+			
+			double temp = (double)((x[i] - x[i+j])*denom);
+			out += (double)exp((double)(-1.0 * temp * temp));
+			// old quick way of computing PSM contribution
+			double temp2 = (y[i] - y[i+j]);
+			out2 += (double)exp((double)(-1.0 * temp2 * temp2));
+
+			//printf("Difference = %lf\n", temp2-temp);
+		}
 	}
+	printf("Finished out = %f, out2 = %f\n",out,out2);
 	out *= M_1_SQRT2PI / sigma;
+	out2 *= M_1_SQRT2PI / sigma;
+	printf("%f %f\n",out,out2);
+	return out;
+}
+
+float KahnSumPSMEntryContrib(float* x, int winSize, float sigma){
+	int i, j;
+	double out = 0;
+	double c =0;
+	for (i = 0; i < winSize; i++){
+		for (j = 1; j <= winSize; j++){
+			double temp = x[i] - x[i+j]; 
+			double y = exp(-1.0f * temp * temp) -c;
+			double t = out + y;
+			c = (t-out)-y;
+			out = t;
+		}
+	}
+
+	return (float) (out*M_1_SQRT2PI / sigma);
+}
+
+double dblCalcPSMEntryContrib(float* x, double* z, int winSize, float sigma)
+{
+	//computes the correct PMS calculation, as done in actual app.
+	//note: im 99% sure this function is correct, but maybe matt should double check juuust in case.
+	//This is just here to test approximation for correctness, and compare speed.
+	int i, j;
+	double out = 0;
+	float out2 = 0;
+	for (i = 0; i < winSize; i++){
+		for (j = 1; j <= winSize; j++){
+   			double temp = z[i] - z[i+j]; 
+			out += exp(-1.0f * temp * temp);
+
+			double temp2 = (x[i] - x[i+j]);
+			out2 += (double)exp((double)(-1.0 * temp2 * temp2));
+		}
+	}
+	out *= M_1_SQRT2PI / (double)sigma;
 	return out;
 }
 
 float PSM_Gauss_Fast_Variable(float* arr, int winSize, float sigma)
 {
+	// This assumes that every entry in arr had been divided by (sqrt(2) * sigma)
+
 	//an older variation where p is a variable and can be changed. kept for testing.
 	int i, j, c, p, n, offset, num_centers, *min_dist_locs, length_x, length_y, *cluster_sizes;
 	float out, z, temp, xj, *centers, *cluster_diffs, *min_diff, *x, *y, *center_offsets;
@@ -364,10 +445,10 @@ float PSM_Gauss_Fast_Variable(float* arr, int winSize, float sigma)
 		
 		// compute cluster differences
 		//cluster_diffs[i*p + j] = C(n,s), where n = j and s = i
-		//sigma in FGT hardcoded to 0.5f so FGT properly emulates PSM
+
 		compute_cluster_diffs(centers, cluster_diffs, num_centers,
 				      min_dist_locs, min_diff, length_y,
-				      0.5f, p);
+				      sigma, p);
 
 		/* we might be able to get away with not storing the cluster_diffs if 
 		 * we alter order in which we iterate over different terms */
@@ -376,12 +457,13 @@ float PSM_Gauss_Fast_Variable(float* arr, int winSize, float sigma)
 			for (c=0, offset = 0; c<num_centers; ++c, offset+=p)
 			{	
 				z = (xj-centers[c]);
+				
 				temp = cluster_diffs[offset];
 				for(n = 1; n < p; ++n){
 					temp += (fgtComponent(n,z) * cluster_diffs[offset + n]); //this is just 1/n! * h(n,x)
 					//temp += (1/fact(n)) * hermite_function(n,z) * cluster_diffs[offset + n];
 				}
-				out+= exp(-z*z) * temp;
+				out+= exp(-0.5*z*z/(sigma*sigma)) * temp;
 				//out += temp;
 			}
 		}
@@ -400,6 +482,9 @@ float PSM_Gauss_Fast_Variable(float* arr, int winSize, float sigma)
 
 float PSM_Gauss_Fast(float* arr, int winSize, float sigma)
 {
+
+	// This assumes that every entry in arr had been divided by (sqrt(2) * sigma)
+	
 	//The actual alg! computing PMS calculation using FGT.
 	//this implementation hardcodes p to be 1, and takes advantage of this.
 	//num_centers is still not hardcoded.
@@ -464,7 +549,7 @@ float PSM_Gauss_Fast(float* arr, int winSize, float sigma)
 			for (c=0; c<num_centers; ++c)
 			{	
 				z = (xj-centers[c]);
-				out+= exp(-z*z) * cluster_diffs[c];
+				out+= exp(-0.5*z*z/(sigma*sigma)) * cluster_diffs[c];
 			}
 		}
 	}
@@ -484,22 +569,52 @@ float uniform_rand_inclusive(){
 	return ((float)rand() - 1.0)/((float)RAND_MAX-2.0);
 }
 
+void prepare_y_array(float* x, float* y, int length, float sigma){
+	for (int i=0; i<length; i++){
+		y[i] = M_SQRT1_2* x[i]/sigma;
+	}
+}
+
 void PSMTEST()
 {
 	int length_x = 137;
+
+	// x holds the input entries
 	float* x = malloc(sizeof(float)*length_x*2);
+	// y is the same as x divided by (sqrt(2)*sigma)
+	float* y = malloc(sizeof(float)*length_x*2);
 	float sigma = 1;
 	int r = 1500;
 	int i;
 	float elapsed, result;
 	clock_t c1, c2;
-
+	
 	srand(87956);
 	for (int i = 0; i < (length_x*2); i++){
 		x[i] = uniform_rand_inclusive()*2;
 	}
 
+	// the following 2 lines are used to illustrate the large errors that result from dividing
+	// x by (sqrt(2)*sigma) ahead of time.
+	prepare_y_array(x, y, length_x, sigma);
+	PSM_Gauss_Real_Comp(x, y, length_x, sigma);
+	free(y);
+
 	for(int j = 0; j < 5; j++){
+
+		// no need to time PSM_Gauss_Real - it is intentionally coded for accuracy instead
+		// of accuracy
+		printf("PSM_Gauss_Real         : %f\t\n", PSM_Gauss_Real(x, length_x, sigma));
+
+		// at this point the PSMEntryContrib reflects a normal, "efficient" direct
+		// summation. We no longer divide the input by sqrt(2)*sigma ahead of time.
+		// It turns out that the floating point error that occurs from first dividing the
+		// input array by sqrt(2)*sigma and then later subtracting the elements from each
+		// other in a separate step rather than handling both operations simultaneously,
+		// becomes significant. It becomes significant because the result of those
+		// operations is multiplied by -1 and used to call expf. This is repeated 137^2
+		// times and the results are all summed together. Consequently this small floating
+		// point can blow up to be a 10% difference in the final result.
 		c1 = clock();
 		for(i = 0; i < r; i++){
 			result = calcPSMEntryContrib(x, length_x, sigma);
@@ -507,14 +622,6 @@ void PSMTEST()
 		c2 = clock();
 		elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
 		printf("PSMEntryContrib        : %f\t  time: %f\n", result, ((elapsed*1000)/r));
-
-		c1 = clock();
-		for(i = 0; i < r; i++){
-			result = PSM_Gauss_Real(x, length_x, sigma);
-		}	
-		c2 = clock();
-		elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
-		printf("PSM_Gauss_Real         : %f\t  time: %f\n", result, ((elapsed*1000)/r));
 
 		c1 = clock();
 		for(i = 0; i < r; i++){
@@ -534,6 +641,8 @@ void PSMTEST()
 
 		printf("\n");
 	}
+	free(x);
+	free(y);
 }
 
 int main(int argc, char *argv[])
