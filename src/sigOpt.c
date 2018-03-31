@@ -272,6 +272,42 @@ int computeSigOptBufferLength(int initialOffset, int winSize, int hopsize){
 	 * hopsize:       the number of samples that a window must shift 
 	 *                between calculations of sigma.
 	 *
+	 * To make sure that a buffer will always contain at least half of 
+	 * the data for a window fits into a buffer, (regardless of whether 
+	 * winSize/hopsize is even or odd), the buffer length must be at 
+	 * least: 
+	 *     (floor(winSize/hopsize/2) +1 ) * hopsize
+	 * We also want to be able to guaruntee for a non-zero initialOffset 
+	 * that:
+	 *    1. for the calculation of the standard deviation of the final 
+	 *       correntropy calculation interval included in a given buffer 
+	 *       that the entire left side of the interval be included in that 
+	 *       given buffer (so that after the calculation, we can forget 
+	 *       about any preceding buffers). To achieve this we must at 
+	 *       least add initialOffset to the above equation.
+	 *    2. for any buffer within a given configuration, the ith standard 
+	 *       deviation should always be centered on the jth entry of the 
+	 *       buffer. To achieve this we must buffer length must be an 
+	 *       integer multiple of hopsize.
+	 *
+	 * To achieve both of the enumerated requirements, we thus define 
+	 * bufferLength as:
+	 *    bufferLength = (floor(winSize / hopsize / 2) + 1) * hopsize  
+	 *                    + ceil(initialOffset / hopsize) * hopsize)
+	 *    bufferLength = hopsize * (floor(winSize / hopsize / 2)
+	 *                              + ceil(initialOffset / hopsize) 
+	 *                              + 1)
+	 * Rewriting this in terms of integer division this becomes:
+	 *    bufferLength = hopsize * ((winSize / hopsize / 2)
+	 *                              + ceil(initialOffset / hopsize) 
+	 *                              + 1)
+	 * This new definition may also not work either in the case where 
+	 * initialOffset>hopsize. I am somewhat that its not an issue, but I 
+	 * need to think about it more and then explain why it is not an 
+	 * issue. It stems from the fact that the implementation does not track
+	 * a central index.
+	 *
+	 * Old definition:
 	 * The buffer length is given by: 
 	 *     (winSize//hopsize//2 +1)*hopsize+initialOffset
 	 * where "//" denotes integer division 
