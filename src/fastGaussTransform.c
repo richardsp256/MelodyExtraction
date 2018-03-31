@@ -583,7 +583,7 @@ void PSMTEST()
 	float* x = malloc(sizeof(float)*length_x*2);
 	// y is the same as x divided by (sqrt(2)*sigma)
 	float* y = malloc(sizeof(float)*length_x*2);
-	float sigma = 1;
+	float sigma = 0.5;
 	int r = 1500;
 	int i;
 	float elapsed, result;
@@ -642,7 +642,6 @@ void PSMTEST()
 		printf("\n");
 	}
 	free(x);
-	free(y);
 }
 
 int main(int argc, char *argv[])
