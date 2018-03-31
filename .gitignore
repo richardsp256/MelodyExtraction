@@ -63,3 +63,4 @@ Testing/*
 #Ignore compiled code
 extract
 tests/check_gammatone
+tests/check_detFunction
