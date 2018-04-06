@@ -235,7 +235,7 @@ START_TEST(test_sigOptCreate)
 	// samples
 	sigOpt *sO =sigOptCreate(770,55,22,4,1.06);
 	ck_assert_ptr_nonnull(sO);
-	ck_assert_int_eq(sigOptGetBufferLength(sO),462);
+	ck_assert_int_eq(sigOptGetBufferLength(sO),440);
 	ck_assert_int_eq(sigOptGetSigmasPerBuffer(sO),8);
 	sigOptDestroy(sO);
 }
@@ -387,11 +387,16 @@ void teardown_sigOptRunExamples(void){
 
 START_TEST(test_sigOptFullRollSigma_Simple)
 {
-	int numWindows = 10; // not sure if this is a good value. May need to
-	                     // come back and fix this.
+	// in this version, I want to deliberately break up the evaluation so
+	// we can pinpoint what doesn't work if the test fails.
+	
+	int numWindows = 10; 
 	int initialOffset = 1;
 	int winSize = 15;
 	int hopsize = 5;
+
+	// we are not using all 51 entries
+	inputLength = 49;
 
 	double *reference = dblrollSigma(initialOffset, hopsize, 1.06,
 					 winSize, inputLength, numWindows,
@@ -402,51 +407,156 @@ START_TEST(test_sigOptFullRollSigma_Simple)
 				  1.06);
 	ck_assert_ptr_nonnull(sO);
 	int bufferLength = sigOptGetBufferLength(sO);
-	ck_assert_int_eq(bufferLength,11);
+	ck_assert_int_eq(bufferLength,15);
 	int sigPerBuffer = sigOptGetSigmasPerBuffer(sO);
-	ck_assert_int_eq(sigPerBuffer,2);
+	ck_assert_int_eq(sigPerBuffer,3);
 
 	float *centralBuffer = fltInput;
 	int intermed_result = sigOptSetup(sO, 0, centralBuffer);
 	ck_assert_int_eq(intermed_result,1);
 	float *leadingBuffer = fltInput + bufferLength;
 	float *trailingBuffer = NULL;
-	printf("%f,%f\n",centralBuffer[bufferLength],leadingBuffer[0]);
+	//printf("%f,%f\n",centralBuffer[bufferLength],leadingBuffer[0]);
 	float sig = sigOptAdvanceWindow(sO, NULL,
 					centralBuffer,leadingBuffer,0);
-	printf("%f\n",sig);
-	printf("%lf\n",reference[0]);
+	//printf("%f\n",sig);
+	//printf("%lf\n",reference[0]);
 	ck_assert_float_eq(sig,(float)(reference[0]));
-	fflush(stdout);
+	//fflush(stdout);
 
 	// now the window is centered on index 6
 	// the left edge extends to 0 (it theoretically includes index -1)
-	// the stop index is index 14, or the 4 th index of leadingBuffer
+	// the stop index is index 14 (of the stream and the central Buffer)
 	sig = sigOptAdvanceWindow(sO, NULL, centralBuffer, leadingBuffer,
 				  0);
 	ck_assert_float_eq(sig,(float)(reference[1]));
+
+	// now the window is centered at index 11 (the 11th index of the
+	// central buffer)
+	// at this point the left edge should now include index 4 and the right
+	// edge should stop at index 19 (i.e. index 19 should not be included).
+	// In other words the right edge should stop at index 4 of the second
+	// (central) buffer
+	// note that this is the first time, we will have a complete window.
+	sig = sigOptAdvanceWindow(sO, NULL, centralBuffer, leadingBuffer,
+				  0);
+	ck_assert_float_eq(sig,(float)(reference[2]));
 
 	// now for advancement across buffers
 	trailingBuffer = centralBuffer;
 	centralBuffer = leadingBuffer;
 	leadingBuffer = fltInput + 2*bufferLength;
 	sigOptAdvanceBuffer(sO);
-	// now the window is centered at index 11 (the first index of the
-	// central/ second buffer)
-	// at this point the left edge should now include index 4 and the right
-	// edge should stop at index 19 (i.e. index 19 should not be included).
-	// In other words the right edge should stop at index 9 of the second
-	// (central) buffer
+
+
+	// advance current window. The final properties of the window after
+	// advancement are:
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          16                 central    1
+	// left edge       9                  trailing   9
+	// stop index      24                 central    9
 	sig = sigOptAdvanceWindow(sO, trailingBuffer, centralBuffer,
 				  leadingBuffer, 0);
-	ck_assert_float_eq(sig,(float)(reference[2]));
+	ck_assert_float_eq(sig,(float)(reference[3]));
+
+	// advance current window
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          21                 central    6
+	// left edge       14                 trailing   14
+	// stop index      29                 central    14
+	sig = sigOptAdvanceWindow(sO, trailingBuffer, centralBuffer,
+				  leadingBuffer, 0);
+	ck_assert_float_eq(sig,(float)(reference[4]));
+
+	// advance current window
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          26                 central    11
+	// left edge       19                 central    4
+	// stop index      34                 leading    4
+	sig = sigOptAdvanceWindow(sO, trailingBuffer, centralBuffer,
+				  leadingBuffer, 0);
+	ck_assert_float_eq(sig,(float)(reference[5]));
+
+
+
+
+	// advance across buffers
+	trailingBuffer = centralBuffer;
+	centralBuffer = leadingBuffer;
+	leadingBuffer = fltInput + 3*bufferLength;
+	sigOptAdvanceBuffer(sO);
 	
+	// set termination index to 4 - this sets the length of the entire
+	// stream to 49
+	sigOptSetTerminationIndex(sO,4);
+
+	// advance current window. The final properties of the window after
+	// advancement are:
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          31                 central    1
+	// left edge       24                 trailing   9
+	// stop index      39                 central    9
+	sig = sigOptAdvanceWindow(sO, trailingBuffer, centralBuffer,
+				  leadingBuffer, 0);
+	ck_assert_float_eq(sig,(float)(reference[6]));
 	
-	
+	// advance current window
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          35                 central    6
+	// left edge       29                 trailing   14
+	// stop index      44                 central    14
+	sig = sigOptAdvanceWindow(sO, trailingBuffer, centralBuffer,
+				  leadingBuffer, 0);
+	ck_assert_float_eq(sig,(float)(reference[7]));
+
+	// advance current window
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          41                 central    11
+	// left edge       34                 central    4
+	// stop index      49                 leading    4
+	sig = sigOptAdvanceWindow(sO, trailingBuffer, centralBuffer,
+				  leadingBuffer, 0);
+	ck_assert_float_eq(sig,(float)(reference[8]));
+
+	// we advance across buffers
+	trailingBuffer = centralBuffer;
+	centralBuffer = leadingBuffer;
+	leadingBuffer = NULL;
+	sigOptAdvanceBuffer(sO);
+
+	// we advance the current window, calculating the final sigma for the
+	// final buffer (now the central buffer). The final properties of the
+	// window after advancement are given below. Values in the parenthesis
+	// give the values if there stream had not terminated:
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          46                 central    1
+	// left edge       39                 trailing   9
+	// stop index      49 (54)            central    4 (9)
+	sig = sigOptAdvanceWindow(sO, trailingBuffer, centralBuffer,
+				  leadingBuffer, 0);
+	ck_assert_float_eq(sig,(float)(reference[9]));
 
 	sigOptDestroy(sO);
-	ck_abort();
-	// I would like to run this after we solve our problems
+	free(reference);
+}
+END_TEST
+
+START_TEST(test_sigOptFullRollSigma_Simple_SmallerTermInd){
+	// in the Simple version, the Termination Index was exactly equal to
+	// the stop index of the second to last value.
+
+	int numWindows = 10; // May be worth testing one more window
+	int initialOffset = 1;
+	int winSize = 15;
+	int hopsize = 5;
+
+	// we are not using all 51 entries -> reducing it to 48
+	// currently doesn't work when we use 49 indices either
+	inputLength = 48;
+	
+	double *reference = dblrollSigma(initialOffset, hopsize, 1.06,
+					 winSize, inputLength, numWindows,
+					 fltInput, 0); //rollSigma
 	double *result = dblrollSigma(initialOffset, hopsize, 1.06,
 				      winSize, inputLength, numWindows,
 				      fltInput, 1); //sigOptRollSigma
@@ -456,8 +566,9 @@ START_TEST(test_sigOptFullRollSigma_Simple)
 
 	free(reference);
 	free(result);
-}
-END_TEST
+
+} END_TEST
+
 
 Suite *sigOpt_suite(void)
 {
@@ -496,6 +607,8 @@ Suite *sigOpt_suite(void)
 		tcase_add_checked_fixture(tc_sOrun, setup_sigOptRunExamples,
 					  teardown_sigOptRunExamples);
 		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_Simple);
+		//tcase_add_test(tc_sOrun,
+		//	       test_sigOptFullRollSigma_Simple_SmallerTermInd);
 	} else {
 		printf("Cannot add rollSigma tests because the tests are not \n"
 		       "presently equipped to run on Big Endian machines\n");

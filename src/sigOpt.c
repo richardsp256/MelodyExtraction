@@ -272,53 +272,170 @@ int computeSigOptBufferLength(int initialOffset, int winSize, int hopsize){
 	 * hopsize:       the number of samples that a window must shift 
 	 *                between calculations of sigma.
 	 *
-	 * To make sure that a buffer will always contain at least half of 
-	 * the data for a window fits into a buffer, (regardless of whether 
-	 * winSize/hopsize is even or odd), the buffer length must be at 
-	 * least: 
-	 *     (floor(winSize/hopsize/2) +1 ) * hopsize
-	 * We also want to be able to guaruntee for a non-zero initialOffset 
-	 * that:
-	 *    1. for the calculation of the standard deviation of the final 
-	 *       correntropy calculation interval included in a given buffer 
-	 *       that the entire left side of the interval be included in that 
-	 *       given buffer (so that after the calculation, we can forget 
-	 *       about any preceding buffers). To achieve this we must at 
-	 *       least add initialOffset to the above equation.
-	 *    2. for any buffer within a given configuration, the ith standard 
-	 *       deviation should always be centered on the jth entry of the 
-	 *       buffer. To achieve this we must buffer length must be an 
-	 *       integer multiple of hopsize.
+	 * ===========================================================
+	 * During sigOpt, up to 3 buffers can be used. The central buffer 
+	 * includes the portion of the audio stream, where the starting index 
+	 * is found for the interval of data used during the current 
+	 * correntropy calculation (hereafter correntropy interval). The 
+	 * central buffer is always present. At other points, the correntropy
+	 * a trailing buffer and leading buffer can also be present (they 
+	 * include filled buffers of data from the stream directly preceeding 
+	 * or following, respectively, the section of the stream in the central 
+	 * buffer).
+	 * 
+	 * We require that the the ith (zero-indexed) correntropy interval must
+	 * always begin at index i*hopsize of the central buffer and for each 
+	 * buffer (except for the one where the stream terminates) there are 
+	 * nsigma correntropy calculations. The following criteria accomplish 
+	 * this:
+	 *     bufferLength % hopsize =0
+	 *     bufferLength > hopsize > 0
+	 *     nsigma = bufferLenght / hopsize
 	 *
-	 * To achieve both of the enumerated requirements, we thus define 
-	 * bufferLength as:
-	 *    bufferLength = (floor(winSize / hopsize / 2) + 1) * hopsize  
-	 *                    + ceil(initialOffset / hopsize) * hopsize)
-	 *    bufferLength = hopsize * (floor(winSize / hopsize / 2)
-	 *                              + ceil(initialOffset / hopsize) 
-	 *                              + 1)
-	 * Rewriting this in terms of integer division this becomes:
-	 *    bufferLength = hopsize * ((winSize / hopsize / 2)
-	 *                              + ceil(initialOffset / hopsize) 
-	 *                              + 1)
-	 * This new definition may also not work either in the case where 
-	 * initialOffset>hopsize. I am somewhat that its not an issue, but I 
-	 * need to think about it more and then explain why it is not an 
-	 * issue. It stems from the fact that the implementation does not track
-	 * a central index.
+	 * We define initialOffset as the number pixels between the starting 
+	 * index of a correntropy interval and the center of the window used to
+	 * compute the sigma required in that correntropy calculation. We 
+	 * requre: initialOffset >= 0
 	 *
-	 * Old definition:
-	 * The buffer length is given by: 
-	 *     (winSize//hopsize//2 +1)*hopsize+initialOffset
-	 * where "//" denotes integer division 
+	 * Note while we do use sizeLeft and sizeRight, for normal operations 
+	 * of sigOpt, we calculate it here in this function separately, just 
+	 * in case the definitions used in the rest of sigOpt change.
+	 *     sizeLeft = floor(winSize/2), if winSize is odd
+	 *              = winSize/2 - 1,    if winSize is even
+	 *     sizeRight = floor(winSize/2) +1
+	 *     winSize = sizeLeft+sizeRight
+	 * Basically, the calculation of sigma in a window centered at center 
+	 * uses all indices included in [center-sizeLeft,center+sizeRight)
+	 *
+	 * Simplifying assumptions:
+	 *     initialOffset < sizeLeft
+	 *     hopsize <= sizeLeft
+	 *     winSize % hopsize = 0 (probably the least important)
+	 *
+	 * There are 2 main Cases that control our bufferLength
+	 *
+	 *     1. Calculating Sigma for the 0th corentropy interval
+	 *        a) The left edge of the window must extend into the trailing 
+	 *           buffer. 
+	 *               initialOffset + bufferLength - sizeLeft >=0
+	 *           (Due to our assumption, initialOffset < sizeLeft, the 
+	 *            other constraint arising from this subcase is implicitly 
+	 *            satisfied: 
+	 *               initialOffset + bufferLength - sizeLeft < bufferLength.
+	 *           The left edge is never in the central buffer).
+	 *
+	 *        b) The right edge of the window must be contained by the 
+	 *           central buffer.
+	 *               initialOffset + sizeRight <= bufferLength
+	 *
+	 *     2. Calculating Sigma for the (nsigma-1)th corentropy
+	 *        interval (again, this is zero-indexed)
+	 *        a) the left edge of the window must be included in the 
+	 *           central buffer.
+	 *               0<= bufferLength - hopsize + initialOffset - sizeLeft
+	 *           (Due to our assumption, initialOffset < sizeLeft, the left 
+	 *            edge will never be in the leading buffer.)
+	 *
+	 *        b) The Right edge of the window must be found in the leading 
+	 *           buffer.
+	 *               bufferLength >= initialOffset + sizeRight - hopsize
+	 *           (Due to our assumption that hopsize <= sizeLeft, we know 
+	 *            hopsize < sizeRight. Combining this with the fact that 
+	 *            initialOffset is at least 0, we know that the right edge
+	 *            will never be included in the central buffer.)
+	 *
+	 *
+	 * Summarizing our 4 constraints:
+	 *     1a) bufferLength >= sizeLeft - initialOffset
+	 *     2a) bufferLength >= hopsize + sizeLeft - initialOffset
+	 *     1b) bufferLength >= initialOffset + sizeRight
+	 *     2b) bufferLength >= initialOffset + sizeRight - hopsize
+	 * 
+	 * It's evident that by satisfying 2a) and 1b), we will implicitly 
+	 * satisfy 1a) and 2b), respectively.
+	 * Thus we only need to satisfy:
+	 *     bufferLength >= sizeLeft - initialOffset + hopsize
+	 *     bufferLength >= initialOffset + sizeRight
+	 *
+	 * To meet our requirements, the minimum size is: 
+	 *     bufferLength = ceil(max(initialOffset + sizeRight,
+	 *                             sizeLeft - initialOffset + hopsize)
+	 *                         / hopsize) * hopsize
 	 */
-	if (winSize <(hopsize+initialOffset)){
-		// should probably check that this actually gets called.
-		return -2;
-	} else if (winSize % hopsize != 0) {
-		return -1;
+
+
+	int sizeLeft = winSize/2;
+	int sizeRight = sizeLeft+1;
+	if (winSize % 2 == 0){
+		sizeLeft-=1;
 	}
-	return (winSize/hopsize/2 +1)*hopsize+initialOffset;
+
+	// check input parameters
+	if (hopsize <= 0) {
+		printf("hopsize must be greater than 0\n");
+		return -1;
+	} else if (initialOffset<0) {
+		printf("initialOffset must be at least 0\n");
+		return -2;
+	} else if (winSize <3){
+		printf("winSize must be at least 3\n");
+		// if winSize is less than 3, then sizeLeft will be 0 which
+		// would force hopsize to be 0.
+		return -3;
+	} else if (initialOffset >= sizeLeft){
+		printf("initialOffset must be less than sizeLeft, %d.\n",
+		       sizeLeft);
+		return -4;
+	} else if (hopsize > sizeLeft) {
+		printf("hopsize must be less than or equal to sizeLeft, %d.\n",
+		       sizeLeft);
+		return -5;
+	} else if (winSize % hopsize != 0) {
+		// this is one of simplifying assumptions, but at this point I
+		// do not think it adds anything
+		printf("winSize must be evenly divisible by hopsize\n");
+		return -6;
+	}
+
+	int dividend;
+	// calculate bufferLength
+	if ((initialOffset + sizeRight)>=(sizeLeft - initialOffset + hopsize)){
+		dividend = initialOffset + sizeRight;
+	} else {
+		dividend = sizeLeft - initialOffset + hopsize;
+	}
+
+	int quotient = dividend / hopsize;
+	if ((dividend % hopsize)!=0){
+		quotient++;
+	}
+	int out = quotient * hopsize;
+
+	// the following are just a sanity check. They should never be raised.
+	if (out < sizeLeft - initialOffset) {
+		printf(("bufferLength must be greater than or equal to\n"
+			"sizeLeft-initialOffset, %d\n"),
+			sizeLeft - initialOffset);
+		return -7;
+	} else if (out < hopsize + sizeLeft - initialOffset) {
+		printf("bufferlength = %d\n",out);
+		printf(("bufferLength must be greater than or equal to "
+			"hopsize + sizeLeft - initialOffset, %d\n"),
+			hopsize + sizeLeft - initialOffset);
+		return -8;
+	} else if (out < initialOffset + sizeRight) {
+		printf(("bufferLength must be greater than or equal to "
+			"sizeRight+initialOffset, %d\n"),
+			initialOffset + sizeRight);
+		return -9;
+	} else if (out < initialOffset + sizeRight - hopsize) {
+		printf("bufferlength = %d\n",out);
+		printf(("bufferLength must be greater than or equal to "
+			"sizeRight+initialOffset-hopsize, %d\n"),
+			initialOffset + sizeRight - hopsize);
+		return -10;
+	}
+	return out;
 }
 
 
@@ -749,7 +866,7 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 				result = advanceLeftEdge(leftEdge, stopIndex,
 							 &nobs, &mean_x,
 							 &ssqdm_x,
-							 centralBuffer, NULL);
+							 NULL, centralBuffer);
 				bufferIndexDestroy(stopIndex);
 				if (result == 0){
 					return 0;
