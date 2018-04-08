@@ -144,10 +144,9 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 	double mean_x = 0, ssqdm_x = 0;
 	float std;
 	struct windowIndexer* wInd;
-
 	wInd = windowIndexerNew(1, 1, sigWindowSize, 1,
 				startIndex, dataLength);
-	
+
 	for (i=0;i<numWindows;i++){
 		winStart = wIndGetStart(wInd);
 		winStop = wIndGetStop(wInd);
@@ -155,7 +154,7 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 		 * never removed */
 		if (i == 0){
 			for (j=winStart;j<winStop;j++){
-				//printf("%f\n",buffer[j]);
+				//printf("%d\n",j);
 				add_var((double)buffer[j], &nobs, &mean_x,
 					&ssqdm_x);
 			}

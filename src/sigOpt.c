@@ -245,7 +245,8 @@ struct sigOptChannel{
 	double ssqdm_x;
 	bufferIndex *windowLeft;
 	bufferIndex *windowRight;
-	int leftEdgeCounter; // this is used to determine when we must start advancing the left edge of the window.
+	int leftEdgeCounter; // this is used to determine when we must start
+	                     // advancing the left edge of the window.
 };
 
 int numZeroLeftEdgeAdvancements(int hopsize, int sizeLeft, int initialOffset){
@@ -367,7 +368,7 @@ int computeSigOptBufferLength(int initialOffset, int winSize, int hopsize){
 	int sizeLeft = winSize/2;
 	int sizeRight = sizeLeft+1;
 	if (winSize % 2 == 0){
-		sizeLeft-=1;
+		sizeLeft--;
 	}
 
 	// check input parameters
@@ -404,7 +405,7 @@ int computeSigOptBufferLength(int initialOffset, int winSize, int hopsize){
 	} else {
 		dividend = sizeLeft - initialOffset + hopsize;
 	}
-
+	//printf("dividend = %d\n",dividend);
 	int quotient = dividend / hopsize;
 	if ((dividend % hopsize)!=0){
 		quotient++;
@@ -704,11 +705,21 @@ void terminationRightEdgeStop(int termination_index, bufferIndex *stopIndex,
 			return;
 		}
 		terminationBuffer = 1;
+	} else if (termination_index == 0){
+		// the stream still terminates in the end of current buffer.
+		// Because of our convention, this is equivalen to the stop
+		// index being the 0th index of the stream
+		if (stopBufferNum < 1) {
+			return;
+		}
+		terminationBuffer = 1;
 	} else {
 		terminationBuffer = 0;
 	}
 
-	if (stopIndexVal > termination_index) {
+	if ((terminationBuffer < stopBufferNum) ||
+	    ((stopIndexVal > termination_index) &&
+	     (terminationBuffer == stopBufferNum))){
 		// we just need to adjust the stopIndex to be equal to the
 		// termination_index
 		if (termination_index == bufferLength) {
@@ -727,7 +738,7 @@ bufferIndex *computeRightStopEdge(int hopsize, int termination_index,
 {
 	bufferIndex *stopIndex = bufferIndexAddScalarIndex(rightEdge, hopsize);
 	/* make sure that the right edge is not past the termination of the 
-	 * stream. */ 
+	 * stream. */
 	terminationRightEdgeStop(termination_index, stopIndex,
 				 centralBuffer, leadingBuffer);
 	return stopIndex;
@@ -754,6 +765,7 @@ int sigOptSetup(sigOpt *sO, int channel, float *buffer)
 	int nobs=0;
 
 	int window_start = (sO->initialOffset - sO->sizeLeft - sO->hopsize);
+	// This should not happen, this is just a sanity check
 	if ((window_start + sO->hopsize) > 0){
 		// this would mean that the very first window is so far to the
 		// right that the an entire window is included by entries in
@@ -761,7 +773,9 @@ int sigOptSetup(sigOpt *sO, int channel, float *buffer)
 		return -1;
 	}
 
-	// need to make sure we can't have a negative window stop
+	// the fact that hopsize<=sizeLeft means hopsize< sizRight
+	// Combining this with sizeLeft > initialOffset >= 0, guaruntees
+	// that window_stop>=1
 	int window_stop = (sO->initialOffset) + (sO->sizeRight) - sO->hopsize;
 
 	if (sO->bufferTerminationIndex!=-1){
@@ -813,6 +827,7 @@ bufferIndex *firstNonZLeftEdge(int hopsize, int initialOffset, int sizeLeft,
 	 * advancement will be:
 	 */
 	int finalCenterLoc = initialOffset + hopsize*n_adv;
+	printf("finalCenterLoc = %d \n",finalCenterLoc);
 	return bufferIndexAddScalarIndex(leftEdge, finalCenterLoc-sizeLeft);
 }
 
@@ -829,7 +844,7 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 	 * is possible for trailingBuffer and leadingBuffer to be NULL (at the 
 	 * start and ends of the stream).
 	 * 
-	 * the function returns -1 if an erro is encountered
+	 * the function returns -1 if an error is encountered
 	 *
 	 * NOTE: if we alter the requirements such that winSize can be less 
 	 * than (initialOffset + hopsize) then the behavior of the function 
@@ -845,15 +860,14 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 	bufferIndex *stopIndex;
 	int result;
 
-	// I think there is a slight edge case here - If total stream length,
-	// streamLength, satisfies winSize/2< streamLength <winSize
-	// specifically think about if the initialOffset = 22 and
-	// streamLength = winSize/2 + 21
-	// if this is a problem, the way to solve it would be to add a counter
-	// to each sigOptChannel. Then increment it every time that we advance
-	// the buffer while nobs<0 and left edge has not moved. After a certain
-	// number of increments, you will know to advance the left edge. Then,
-	// you can completely disregard this counter.
+	printf("leftEdgeCounter = %d\n",
+	       ((sO->channels)[channel].leftEdgeCounter));
+	printf("rightEdge = %d,%d\n",
+	      bufferIndexGetBufferNum(sO->channels[0].windowRight),
+	      bufferIndexGetIndex(sO->channels[0].windowRight));
+	printf("leftEdge = %d,%d\n",
+	       bufferIndexGetBufferNum(sO->channels[0].windowLeft),
+	       bufferIndexGetIndex(sO->channels[0].windowLeft));
 	if (nobs < (sO->winSize)){
 		if ((sO->channels)[channel].leftEdgeCounter >= 0){
 			/* The leftEdge of the window is at zero */
@@ -863,10 +877,17 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 							      sO->initialOffset,
 							      sO->sizeLeft,
 							      leftEdge);
+				printf("stopIndex = %d,%d\n",
+				       bufferIndexGetBufferNum(stopIndex),
+				       bufferIndexGetIndex(stopIndex));
+				printf("TEST2\n");
+				fflush(stdout);
 				result = advanceLeftEdge(leftEdge, stopIndex,
 							 &nobs, &mean_x,
 							 &ssqdm_x,
 							 NULL, centralBuffer);
+				printf("TEST3\n");
+				fflush(stdout);
 				bufferIndexDestroy(stopIndex);
 				if (result == 0){
 					return 0;
@@ -887,6 +908,7 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 							 rightEdge,
 							 centralBuffer,
 							 leadingBuffer);
+
 			//printf("stopIndex = %d,%d\n",
 			//       bufferIndexGetBufferNum(stopIndex),
 			//       bufferIndexGetIndex(stopIndex));
@@ -897,6 +919,7 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 			result = advanceRightEdge(rightEdge, stopIndex, &nobs,
 						  &mean_x, &ssqdm_x,
 						  centralBuffer, leadingBuffer);
+			
 		} else {
 			/* In this case the right edge is up against the 
 			 * termination index. Thus we only advance the left
@@ -945,6 +968,7 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 float sigOptGetSigma(sigOpt *sO, int channel)
 {
 	if ((sO->channels)[channel].nobs <= 1){
+		printf("TEST3\n");
 		return -1;
 	}
 	float std = sqrtf((float)calc_var((sO->channels)[channel].nobs,
@@ -954,25 +978,61 @@ float sigOptGetSigma(sigOpt *sO, int channel)
 					      0.2);
 }
 
+int sigOptPreSetupCall_Helper(sigOpt * sO){
+	/* is a helper function for sigOptSetTerminationIndex
+	 * This returns 1 if sigOptSetup has not been called ever.
+	 *
+	 * When SigOpt is initialized, every channel has the windowRight and 
+	 * windowLeft stuct members set equal to 
+	 *     bufferIndexCreate(0,0,bufferLength)
+	 * When we call sigOpt, the windowRight bufferIndex is advanced to at 
+	 * least bufferIndexCreate(0,1,bufferLength) (this is guarunteed by 
+	 * how we require that hopSize<=sizeLeft, which consequently means
+	 * hopsize<sizeRight, and how we require that sizeLeft>initialOffset>=0
+	 *
+	 * Since windowSize must be at least 3, there is never any chance that 
+	 * windowLeft will ever equal windowRight again (until after 
+	 * Termination index is set).
+	 */
+	for (int i=0;i<(sO->numChannels);i++){
+		if (bufferIndexNe(sO->channels[i].windowLeft,
+				  sO->channels[i].windowRight)){
+			return 0;
+		}
+	}
+	return 1;
+
+}
+
 int sigOptSetTerminationIndex(sigOpt *sO,int index)
 {
+	/* This function should only be called when there are no other threads 
+	 * calling functions related to SigOpt */
 	if (sO->bufferTerminationIndex != -1){
 		return -1;
 	} else if (index < 0) {
 		return -2;
 	} else if (index >= sO->bufferLength) {
 		return -3;
-	} else {
-		sO->bufferTerminationIndex=index;
-		return 1;
+	} else if (sigOptPreSetupCall_Helper(sO)){
+		// This means that we are setting the termination index before
+		// we even called sigOptSetup
+		// we will require that sigOpt processes a stream with a stream
+		// that contains at least a number of samples equal to hopsize.
+		if (index < (sO->hopsize)){
+			return -4;
+		}
 	}
+	sO->bufferTerminationIndex=index;
+	return 1;
+	
 }
-
 
 int sigOptFullRollSigma(int initialOffset, int hopsize, float scaleFactor,
 			int winSize, int dataLength, int numWindows,
 			float *input, float **sigma)
 {
+	//printf("START\n");
 	sigOpt *sO = sigOptCreate(winSize, hopsize, initialOffset, 1,
 				  scaleFactor);
 	if (sO == NULL){
@@ -980,36 +1040,77 @@ int sigOptFullRollSigma(int initialOffset, int hopsize, float scaleFactor,
 	}
 
 	int bufferLength = sigOptGetBufferLength(sO);
+	printf("bufferLength = %d\n",bufferLength);
+	//printf("StreamLength = %d\n",dataLength);
 	int sigPerBuffer = sigOptGetSigmasPerBuffer(sO);
-	int niter = numWindows/sigPerBuffer;
-	int termination_index = (numWindows % sigPerBuffer);
+	//printf("sigPerBuffer = %d \n",sigPerBuffer);
+	//int niter = numWindows/sigPerBuffer;
+	int niter = dataLength/ bufferLength +1;
+	//printf("niter = %d \n", niter);
+	int termination_index = dataLength % bufferLength;
+	//printf("termination_index = %d\n", termination_index);
 
-	if (termination_index!=0){
-		niter++;
-	}
 
 	float *trailingBuffer = NULL;
 	// set the central buffer equal to the very start of the input
 	float* centralBuffer = input;
+	float* leadingBuffer = NULL;
 
 	int result;
-	// setup sigOpt with the first buffer
-	result = sigOptSetup(sO, 0, centralBuffer);
-	if (result <1){
-		sigOptDestroy(sO);
-		return -1;
-	}
-
-	// I am not sure this will work for short enough arrays
-
-	float *leadingBuffer = input + bufferLength;
 
 	int k=0;
-	for (int i=0;i<(niter-2);i++){		
+	if (dataLength > bufferLength){
+		// setup sigOpt with the first buffer
+		result = sigOptSetup(sO, 0, centralBuffer);
+		if (result <1){
+			sigOptDestroy(sO);
+			return -1;
+		}
+		leadingBuffer = input + bufferLength;
+
+		for (int i=0;i<(niter-2);i++){		
+			for (int j=0;j<sigPerBuffer;j++){
+				if (k==numWindows){
+					// this is to avoid segmentation faults
+					// if we don't want to calculate any
+					// more sigma values even it is still
+					// possible to compute sigma in the
+					// current buffer or in later
+					// successive buffers
+					break;
+				}
+				float sig = sigOptAdvanceWindow(sO,
+								trailingBuffer,
+								centralBuffer,
+								leadingBuffer,
+								0);
+				if (sig<0){
+					sigOptDestroy(sO);
+					return -1;
+				}
+				(*sigma)[k] = sig;
+				k++;
+			}
+			trailingBuffer = centralBuffer;
+			centralBuffer = leadingBuffer;
+			leadingBuffer = input + ((i+2)*bufferLength);
+			sigOptAdvanceBuffer(sO);
+		}
+		
+		// now set the termination index
+		sigOptSetTerminationIndex(sO,termination_index);
+		// now calculate the second to last one
 		for (int j=0;j<sigPerBuffer;j++){
+			if (k==numWindows){
+				// this is to avoid segmentation faults if we
+				// don't want to calculate any more sigma
+				// values when it is still possible to compute
+				// sigma in the current buffer
+				break;
+			}
 			float sig = sigOptAdvanceWindow(sO, trailingBuffer,
 							centralBuffer,
-							leadingBuffer, 0);
+							leadingBuffer,0);
 			if (sig<0){
 				sigOptDestroy(sO);
 				return -1;
@@ -1017,35 +1118,64 @@ int sigOptFullRollSigma(int initialOffset, int hopsize, float scaleFactor,
 			(*sigma)[k] = sig;
 			k++;
 		}
-		trailingBuffer = centralBuffer;
-		centralBuffer = leadingBuffer;
-		leadingBuffer = input + ((i+1)*bufferLength);
-		sigOptAdvanceBuffer(sO);
-	}
+		if (k<numWindows){
+			trailingBuffer = centralBuffer;
+			centralBuffer = leadingBuffer;
+			leadingBuffer = NULL;
+			sigOptAdvanceBuffer(sO);
+		}
+	} else {
+		// this is the case where the dataLength<=bufferLength
 
-	// now set the termination index
-	sigOptSetTerminationIndex(sO,termination_index);
-	// now calculate the second to last one
-	for (int j=0;j<sigPerBuffer;j++){
-		float sig = sigOptAdvanceWindow(sO, trailingBuffer,
-						centralBuffer,leadingBuffer,0);
-		if (sig<0){
+		if (dataLength < bufferLength){
+			// if there is less data in the stream than in a buffer,
+			// we must set the Termination Index before setup to
+			// indicate that the stream ends in the very first
+			// buffer
+			result = sigOptSetTerminationIndex(sO, dataLength);
+			if (result <1){
+				sigOptDestroy(sO);
+				return -1;
+			}
+		}
+
+		// let's call setup
+		result = sigOptSetup(sO, 0, centralBuffer);
+		if (result <1){
 			sigOptDestroy(sO);
 			return -1;
 		}
-		(*sigma)[k] = sig;
-		k++;
-	}
-	trailingBuffer = centralBuffer;
-	centralBuffer = leadingBuffer;
-	leadingBuffer = NULL;
-	sigOptAdvanceBuffer(sO);
 
+		if (dataLength == bufferLength){
+			// we must terminate buffer so it's clear that there is
+			// nothing in the second buffer.
+			result = sigOptSetTerminationIndex(sO, 0);
+			if (result <1){
+				sigOptDestroy(sO);
+				return -1;
+			}
+		}
+	}
+	printf("TEST\n");
+	printf("rightEdge = %d,%d\n",
+	      bufferIndexGetBufferNum(sO->channels[0].windowRight),
+	      bufferIndexGetIndex(sO->channels[0].windowRight));
+	printf("leftEdge = %d,%d\n",
+	       bufferIndexGetBufferNum(sO->channels[0].windowLeft),
+	       bufferIndexGetIndex(sO->channels[0].windowLeft));
 	// now calculate the remaining values.
 	for (k; k<numWindows; k++){
+		printf("k=%d\n",k);
 		float sig = sigOptAdvanceWindow(sO, trailingBuffer,
 						centralBuffer, leadingBuffer,0);
-		if (sig<0){
+		printf("leftEdge = %d,%d\n",
+		       bufferIndexGetBufferNum(sO->channels[0].windowLeft),
+		       bufferIndexGetIndex(sO->channels[0].windowLeft));
+		printf("rightEdge = %d,%d\n",
+		       bufferIndexGetBufferNum(sO->channels[0].windowRight),
+		       bufferIndexGetIndex(sO->channels[0].windowRight));
+		if (sig<=0){
+			//printf("k = %d\n",k);
 			sigOptDestroy(sO);
 			return -1;
 		}

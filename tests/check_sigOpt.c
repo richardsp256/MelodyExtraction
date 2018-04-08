@@ -248,15 +248,28 @@ START_TEST(test_sigOptSetTerminationIndex)
 	sigOpt *sO =sigOptCreate(770,55,22,4,1.06);
 	ck_assert_ptr_nonnull(sO);
 	temp = sigOptSetTerminationIndex(sO,-1);
-	ck_assert_int_ne(temp,1);
-	temp = sigOptSetTerminationIndex(sO,462);
-	ck_assert_int_ne(temp,1);
+	ck_assert_msg(temp != 1,
+		      "The termination index should not be set to a negative "
+		      "index\n");
+	temp = sigOptSetTerminationIndex(sO,440);
+	ck_assert_msg(temp != 1,
+		      "The termination index should not be set to an index "
+		      "equal to the bufferLength\n");
 	temp = sigOptSetTerminationIndex(sO,463);
-	ck_assert_int_ne(temp,1);
+	ck_assert_msg(temp != 1,
+		      "The termination index should not be set to an index "
+		      "greater than the bufferLength\n");
 	temp = sigOptSetTerminationIndex(sO,4);
+	ck_assert_msg(temp != 1,
+		      "The termination index should not be set to an index "
+		      "less than the hopsize if the entire stream is shorter "
+		      "than the a single hopsize.\n");
+	temp = sigOptSetTerminationIndex(sO,55);
 	ck_assert_int_eq(temp,1);
-	temp = sigOptSetTerminationIndex(sO,8);
-	ck_assert_int_ne(temp,1);
+	temp = sigOptSetTerminationIndex(sO,59);
+	ck_assert_msg(temp != 1,
+		      "The termination index should not be set to any other "
+		      "values if it has already been set to an index\n");
 	sigOptDestroy(sO);
 }
 END_TEST
@@ -348,6 +361,8 @@ double *dblrollSigma(int initialOffset, int hopsize, float scaleFactor,
 		     int winSize, int dataLength, int numWindows,
 		     float *input, int testFunc)
 {
+	ck_assert_ptr_nonnull(input);
+	
 	float *fltSigma= malloc(sizeof(float)*numWindows);
 	if (testFunc == 1){
 		int temp = sigOptFullRollSigma(initialOffset, hopsize,
@@ -358,6 +373,7 @@ double *dblrollSigma(int initialOffset, int hopsize, float scaleFactor,
 			return NULL;
 		}
 	} else {
+		fflush(stdout);
 		rollSigma(initialOffset, hopsize, scaleFactor, winSize,
 			  dataLength, numWindows, input, &fltSigma);
 	}
@@ -416,13 +432,10 @@ START_TEST(test_sigOptFullRollSigma_Simple)
 	ck_assert_int_eq(intermed_result,1);
 	float *leadingBuffer = fltInput + bufferLength;
 	float *trailingBuffer = NULL;
-	//printf("%f,%f\n",centralBuffer[bufferLength],leadingBuffer[0]);
+
 	float sig = sigOptAdvanceWindow(sO, NULL,
 					centralBuffer,leadingBuffer,0);
-	//printf("%f\n",sig);
-	//printf("%lf\n",reference[0]);
 	ck_assert_float_eq(sig,(float)(reference[0]));
-	//fflush(stdout);
 
 	// now the window is centered on index 6
 	// the left edge extends to 0 (it theoretically includes index -1)
@@ -476,8 +489,6 @@ START_TEST(test_sigOptFullRollSigma_Simple)
 	sig = sigOptAdvanceWindow(sO, trailingBuffer, centralBuffer,
 				  leadingBuffer, 0);
 	ck_assert_float_eq(sig,(float)(reference[5]));
-
-
 
 
 	// advance across buffers
@@ -541,34 +552,223 @@ START_TEST(test_sigOptFullRollSigma_Simple)
 }
 END_TEST
 
-START_TEST(test_sigOptFullRollSigma_Simple_SmallerTermInd){
-	// in the Simple version, the Termination Index was exactly equal to
-	// the stop index of the second to last value.
+void sigOptFullRollSigma_testHelper(int initialOffset, int hopsize,
+				    float scaleFactor, int winSize,
+				    int inputLength, int numWindows,
+				    float *fltInput){
 
-	int numWindows = 10; // May be worth testing one more window
+	double *reference = dblrollSigma(initialOffset, hopsize, scaleFactor,
+					 winSize, inputLength, numWindows,
+					 fltInput, 0); //rollSigma
+	double *result = dblrollSigma(initialOffset, hopsize, scaleFactor,
+				      winSize, inputLength, numWindows,
+				      fltInput, 1); //sigOptRollSigma
+	
+	
+	ck_assert_ptr_nonnull(result);
+
+	compareArrayEntries(reference, result, numWindows, 1.e-5, 1, 1.e-5);
+
+	free(reference);
+	free(result);
+}
+
+START_TEST(test_sigOptFullRollSigma_SimpleSmallerTermInd){
+	// in the Simple version, the Termination Index was exactly equal to
+	// the stop index of the second to last window.
+	// Here we are testing what happens if Termination Index is never equal
+	// to the last of a window.
+
+	int numWindows = 10;
 	int initialOffset = 1;
 	int winSize = 15;
 	int hopsize = 5;
 
 	// we are not using all 51 entries -> reducing it to 48
-	// currently doesn't work when we use 49 indices either
 	inputLength = 48;
-	
-	double *reference = dblrollSigma(initialOffset, hopsize, 1.06,
-					 winSize, inputLength, numWindows,
-					 fltInput, 0); //rollSigma
-	double *result = dblrollSigma(initialOffset, hopsize, 1.06,
-				      winSize, inputLength, numWindows,
-				      fltInput, 1); //sigOptRollSigma
-	ck_assert_ptr_nonnull(result);
-	
-	compareArrayEntries(reference, result, numWindows, 1.e-5, 1, 1.e-5);
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
+} END_TEST
 
-	free(reference);
-	free(result);
+START_TEST(test_sigOptFullRollSigma_SimpleLargerOffset){
+	// Here we are testing a slightly larger larger index of 3
+
+	int numWindows = 10; // May be worth testing one more window
+	int initialOffset = 6;
+	int winSize = 15;
+	int hopsize = 5;
+
+	// we are not using all 51 entries -> reducing it to 49
+	inputLength = 49;
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
 
 } END_TEST
 
+START_TEST(test_sigOptFullRollSigma_Even){
+	// Here we are testing an even hopsize
+
+	int numWindows = 12; // May be worth testing one more window
+	int initialOffset = 6;
+	int winSize = 16;
+	int hopsize = 4;
+
+	// we are using all 51 entries
+	
+	inputLength = 50;
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
+} END_TEST
+
+START_TEST(test_sigOptFullRollSigma_EvenSmallStream){
+	// Here we are adding a unit test to try to demonstrate the edge case
+	// that motivated us to use the left edge counter
+	// this might not be quite right - but it did test the case where the
+	// termination index was larger than the stop index in value - (i.e.
+	// the stop index was the 1st index of the leading buffer and the
+	// termination index was the 9th index of the central buffer)
+
+	int numWindows = 3;
+	int initialOffset = 2;
+	int winSize = 16;
+	int hopsize = 4;
+
+	// we are using 9 entries
+	inputLength = 9;
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
+} END_TEST
+
+START_TEST(test_sigOptFullRollSigma_EvenExactFill){
+	// Here we are testing the case where the steam is perfectly evenly
+	// divided between streams
+
+	int numWindows = 12;
+	int initialOffset = 6;
+	int winSize = 16;
+	int hopsize = 4;
+	
+	inputLength = 48;
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
+} END_TEST
+
+START_TEST(test_sigOptFullRollSigma_3Buffers){
+	// Here we are testing sigOpt using 3 Buffers
+
+	int numWindows = 10;
+	int initialOffset = 6;
+	int winSize = 16;
+	int hopsize = 4;
+	
+	inputLength = 39;
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
+} END_TEST
+
+START_TEST(test_sigOptFullRollSigma_2Buffers){
+	// Here we are testing sigOpt using 2 Buffers
+
+	int numWindows = 7;
+	int initialOffset = 6;
+	int winSize = 16;
+	int hopsize = 4;
+	
+	inputLength = 26;
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
+} END_TEST
+
+START_TEST(test_sigOptFullRollSigma_1CompleteBuffer){
+	// Here we are testing sigOpt using 1 Complete Buffer
+
+	// due to the large initial offset, including any more initial windows,
+	// there will be only 1 index in the final window
+	int numWindows = 3;
+	int initialOffset = 6;
+	int winSize = 16;
+	int hopsize = 4;
+	
+	inputLength = 16;
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
+} END_TEST
+
+START_TEST(test_sigOptFullRollSigma_1PartialBuffer){
+	// Here we are testing sigOpt using a stream that is long enough to
+	// partially fill the 1st buffer
+
+	// due to the large initial offset, including any more initial windows,
+	// there will be only 1 index in the final window
+
+	int numWindows = 3;
+	int initialOffset = 6;
+	// if numWindows is set to 4 and initialOffset is set to 1 then we get
+	// a segmentation fault. For now I'm inclined to believe this is just
+	// related to the winSize changing and us do something silly.
+	int winSize = 16;
+	int hopsize = 4;
+
+	inputLength = 11;
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
+} END_TEST
+
+START_TEST(test_sigOptFullRollSigma_1MinimalBuffer){
+	// Here we are testing sigOpt using a stream that is just long enough
+	// to be used by sigOpt at all.
+
+	// in the second window there are only 2 values (due to the value of
+	// initialOffset - if initialOffset is decreased a larger number of
+	// values will be included. If initialOffset is increased at all, then
+	// the second window will contain fewer than 2 values and sigma will
+	// not be calculated.)
+	int numWindows = 2;
+	int initialOffset = 5;
+	int winSize = 16;
+	int hopsize = 4;
+	
+	inputLength = 4;
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
+} END_TEST
+
+START_TEST(test_sigOptFullRollSigma_1HopSmallWin){
+	// Here we are testing a case with 0 initial Offset
+	int numWindows = 6;
+	int initialOffset = 0;
+	int winSize = 3;
+	int hopsize = 1;
+	
+	inputLength = 6;
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
+} END_TEST
+
+START_TEST(test_sigOptFullRollSigma_3HopBigWin){
+	// Here we are testing a case with 0 initial Offset, but a much larger
+	// window
+	int numWindows = 6;
+	int initialOffset = 0;
+	int winSize = 18;
+	int hopsize = 2; // it works if we have a hopsize of 3
+
+	inputLength = 15;
+	sigOptFullRollSigma_testHelper(initialOffset, hopsize,
+				       1.06, winSize, inputLength, numWindows,
+				       fltInput);
+} END_TEST
 
 Suite *sigOpt_suite(void)
 {
@@ -589,6 +789,8 @@ Suite *sigOpt_suite(void)
 	suite_add_tcase(s, tc_sOcore);
 
 	tc_sOlimits = tcase_create("sigOpt Limits");
+	// we could probably use some tests to ensure we avoid overflows from
+	// input parameters
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_negWinSize);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_zeroWinSize);
 	tcase_add_test(tc_sOlimits,test_sigOptCreate_negHopsize);
@@ -604,11 +806,36 @@ Suite *sigOpt_suite(void)
 
 	tc_sOrun = tcase_create("sigOpt Run Examples");
 	if (isLittleEndian() == 1){
+		
 		tcase_add_checked_fixture(tc_sOrun, setup_sigOptRunExamples,
 					  teardown_sigOptRunExamples);
+		/*
 		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_Simple);
-		//tcase_add_test(tc_sOrun,
-		//	       test_sigOptFullRollSigma_Simple_SmallerTermInd);
+		tcase_add_test(tc_sOrun,
+			       test_sigOptFullRollSigma_SimpleSmallerTermInd);
+		tcase_add_test(tc_sOrun,
+			       test_sigOptFullRollSigma_SimpleLargerOffset);
+		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_Even);
+		tcase_add_test(tc_sOrun,
+			       test_sigOptFullRollSigma_EvenSmallStream);
+		tcase_add_test(tc_sOrun,
+			       test_sigOptFullRollSigma_EvenExactFill);
+		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_3Buffers);
+		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_2Buffers);
+		
+		tcase_add_test(tc_sOrun,
+			       test_sigOptFullRollSigma_1CompleteBuffer);
+		tcase_add_test(tc_sOrun,
+			       test_sigOptFullRollSigma_1PartialBuffer);
+		tcase_add_test(tc_sOrun,
+			       test_sigOptFullRollSigma_1MinimalBuffer);
+		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_1HopSmallWin);
+		*/
+		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_3HopBigWin);
+		// could still use some tests on using different numbers
+		// channels to ensure that there is no cases where
+		// modifications to the information for one channel don't
+		// impact a different channel
 	} else {
 		printf("Cannot add rollSigma tests because the tests are not \n"
 		       "presently equipped to run on Big Endian machines\n");
