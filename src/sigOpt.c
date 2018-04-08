@@ -802,15 +802,13 @@ int sigOptSetup(sigOpt *sO, int channel, float *buffer)
 bufferIndex *firstNonZLeftEdge(int hopsize, int initialOffset, int sizeLeft,
 			       bufferIndex *leftEdge)
 {
-	// not totally sure we are computing this correctly
-	// an edge case here is if initialOffset is 0. Then the left edge may
-	// actually be equal to 0. With the way that
-	// numZeroLeftEdgeAdvancements is written, there could be problems if
-	// bufferLength == sizeLeft+hopsize.
-	// If this turns out to be a problem, we could redefine this as the
-	// first non-negative Left edge - this would alleviate any problems
-
-        /* leftEdge is always equal to the very first index in the stream.
+	/* an edge case here is if initialOffset is 0. Then the left edge may
+	 * actually be equal to 0. Due to how numZeroLeftEdgeAdvancements is 
+	 * written, there could be problems if bufferLength == sizeLeft+hopsize.
+	 * I'm pretty sure that our test, test_sigOptFullRollSigma_1HopSmallWin,
+	 * shows this is not a problem.
+	 *
+	 * leftEdge is always equal to the very first index in the stream.
 	 *
 	 * We start by computing finalCenterLoc for the current advancement - 
 	 * which is defined as the center of window at the end of the current 
@@ -827,7 +825,6 @@ bufferIndex *firstNonZLeftEdge(int hopsize, int initialOffset, int sizeLeft,
 	 * advancement will be:
 	 */
 	int finalCenterLoc = initialOffset + hopsize*n_adv;
-	printf("finalCenterLoc = %d \n",finalCenterLoc);
 	return bufferIndexAddScalarIndex(leftEdge, finalCenterLoc-sizeLeft);
 }
 
@@ -860,14 +857,14 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 	bufferIndex *stopIndex;
 	int result;
 
-	printf("leftEdgeCounter = %d\n",
-	       ((sO->channels)[channel].leftEdgeCounter));
-	printf("rightEdge = %d,%d\n",
-	      bufferIndexGetBufferNum(sO->channels[0].windowRight),
-	      bufferIndexGetIndex(sO->channels[0].windowRight));
-	printf("leftEdge = %d,%d\n",
-	       bufferIndexGetBufferNum(sO->channels[0].windowLeft),
-	       bufferIndexGetIndex(sO->channels[0].windowLeft));
+	//printf("leftEdgeCounter = %d\n",
+	//       ((sO->channels)[channel].leftEdgeCounter));
+	//printf("rightEdge = %d,%d\n",
+	//      bufferIndexGetBufferNum(sO->channels[0].windowRight),
+	//      bufferIndexGetIndex(sO->channels[0].windowRight));
+	//printf("leftEdge = %d,%d\n",
+	//       bufferIndexGetBufferNum(sO->channels[0].windowLeft),
+	//       bufferIndexGetIndex(sO->channels[0].windowLeft));
 	if (nobs < (sO->winSize)){
 		if ((sO->channels)[channel].leftEdgeCounter >= 0){
 			/* The leftEdge of the window is at zero */
@@ -877,17 +874,11 @@ float sigOptAdvanceWindow(sigOpt *sO, float *trailingBuffer,
 							      sO->initialOffset,
 							      sO->sizeLeft,
 							      leftEdge);
-				printf("stopIndex = %d,%d\n",
-				       bufferIndexGetBufferNum(stopIndex),
-				       bufferIndexGetIndex(stopIndex));
-				printf("TEST2\n");
-				fflush(stdout);
 				result = advanceLeftEdge(leftEdge, stopIndex,
 							 &nobs, &mean_x,
 							 &ssqdm_x,
-							 NULL, centralBuffer);
-				printf("TEST3\n");
-				fflush(stdout);
+							 trailingBuffer,
+							 centralBuffer);
 				bufferIndexDestroy(stopIndex);
 				if (result == 0){
 					return 0;
@@ -1040,7 +1031,7 @@ int sigOptFullRollSigma(int initialOffset, int hopsize, float scaleFactor,
 	}
 
 	int bufferLength = sigOptGetBufferLength(sO);
-	printf("bufferLength = %d\n",bufferLength);
+	//printf("bufferLength = %d\n",bufferLength);
 	//printf("StreamLength = %d\n",dataLength);
 	int sigPerBuffer = sigOptGetSigmasPerBuffer(sO);
 	//printf("sigPerBuffer = %d \n",sigPerBuffer);
@@ -1067,7 +1058,7 @@ int sigOptFullRollSigma(int initialOffset, int hopsize, float scaleFactor,
 			return -1;
 		}
 		leadingBuffer = input + bufferLength;
-
+		//printf("niter = %d\n",niter);
 		for (int i=0;i<(niter-2);i++){		
 			for (int j=0;j<sigPerBuffer;j++){
 				if (k==numWindows){
@@ -1156,24 +1147,23 @@ int sigOptFullRollSigma(int initialOffset, int hopsize, float scaleFactor,
 			}
 		}
 	}
-	printf("TEST\n");
-	printf("rightEdge = %d,%d\n",
-	      bufferIndexGetBufferNum(sO->channels[0].windowRight),
-	      bufferIndexGetIndex(sO->channels[0].windowRight));
-	printf("leftEdge = %d,%d\n",
-	       bufferIndexGetBufferNum(sO->channels[0].windowLeft),
-	       bufferIndexGetIndex(sO->channels[0].windowLeft));
+	//printf("rightEdge = %d,%d\n",
+	//      bufferIndexGetBufferNum(sO->channels[0].windowRight),
+	//      bufferIndexGetIndex(sO->channels[0].windowRight));
+	//printf("leftEdge = %d,%d\n",
+	//       bufferIndexGetBufferNum(sO->channels[0].windowLeft),
+	//       bufferIndexGetIndex(sO->channels[0].windowLeft));
 	// now calculate the remaining values.
 	for (k; k<numWindows; k++){
-		printf("k=%d\n",k);
+		//printf("k=%d\n",k);
 		float sig = sigOptAdvanceWindow(sO, trailingBuffer,
 						centralBuffer, leadingBuffer,0);
-		printf("leftEdge = %d,%d\n",
-		       bufferIndexGetBufferNum(sO->channels[0].windowLeft),
-		       bufferIndexGetIndex(sO->channels[0].windowLeft));
-		printf("rightEdge = %d,%d\n",
-		       bufferIndexGetBufferNum(sO->channels[0].windowRight),
-		       bufferIndexGetIndex(sO->channels[0].windowRight));
+		//printf("leftEdge = %d,%d\n",
+		//       bufferIndexGetBufferNum(sO->channels[0].windowLeft),
+		//       bufferIndexGetIndex(sO->channels[0].windowLeft));
+		//printf("rightEdge = %d,%d\n",
+		//       bufferIndexGetBufferNum(sO->channels[0].windowRight),
+		//       bufferIndexGetIndex(sO->channels[0].windowRight));
 		if (sig<=0){
 			//printf("k = %d\n",k);
 			sigOptDestroy(sO);

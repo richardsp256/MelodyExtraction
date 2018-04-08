@@ -552,6 +552,217 @@ START_TEST(test_sigOptFullRollSigma_Simple)
 }
 END_TEST
 
+
+START_TEST(test_sigOptFullRollSigma_Simple2Channels)
+{
+	// in this version, I want to make sure sigOpt works when using 2
+	// channels
+	
+	int numWindows = 10; 
+	int initialOffset = 1;
+	int winSize = 15;
+	int hopsize = 5;
+
+	// we are not using all 51 entries
+	inputLength = 49;
+	float* fltInput2 = malloc(sizeof(float)*inputLength);
+	for (int i=0;i<inputLength;i++){
+		fltInput2[i] = fltInput[i]+1.0f;
+	}
+
+	double *reference = dblrollSigma(initialOffset, hopsize, 1.06,
+					 winSize, inputLength, numWindows,
+					 fltInput, 0); //rollSigma
+	double *ref2 = dblrollSigma(initialOffset, hopsize, 1.06,
+				    winSize, inputLength, numWindows,
+				    fltInput2, 0);
+
+	// this time we will run sigOpt manually for debugging.
+	sigOpt *sO = sigOptCreate(winSize, hopsize, initialOffset, 2,
+				  1.06);
+	ck_assert_ptr_nonnull(sO);
+	int bufferLength = sigOptGetBufferLength(sO);
+	ck_assert_int_eq(bufferLength,15);
+	int sigPerBuffer = sigOptGetSigmasPerBuffer(sO);
+	ck_assert_int_eq(sigPerBuffer,3);
+
+	float *centralBuffer1 = fltInput;
+	int intermed_result = sigOptSetup(sO, 0, centralBuffer1);
+	ck_assert_int_eq(intermed_result,1);
+	float *centralBuffer2 = fltInput2;
+	intermed_result = sigOptSetup(sO, 1, centralBuffer2);
+	ck_assert_int_eq(intermed_result,1);
+	
+	float *leadingBuffer1 = fltInput + bufferLength;
+	float *trailingBuffer1 = NULL;
+	float *leadingBuffer2 = fltInput2 + bufferLength;
+	float *trailingBuffer2 = NULL;
+
+	// advance current window. The final properties of the window after
+	// advancement are:
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          1                  central    1
+	// left edge       0                  central    0
+	// stop index      9                  central    9
+	float sig = sigOptAdvanceWindow(sO, NULL,
+					centralBuffer1, leadingBuffer1, 0);
+	ck_assert_float_eq(sig,(float)(reference[0]));
+	sig = sigOptAdvanceWindow(sO, NULL, centralBuffer2, leadingBuffer2, 1);
+	ck_assert_float_eq(sig,(float)(ref2[0]));
+
+	// advance current window. The final properties of the window after
+	// advancement are:
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          6                  central    6
+	// left edge       0                  central    0
+	// stop index      14                 central    14
+	sig = sigOptAdvanceWindow(sO, NULL, centralBuffer1, leadingBuffer1,
+				  0);
+	ck_assert_float_eq(sig,(float)(reference[1]));
+	sig = sigOptAdvanceWindow(sO, NULL, centralBuffer2, leadingBuffer2, 1);
+	ck_assert_float_eq(sig,(float)(ref2[1]));
+	
+	// advance current window. The final properties of the window after
+	// advancement are:
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          11                 central    11
+	// left edge       4                  central    4
+	// stop index      19                 central    4
+	sig = sigOptAdvanceWindow(sO, NULL, centralBuffer1, leadingBuffer1,
+				  0);
+	ck_assert_float_eq(sig,(float)(reference[2]));
+	sig = sigOptAdvanceWindow(sO, NULL, centralBuffer2, leadingBuffer2, 1);
+	ck_assert_float_eq(sig,(float)(ref2[2]));
+
+	// now for advancement across buffers
+	trailingBuffer1 = centralBuffer1;
+	centralBuffer1 = leadingBuffer1;
+	leadingBuffer1 = fltInput + 2*bufferLength;
+	trailingBuffer2 = centralBuffer2;
+	centralBuffer2 = leadingBuffer2;
+	leadingBuffer2 = fltInput2 + 2*bufferLength;
+	sigOptAdvanceBuffer(sO);
+
+
+	// advance current window. The final properties of the window after
+	// advancement are:
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          16                 central    1
+	// left edge       9                  trailing   9
+	// stop index      24                 central    9
+	sig = sigOptAdvanceWindow(sO, trailingBuffer1, centralBuffer1,
+				  leadingBuffer1, 0);
+	ck_assert_float_eq(sig,(float)(reference[3]));
+	sig = sigOptAdvanceWindow(sO, trailingBuffer2, centralBuffer2,
+				  leadingBuffer2, 1);
+	ck_assert_float_eq(sig,(float)(ref2[3]));
+
+	// advance current window
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          21                 central    6
+	// left edge       14                 trailing   14
+	// stop index      29                 central    14
+	sig = sigOptAdvanceWindow(sO, trailingBuffer1, centralBuffer1,
+				  leadingBuffer1, 0);
+	ck_assert_float_eq(sig,(float)(reference[4]));
+	sig = sigOptAdvanceWindow(sO, trailingBuffer2, centralBuffer2,
+				  leadingBuffer2, 1);
+	ck_assert_float_eq(sig,(float)(ref2[4]));
+
+	// advance current window
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          26                 central    11
+	// left edge       19                 central    4
+	// stop index      34                 leading    4
+	sig = sigOptAdvanceWindow(sO, trailingBuffer1, centralBuffer1,
+				  leadingBuffer1, 0);
+	ck_assert_float_eq(sig,(float)(reference[5]));
+	sig = sigOptAdvanceWindow(sO, trailingBuffer2, centralBuffer2,
+				  leadingBuffer2, 1);
+	ck_assert_float_eq(sig,(float)(ref2[5]));
+
+	// advance across buffers
+	trailingBuffer1 = centralBuffer1;
+	centralBuffer1 = leadingBuffer1;
+	leadingBuffer1 = fltInput + 3*bufferLength;
+	trailingBuffer2 = centralBuffer2;
+	centralBuffer2 = leadingBuffer2;
+	leadingBuffer2 = fltInput2 + 3*bufferLength;
+	sigOptAdvanceBuffer(sO);
+	
+	// set termination index to 4 - this sets the length of the entire
+	// stream to 49
+	sigOptSetTerminationIndex(sO,4);
+
+	// advance current window. The final properties of the window after
+	// advancement are:
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          31                 central    1
+	// left edge       24                 trailing   9
+	// stop index      39                 central    9
+	sig = sigOptAdvanceWindow(sO, trailingBuffer1, centralBuffer1,
+				  leadingBuffer1, 0);
+	ck_assert_float_eq(sig,(float)(reference[6]));
+	sig = sigOptAdvanceWindow(sO, trailingBuffer2, centralBuffer2,
+				  leadingBuffer2, 1);
+	ck_assert_float_eq(sig,(float)(ref2[6]));
+	
+	// advance current window
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          35                 central    6
+	// left edge       29                 trailing   14
+	// stop index      44                 central    14
+	sig = sigOptAdvanceWindow(sO, trailingBuffer1, centralBuffer1,
+				  leadingBuffer1, 0);
+	ck_assert_float_eq(sig,(float)(reference[7]));
+	sig = sigOptAdvanceWindow(sO, trailingBuffer2, centralBuffer2,
+				  leadingBuffer2, 1);
+	ck_assert_float_eq(sig,(float)(ref2[7]));
+
+	// advance current window
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          41                 central    11
+	// left edge       34                 central    4
+	// stop index      49                 leading    4
+	sig = sigOptAdvanceWindow(sO, trailingBuffer1, centralBuffer1,
+				  leadingBuffer1, 0);
+	ck_assert_float_eq(sig,(float)(reference[8]));
+	sig = sigOptAdvanceWindow(sO, trailingBuffer2, centralBuffer2,
+				  leadingBuffer2, 1);
+	ck_assert_float_eq(sig,(float)(ref2[8]));
+
+	// we advance across buffers
+	trailingBuffer1 = centralBuffer1;
+	centralBuffer1 = leadingBuffer1;
+	leadingBuffer1 = NULL;
+	trailingBuffer2 = centralBuffer2;
+	centralBuffer2 = leadingBuffer2;
+	leadingBuffer2 = NULL;
+	sigOptAdvanceBuffer(sO);
+
+	// we advance the current window, calculating the final sigma for the
+	// final buffer (now the central buffer). The final properties of the
+	// window after advancement are given below. Values in the parenthesis
+	// give the values if there stream had not terminated:
+	// Part of window  Index of stream    In buffer  Index of buffer
+	// center          46                 central    1
+	// left edge       39                 trailing   9
+	// stop index      49 (54)            central    4 (9)
+	sig = sigOptAdvanceWindow(sO, trailingBuffer1, centralBuffer1,
+				  leadingBuffer1, 0);
+	ck_assert_float_eq(sig,(float)(reference[9]));
+	sig = sigOptAdvanceWindow(sO, trailingBuffer2, centralBuffer2,
+				  leadingBuffer2, 1);
+	ck_assert_float_eq(sig,(float)(ref2[9]));
+
+	sigOptDestroy(sO);
+	free(reference);
+	free(fltInput2);
+	free(ref2);
+}
+END_TEST
+
+
 void sigOptFullRollSigma_testHelper(int initialOffset, int hopsize,
 				    float scaleFactor, int winSize,
 				    int inputLength, int numWindows,
@@ -809,8 +1020,10 @@ Suite *sigOpt_suite(void)
 		
 		tcase_add_checked_fixture(tc_sOrun, setup_sigOptRunExamples,
 					  teardown_sigOptRunExamples);
-		/*
+		
 		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_Simple);
+		tcase_add_test(tc_sOrun,
+			       test_sigOptFullRollSigma_Simple2Channels);
 		tcase_add_test(tc_sOrun,
 			       test_sigOptFullRollSigma_SimpleSmallerTermInd);
 		tcase_add_test(tc_sOrun,
@@ -830,10 +1043,10 @@ Suite *sigOpt_suite(void)
 		tcase_add_test(tc_sOrun,
 			       test_sigOptFullRollSigma_1MinimalBuffer);
 		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_1HopSmallWin);
-		*/
+		
 		tcase_add_test(tc_sOrun, test_sigOptFullRollSigma_3HopBigWin);
-		// could still use some tests on using different numbers
-		// channels to ensure that there is no cases where
+		// could still use some more tests on using different numbers
+		// of channels to ensure that there is no cases where
 		// modifications to the information for one channel don't
 		// impact a different channel
 	} else {
