@@ -5,8 +5,39 @@
 #include <time.h>
 #include "filterBank.h"
 
-struct filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
-				 int samplerate, float minFreq, float maxFreq)
+struct filterBank{
+	
+	struct channelData* cDArray;
+	int numChannels; 
+	int lenChannels; // in units of number of samples
+	int overlap; // in units of number of samples
+	int samplerate;
+};
+
+/* we may refactor the way in which do the biquad filtering so that we compute 
+ * values element by element rather than recursively applying the filter to one 
+ * full chunk at a time.
+ */
+struct channelData{
+	float cf; // center frequency
+	int num_stages;
+	double *coef;  // coefficients for all stages of the biquad filter
+	               // this always has a length = num_stages*6
+	               // Coefficients for section i of the biquad filter are
+	               // found at:    (coef + i*6)
+	               // The order of the coefficients are:
+	               //     b0, b1, b2, a0, a1, and a2
+	double *state; // this array includes the state variables d1 and d2
+	               // Its size is 2*num_stages
+	               // All entries are initially set to 0.
+	               // State variable for section i of the biquad filter are
+	               // found at:    (state + i*2)
+	               // The order of the coefficients are:
+	               //     d1, d2	
+};
+
+filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
+			  int samplerate, float minFreq, float maxFreq)
 {
 	struct filterBank* fB;
 	float *fcArray;
@@ -73,7 +104,7 @@ struct filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 	return fB;
 }
 
-void filterBankDestroy(struct filterBank* fB){
+void filterBankDestroy(filterBank* fB){
 	free(fB->cDArray);
 	free(fB);
 }
@@ -180,7 +211,7 @@ void filterBankOverlapHelper(float** leadingSpectraChunk,
 	}
 }
 
-void filterBankFirstChunk(struct filterBank* fB, float* inputChunk,
+void filterBankFirstChunk(filterBank* fB, float* inputChunk,
 			  int nsamples, float** leadingSpectraChunk){
 	int i, offset;
 	float* cur_chunk;
@@ -195,7 +226,7 @@ void filterBankFirstChunk(struct filterBank* fB, float* inputChunk,
 	}
 }
 
-void filterBankUpdateChunk(struct filterBank* fB, float* inputChunk,
+void filterBankUpdateChunk(filterBank* fB, float* inputChunk,
 			   int nsamples, float** leadingSpectraChunk,
 			   float** trailingSpectraChunk){
 	int i, offset, overlap;
@@ -246,7 +277,7 @@ void filterBankUpdateChunk(struct filterBank* fB, float* inputChunk,
 }
 
 
-void filterBankFinalChunk(struct filterBank* fB, float* inputChunk,
+void filterBankFinalChunk(filterBank* fB, float* inputChunk,
 			  int nsamples, float** leadingSpectraChunk,
 			  float** trailingSpectraChunk){
 	int i,j,offset, overlap,lenChannels;
