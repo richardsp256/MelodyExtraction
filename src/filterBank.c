@@ -4,7 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include "filterBank.h"
-
+#include "gammatoneFilter.h"
 
 
 enum fBstates {
@@ -76,7 +76,6 @@ filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 {
 	struct filterBank* fB;
 	float *fcArray;
-	int i;
 	
 	if (numChannels<1){
 		printf("Error: numChannels must be postive\n");
@@ -123,17 +122,23 @@ filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 		filterBankDestroy(fB);
 		return NULL;
 	}
-	/*
-	for (i=0; i<numChannels; i++){
-		// fill in the channel data
 
+	for (int i=0; i<numChannels; i++){
+		// fill in the channel data
+		struct channelData *cD = (fB->cDArray) +i;
+		cD->cf = fcArray[i];
+		sosCoef(fcArray[i], samplerate, cD->coef);
+		for (int j=0; j<8;j++){
+			cD->state[j]=0;
+		}
 	}
-	*/
+
 	fB->numChannels = numChannels;
 	fB->lenChannels = fB->lenChannels;
 	fB->overlap = overlap;
 	fB->samplerate = samplerate;
 	fB->terminationIndex = -1;
+	fB->inputChunk = NULL;
 	fB->state = NO_CHUNK;
 	fB->chunkProcessFunc = filterBankProcessNoChunk;
 
@@ -235,45 +240,114 @@ int filterBankNormalChunkLength(filterBank *fB){
 	return fB->lenChannels - fB->overlap;
 }
 
-int filterBankSetInput(filterBank* fB, int length, int final_chunk){
+int filterBankSetInput(filterBank* fB, float * input, int length,
+		       int final_chunk){
 	if (length < 0){
 		return -1;
+	} else if ((final_chunk != 0) || final_chunk != 1) {
+		return -2;
 	}
 
 	switch(fB->state) {
-	case NO_CHUNK :
-		// do stuff - can only become FIRST_CHUNK or SINGLE_CHUNK
-		break;
-	case FIRST_CHUNK :
-		// do stuff - can only become NORMAL_CHUNK or LAST_CHUNK
-		break;
-	case NORMAL_CHUNK :
-		// do stuff - can only remain NORMAL_CHUNK or become LAST_CHUNK
-		break;
 	case LAST_CHUNK :
-		return -2;
+		return -3;
 	case SINGLE_CHUNK :
-		return -2;
+		return -3;
+	case NO_CHUNK :
+		/* do stuff - can only become FIRST_CHUNK or SINGLE_CHUNK */
+		if (final_chunk == 0){
+			if (length != filterBankFirstChunkLength(fB)){
+				return -4;
+			}
+			fB->state = FIRST_CHUNK;
+			fB->chunkProcessFunc = filterBankProcessFirstChunk;
+		} else {
+			if (length > filterBankFirstChunkLength(fB)){
+				return -5;
+			}
+			fB->state = SINGLE_CHUNK;
+			fB->chunkProcessFunc = filterBankProcessSingleChunk;
+		}
+		break;
+	default :
+		/* FIRST_CHUNK or NORMAL_CHUNK
+		 * in either case,  can only become NORMAL_CHUNK or LAST_CHUNK
+		 */
+		if (final_chunk == 0){
+			if (length != filterBankNormalChunkLength(fB)){
+				return -4;
+			}
+			fB->state = NORMAL_CHUNK;
+			fB->chunkProcessFunc = filterBankProcessNormalChunk;
+		} else {
+			if (length > filterBankNormalChunkLength(fB)){
+				return -5;
+			}
+			fB->state = LAST_CHUNK;
+			fB->chunkProcessFunc = filterBankProcessLastChunk;
+		}
 	}
+	fB->inputChunk = input;
+	if (final_chunk == 1){
+		fB->terminationIndex = length;
+	}
+	return 1;
 }
 
 int filterBankProcessInput(filterBank *fB, tripleBuffer *tB, int channel){
 	if (channel < 0){
 		return -1;
-	} elif (channel >= fB->numChannels){
+	} else if (channel >= fB->numChannels){
 		return -2;
-	} elif (tB == NULL){
+	} else if (tB == NULL){
 		return -3;
 	}
-	struct channelData *cD = cDArray + channel;
+	struct channelData *cD = fB->cDArray + channel;
 	
 	return (fB->chunkProcessFunc)(fB, tB, cD, channel);
 }
 
+// we can remove samplerate as an argument from this function.
 void filteringHelper(struct channelData *cD, float* inputChunk,
 		     float* filteredChunk, int nsamples, int samplerate){
 	/* use the gammatone filter on the first nsamples of inputChunk and 
-	 * saving the output in the first nsamples in filteredChunk */
+	 * saving the output in the first nsamples in filteredChunk.
+	 *
+	 * This implementation assumes 4 biquad filters.
+	 * the ith row of the cD->coef contains b0, b1, b2, a0, a1, and a2 
+	 * while the ith row of the cD->state contains d1, d2
+	 *
+	 * The complexity could be improved if we force a0 = 1
+	 * In order to avoid denormal numbers, we might need to multiply by 
+	 * Gain
+	 */
+	
+	for (int k=0; k<nsamples; k++){
+		/* below we will process 4 recursive filters 
+		 * the input into the i=0 filter is x[k] */
+		double result = inputChunk[k];
+		for (int i = 0; i <4; i++){
+			double input = result;
+			/* y[n] = (b0 * x[n] + d1[n-1])/a0;
+			 */
+			result = (((cD->coef)[i*6 + 0] * input +
+				   (cD->state)[i*2 + 0]) / (cD->coef)[i*6+3]);
+			/* next difference equation: 
+			 *  d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
+			 */
+			(cD->state)[i*2 + 0] = ((cD->coef)[i*6 + 1] * input -
+						(cD->coef)[i*6 + 4] * result +
+						(cD->state)[i*2 + 1]);
+
+			/* final difference equation:
+			 *  d2[n] = b2 * x[n] - a2 * y[n]
+			 */
+			(cD->state)[i*2 + 1] = ((cD->coef)[i*6 + 2] * input -
+						(cD->coef)[i*6 + 5] * result);
+
+		}
+		filteredChunk[k] = (float)result;
+	}
 }
 
 void overlapHelper(float* leadingSpectraChunk, float* trailingSpectraChunk,
@@ -283,7 +357,7 @@ void overlapHelper(float* leadingSpectraChunk, float* trailingSpectraChunk,
 	}
 }
 
-void zeroPaddingHelper(float filteredChunk, int nsamples){
+void zeroPaddingHelper(float* filteredChunk, int nsamples){
 	for (int i=0;i<nsamples;i++){
 		filteredChunk[i] = 0.f;
 	}
@@ -316,7 +390,7 @@ int processFirstChunkHelper(filterBank* fB, tripleBuffer* tB,
 
 int processOverlappingBufferHelper(filterBank* fB, tripleBuffer* tB,
 				   struct channelData *cD, int channel,
-				   int inputLen){
+				   int inputLength){
 	/* This helper function consolidates implementation for 
 	 * filterBankProcessNormalChunk and filterBankProcessLastChunk. To 
 	 * achieve the former, set inputLength to lenChannels - overlap. To 
@@ -391,4 +465,26 @@ int filterBankProcessSingleChunk(filterBank* fB, tripleBuffer* tB,
 	 * function is currently processing it */
 	return processFirstChunkHelper(fB, tB, cD, channel,
 				       fB->terminationIndex);
+}
+
+
+int filterBankPropogateFinalOverlap(filterBank *fB, tripleBuffer *tB,
+				    int channel){
+	if (channel < 0){
+		return -1;
+	} else if (channel >= fB->numChannels){
+		return -2;
+	} else if (tB == NULL){
+		return -3;
+	}
+	struct channelData *cD = fB->cDArray + channel;
+	
+	if ((fB->state != LAST_CHUNK) && (fB->state != SINGLE_CHUNK)){
+		return -4;
+	} else if ((fB->terminationIndex) <= filterBankNormalChunkLength(fB)){
+		return -5;
+	}
+
+	processOverlappingBufferHelper(fB, tB, cD, channel,0);
+	return 1;
 }

@@ -26,11 +26,6 @@ float* centralFreqMapper(int numChannels, float minFreq, float maxFreq);
  * Then, the trailing, central, and leading buffers are loaded
  * from tripleBuffer, and they are used to compute the correntropy everywhere 
  * within the central buffer.
- *
- * It's also possible that we could totally separate the roles of tripleBuffer 
- * and filterBank and have detFuncCore act as the middle man between the 2 
- * (this would reduce coupling), but it may simplify the implementation of 
- * detFuncCore to complete abstract filterBank's interactions with tripleBuffer.
  */
 
 typedef struct filterBank filterBank;
@@ -42,7 +37,8 @@ void filterBankDestroy(filterBank* fB);
 
 /* we could use 2 separate functions here, but this simplifies the interface
  * and implementation */
-int filterBankSetInputChunk(filterBank* fB, int length, int final_chunk);
+int filterBankSetInputChunk(filterBank* fB, float* input, int length,
+			    int final_chunk);
 
 /* we add the following 2 functions to our interface in case we choose to 
  * implement the filter bank using FIR filters. In that case, we would require 
@@ -60,27 +56,11 @@ int filterBankNormalChunkLength(filterBank *fB);
  */
 int filterBankProcessInput(filterBank *fB, tripleBuffer *tB, int channel); 
 
-/* we may need 1 more function here just in case the last chunk is basically 
- * full, and we need to shift it into an empty buffer. */
-
-
-/* The following 3 functions are used for processing inputChunks. The first 
- * function is used when you feed in the very first chunk. The second function
- * is used when you feed in all other chunks except the last chunk. The third 
- * function is used when you feed in the last chunk 
- *
- * for all functions, nsamples is the number of samples in the inputChunk
+/* This last function here is provided just in case the last chunk is nearly 
+ * full. This function would be used to propogate all values in the last 
+ * (filterBankFirstChunkLength(fB) - filterBankNormalChunkLength(fB)) elements
+ * into the next buffer. 
  */
 
-void filterBankFirstChunk(filterBank* fB, float* inputChunk,
-			  int nsamples, float** leadingSpectraChunk);
-
-void filterBankUpdateChunk(filterBank* fB, float* inputChunk,
-			   int nsamples, float** leadingSpectraChunk,
-			   float** trailingSpectraChunk);
-
-void filterBankFinalChunk(filterBank* fB, float* inputChunk,
-			  int nsamples, float** leadingSpectraChunk,
-			  float** trailingSpectraChunk);
-
-*/
+int filterBankPropogateFinalOverlap(filterBank *fB, tripleBuffer *tB,
+				    int channel);
