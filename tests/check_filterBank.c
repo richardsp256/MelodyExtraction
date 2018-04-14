@@ -14,13 +14,21 @@
  * should be probably be mocking interactions with tripleBuffer)
  */
 
+filterBank *four_channel_fB;
+
+void setup_emptyFourChannelfB(void){
+	four_channel_fB = filterBankNew(4, 47, 9, 11025, 80, 4000);
+}
+
+void teardown_FourChannelfB(void){
+	filterBankDestroy(four_channel_fB);
+}
+
 START_TEST(test_filterBankCreate)
 {
-	filterBank *fB = filterBankNew(4, 47, 9, 11025, 80, 4000);
-	ck_assert_ptr_nonnull(fB);
-	ck_assert_int_eq(filterBankFirstChunkLength(fB), 47);
-	ck_assert_int_eq(filterBankNormalChunkLength(fB), 38);
-	filterBankDestroy(fB);
+	ck_assert_ptr_nonnull(four_channel_fB);
+	ck_assert_int_eq(filterBankFirstChunkLength(four_channel_fB), 47);
+	ck_assert_int_eq(filterBankNormalChunkLength(four_channel_fB), 38);
 }
 END_TEST
 
@@ -33,6 +41,8 @@ Suite *filterBank_suite(void)
 
 	/* Core test case */
 	tc_core = tcase_create("Core");
+	tcase_add_checked_fixture(tc_core, setup_emptyFourChannelfB,
+				  teardown_FourChannelfB);
 	tcase_add_test(tc_core,test_filterBankCreate);
 
 	suite_add_tcase(s,tc_core);
