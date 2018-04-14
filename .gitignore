@@ -66,3 +66,5 @@ tests/check_gammatone
 tests/check_tripleBuffer
 
 tests/check_sigOpt
+
+tests/check_filterBank

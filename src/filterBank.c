@@ -134,7 +134,7 @@ filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 	}
 
 	fB->numChannels = numChannels;
-	fB->lenChannels = fB->lenChannels;
+	fB->lenChannels = lenChannels;
 	fB->overlap = overlap;
 	fB->samplerate = samplerate;
 	fB->terminationIndex = -1;
