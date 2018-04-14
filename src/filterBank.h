@@ -1,5 +1,7 @@
 #include "gammatoneFilter.h"
+#include "tripleBuffer.h"
 
+float* centralFreqMapper(int numChannels, float minFreq, float maxFreq);
 
 /* Here is the plan for writing this, I will reimplement the filterBank so it 
  * works similarly to how it once did (I don't actually think that will require 
@@ -33,12 +35,34 @@
 
 typedef struct filterBank filterBank;
 
-struct filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
-				 int samplerate, float minFreq, float maxFreq);
+filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
+			  int samplerate, float minFreq, float maxFreq);
 
-void filterBankDestroy(struct filterBank* fB);
+void filterBankDestroy(filterBank* fB);
 
-float* centralFreqMapper(int numChannels, float minFreq, float maxFreq);
+/* we could use 2 separate functions here, but this simplifies the interface
+ * and implementation */
+int filterBankSetInputChunk(filterBank* fB, int length, int final_chunk);
+
+/* we add the following 2 functions to our interface in case we choose to 
+ * implement the filter bank using FIR filters. In that case, we would require 
+ * slightly more overlap between buffers than we already have. In the case that
+ * we use IIR filters, they return obvious results.
+ *
+ * These following 2 functions return the required size of the input chunks.
+ */
+int filterBankFirstChunkLength(filterBank *fB);
+int filterBankNormalChunkLength(filterBank *fB);
+
+/* The following function is the function always called for processing 
+ * inputChunks. The filterBank internally accounts for if the input chunk is 
+ * the first, normal, or final input chunk.
+ */
+int filterBankProcessInput(filterBank *fB, tripleBuffer *tB, int channel); 
+
+/* we may need 1 more function here just in case the last chunk is basically 
+ * full, and we need to shift it into an empty buffer. */
+
 
 /* The following 3 functions are used for processing inputChunks. The first 
  * function is used when you feed in the very first chunk. The second function
@@ -59,4 +83,4 @@ void filterBankFinalChunk(filterBank* fB, float* inputChunk,
 			  int nsamples, float** leadingSpectraChunk,
 			  float** trailingSpectraChunk);
 
-
+*/

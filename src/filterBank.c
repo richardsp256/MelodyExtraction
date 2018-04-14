@@ -5,13 +5,16 @@
 #include <time.h>
 #include "filterBank.h"
 
-struct filterBank{
-	
-	struct channelData* cDArray;
-	int numChannels; 
-	int lenChannels; // in units of number of samples
-	int overlap; // in units of number of samples
-	int samplerate;
+
+
+enum fBstates {
+	NO_CHUNK,     // before any chunks have been set in the filterBank
+	FIRST_CHUNK,  // The very first chunk has been added - there is no
+	              // overlap between buffers
+	NORMAL_CHUNK, // The current chunk is neither the first nor the last
+	LAST_CHUNK,   // The current chunk is the final chunk - the end of the
+	              // chunk must be zero-padded
+	SINGLE_CHUNK, // The current chunk is both the first and the last CHUNK
 };
 
 /* we may refactor the way in which do the biquad filtering so that we compute 
@@ -20,14 +23,14 @@ struct filterBank{
  */
 struct channelData{
 	float cf; // center frequency
-	int num_stages;
-	double *coef;  // coefficients for all stages of the biquad filter
+	//int num_stages; - should always be 4
+	double coef[24];  // coefficients for all stages of the biquad filter
 	               // this always has a length = num_stages*6
 	               // Coefficients for section i of the biquad filter are
 	               // found at:    (coef + i*6)
 	               // The order of the coefficients are:
 	               //     b0, b1, b2, a0, a1, and a2
-	double *state; // this array includes the state variables d1 and d2
+	double state[8]; // this array includes the state variables d1 and d2
 	               // Its size is 2*num_stages
 	               // All entries are initially set to 0.
 	               // State variable for section i of the biquad filter are
@@ -35,6 +38,38 @@ struct channelData{
 	               // The order of the coefficients are:
 	               //     d1, d2	
 };
+
+typedef int (*fBChunkProcessFunc)(filterBank* fB, tripleBuffer* tB,
+				  struct channelData *cD, int channel);
+// the following are functions tracked internally by filterbank based on its
+// state
+// They explain how to process the various chunks in each state.
+int filterBankProcessNoChunk(filterBank* fB, tripleBuffer* tB,
+			     struct channelData *cD, int channel);
+int filterBankProcessFirstChunk(filterBank* fB, tripleBuffer* tB,
+				struct channelData *cD, int channel);
+int filterBankProcessNormalChunk(filterBank* fB, tripleBuffer* tB,
+				 struct channelData *cD, int channel);
+int filterBankProcessLastChunk(filterBank* fB, tripleBuffer* tB,
+			       struct channelData *cD, int channel);
+int filterBankProcessSingleChunk(filterBank* fB, tripleBuffer* tB,
+				 struct channelData *cD, int channel);
+
+struct filterBank{
+	
+	struct channelData* cDArray;
+	int numChannels; 
+	int lenChannels; // in units of number of samples
+	int overlap; // in units of number of samples
+	int samplerate;
+	int terminationIndex; // this is the stop index of the final inputChunk
+	float *inputChunk;
+	enum fBstates state;
+	fBChunkProcessFunc chunkProcessFunc;
+};
+
+
+
 
 filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 			  int samplerate, float minFreq, float maxFreq)
@@ -98,6 +133,9 @@ filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 	fB->lenChannels = fB->lenChannels;
 	fB->overlap = overlap;
 	fB->samplerate = samplerate;
+	fB->terminationIndex = -1;
+	fB->state = NO_CHUNK;
+	fB->chunkProcessFunc = filterBankProcessNoChunk;
 
 	free(fcArray);
 	
@@ -189,145 +227,168 @@ float* centralFreqMapper(int numChannels, float minFreq, float maxFreq){
 	return fcArray;
 }
 
-void swap_chunk(float **a, float **b){
-	float *temp= *a;
-	*a = *b;
-	*b = temp;
+int filterBankFirstChunkLength(filterBank *fB){
+	return fB->lenChannels;
 }
 
-void filterBankFilteringHelper(struct channelData * cD,
-			       float* inputChunk,
-			       float** leadingSpectraChunk,
-			       int nsamples, int samplerate){
-	//gammatoneFilterChunk();
+int filterBankNormalChunkLength(filterBank *fB){
+	return fB->lenChannels - fB->overlap;
 }
 
-void filterBankOverlapHelper(float** leadingSpectraChunk,
-			     float** trailingSpectraChunk,
-			     int nsamples){
-	int i;
-	for (i=0;i<nsamples;i++){
-		(*leadingSpectraChunk)[i] = (*trailingSpectraChunk)[i];
+int filterBankSetInput(filterBank* fB, int length, int final_chunk){
+	if (length < 0){
+		return -1;
+	}
+
+	switch(fB->state) {
+	case NO_CHUNK :
+		// do stuff - can only become FIRST_CHUNK or SINGLE_CHUNK
+		break;
+	case FIRST_CHUNK :
+		// do stuff - can only become NORMAL_CHUNK or LAST_CHUNK
+		break;
+	case NORMAL_CHUNK :
+		// do stuff - can only remain NORMAL_CHUNK or become LAST_CHUNK
+		break;
+	case LAST_CHUNK :
+		return -2;
+	case SINGLE_CHUNK :
+		return -2;
 	}
 }
 
-void filterBankFirstChunk(filterBank* fB, float* inputChunk,
-			  int nsamples, float** leadingSpectraChunk){
-	int i, offset;
-	float* cur_chunk;
+int filterBankProcessInput(filterBank *fB, tripleBuffer *tB, int channel){
+	if (channel < 0){
+		return -1;
+	} elif (channel >= fB->numChannels){
+		return -2;
+	} elif (tB == NULL){
+		return -3;
+	}
+	struct channelData *cD = cDArray + channel;
 	
-	for (i=0;i<(fB->numChannels);i++){
-		offset = i*(fB->lenChannels);
-		cur_chunk = (*leadingSpectraChunk)+offset;
-		filterBankFilteringHelper(((fB->cDArray)+i),
-					  inputChunk,
-					  (&cur_chunk),
-					  nsamples, (fB->samplerate));
+	return (fB->chunkProcessFunc)(fB, tB, cD, channel);
+}
+
+void filteringHelper(struct channelData *cD, float* inputChunk,
+		     float* filteredChunk, int nsamples, int samplerate){
+	/* use the gammatone filter on the first nsamples of inputChunk and 
+	 * saving the output in the first nsamples in filteredChunk */
+}
+
+void overlapHelper(float* leadingSpectraChunk, float* trailingSpectraChunk,
+		   int nsamples){
+	for (int i=0;i<nsamples;i++){
+		leadingSpectraChunk[i] = trailingSpectraChunk[i];
 	}
 }
 
-void filterBankUpdateChunk(filterBank* fB, float* inputChunk,
-			   int nsamples, float** leadingSpectraChunk,
-			   float** trailingSpectraChunk){
-	int i, offset, overlap;
-	float *curLeadingRow, *curTrailingRow;
-	/* first we swap the spectra chunks */
-	swap_chunk(leadingSpectraChunk, trailingSpectraChunk);
-
-	/* now we iterate over the channels in leading SpectraChunk and
-	 * overwrite them with data corresponding to the inputChunk.
-	 * For each channel:
-	 * - we need to copy the overlapping data at the end of 
-	 *   trailingSpectraChunk into the start of leadingSpectraChunk
-	 * - we need to apply gammatone filtering on input chunk and fill in 
-	 *   the rest of the channel buffer 
-	 */
-
-	overlap = fB->overlap;
-	
-	for (i=0;i<(fB->numChannels);i++){
-		offset = i*(fB->lenChannels);
-
-		curLeadingRow = (*leadingSpectraChunk)+offset;
-		curTrailingRow = (*trailingSpectraChunk)+offset;
-		
-		/* first we copy in the overlapping data */
-		//filterBankOverlapHelper(&((*leadingSpectraChunk)+offset),
-		//			&((*trailingSpectraChunk)+offset),
-		//			overlap);
-		filterBankOverlapHelper(&curLeadingRow,
-					&curTrailingRow,
-					overlap);
-	
-
-		/* now we apply the filter to inputChunk and fill in the rest 
-		 * of the channel.
-		 */
-		offset += overlap;
-		curLeadingRow = (*leadingSpectraChunk)+offset;
-		//filterBankFilteringHelper(&((fB->cDArray)[i]),
-		//			  inputChunk,
-		//			  &((*leadingSpectraChunk)+offset),
-		//			  nsamples, (fB->samplerate));
-		filterBankFilteringHelper(((fB->cDArray)+i),
-					  inputChunk,
-					  &curLeadingRow,
-					  nsamples, (fB->samplerate));
+void zeroPaddingHelper(float filteredChunk, int nsamples){
+	for (int i=0;i<nsamples;i++){
+		filteredChunk[i] = 0.f;
 	}
 }
 
-
-void filterBankFinalChunk(filterBank* fB, float* inputChunk,
-			  int nsamples, float** leadingSpectraChunk,
-			  float** trailingSpectraChunk){
-	int i,j,offset, overlap,lenChannels;
-	float *curLeadingRow, *curTrailingRow;
-	/* first we swap the spectra chunks */
-	swap_chunk(leadingSpectraChunk, trailingSpectraChunk);
-
-	/* now we iterate over the channels in leading SpectraChunk and
-	 * overwrite them with data corresponding to the inputChunk.
-	 * For each channel:
-	 * - we need to copy the overlapping data at the end of 
-	 *   trailingSpectraChunk into the start of leadingSpectraChunk
-	 * - we need to apply gammatone filtering on input chunk and fill in 
-	 *   the channel buffer 
-	 * - fill in the rest of the channel buffer with 0s
-	 */
-
-	overlap = fB->overlap;
-	lenChannels = fB->lenChannels;
-	
-	for (i=0;i<(fB->numChannels);i++){
-		offset = i*lenChannels;
-
-		curLeadingRow = (*leadingSpectraChunk)+offset;
-		curTrailingRow = (*trailingSpectraChunk)+offset;
-		
-		/* first we copy in the overlapping data */
-		//filterBankOverlapHelper(&((*leadingSpectraChunk)+offset),
-		//			&((*trailingSpectraChunk)+offset),
-		//			overlap);
-		filterBankOverlapHelper(&curLeadingRow, &curTrailingRow,
-					overlap);
-
-		/* now we apply the filter to inputChunk and fill in the rest 
-		 * of the channel.
-		 */
-		offset += overlap;
-		curLeadingRow = (*leadingSpectraChunk)+offset;
-		if (nsamples > 0){
-			filterBankFilteringHelper(((fB->cDArray)+i),
-						  inputChunk,
-						  &curLeadingRow,
-						  nsamples, (fB->samplerate));
-			/* finally we fill in the rest of the channels */
-			offset += nsamples;
-		}
-
-		/* pad the remainder with zeros */
-		for (j=offset; (j<((i+1)*lenChannels));j++){
-			(*leadingSpectraChunk)[j] = 0.0;
-		}
+int processFirstChunkHelper(filterBank* fB, tripleBuffer* tB,
+			    struct channelData *cD, int channel,
+			    int inputLength){
+	// this consolidates implementations of filterBankProcessFirstChunk and
+	// filterBankProcessSingleChunk. To achieve the former set inputLength
+	// to lenChannels. To achieve the latter set it to terminationIndex
+	if (tripleBufferNumBuffers(tB) != 1){
+		return -5;
 	}
+	float *filteredChunk = tripleBufferGetBufferPtr(tB, 0, channel);
+	if (filteredChunk == NULL){
+		return -6;
+	}
+	float *inputChunk = fB->inputChunk;
+	int nsamples = fB->lenChannels;
+	int samplerate = fB->samplerate;
+	
+	filteringHelper(cD, inputChunk, filteredChunk, inputLength, samplerate);
+	if (inputLength<nsamples){
+		zeroPaddingHelper(filteredChunk+inputLength,
+				  nsamples-inputLength);
+	}
+	return 1;
+}
+
+int processOverlappingBufferHelper(filterBank* fB, tripleBuffer* tB,
+				   struct channelData *cD, int channel,
+				   int inputLen){
+	/* This helper function consolidates implementation for 
+	 * filterBankProcessNormalChunk and filterBankProcessLastChunk. To 
+	 * achieve the former, set inputLength to lenChannels - overlap. To 
+	 * achieve the latter, set it to terminationIndex */
+	int num_buffer = tripleBufferNumBuffers(tB);
+	if (num_buffer <2){
+		return -7;
+	}
+	float *curLeadingBuf = tripleBufferGetBufferPtr(tB, num_buffer-1,
+							channel);
+	float *curTrailingBuf = tripleBufferGetBufferPtr(tB, num_buffer-2,
+							 channel);
+	if ((curLeadingBuf == NULL) || (curTrailingBuf == NULL)){
+		return -6;
+	}
+	int nsamples = fB->lenChannels;
+	
+	int overlap = fB->overlap;
+
+	// copy the overlapping regions
+	overlapHelper(curLeadingBuf, curTrailingBuf + (nsamples - overlap),
+		      overlap);
+
+	float *inputChunk = fB->inputChunk;
+	int samplerate = fB->samplerate;
+
+	// do the filtering
+	filteringHelper(cD, inputChunk, curLeadingBuf+overlap, inputLength,
+			samplerate);
+
+	// possibly zero-pad
+	if ((inputLength+overlap)<nsamples){
+		int offset = inputLength+overlap;
+		zeroPaddingHelper(curLeadingBuf+offset, nsamples-offset);
+	}
+	return 1;
+}
+
+/* define 5 fBChunkProcessFunc functions
+ * The one for NO_CHUNK is supposed to be really simple - Returns -1 for failure
+ * The remaining 4 functions should all be built from some combination of 3
+ * helper functions and all should be very simple.
+ */
+
+int filterBankProcessNoChunk(filterBank* fB, tripleBuffer* tB,
+			     struct channelData *cD, int channel) {
+	return -4;
+}
+
+int filterBankProcessFirstChunk(filterBank* fB, tripleBuffer* tB,
+				struct channelData *cD, int channel){
+	return processFirstChunkHelper(fB, tB, cD, channel, fB->lenChannels);
+}
+
+int filterBankProcessNormalChunk(filterBank* fB, tripleBuffer* tB,
+				 struct channelData *cD, int channel){
+	/* This processes a normal input chunk - the chunk is of the correct 
+	 * length and there is overlap with the previous chunk */
+	return processOverlappingBufferHelper(fB, tB, cD, channel,
+					      (fB->lenChannels - fB->overlap));
+}
+
+int filterBankProcessLastChunk(filterBank* fB, tripleBuffer* tB,
+			       struct channelData *cD, int channel){
+	return processOverlappingBufferHelper(fB, tB, cD, channel,
+					      fB->terminationIndex);
+}
+
+int filterBankProcessSingleChunk(filterBank* fB, tripleBuffer* tB,
+				 struct channelData *cD, int channel){
+	/* there will only be one chunk in the entire data stream. This 
+	 * function is currently processing it */
+	return processFirstChunkHelper(fB, tB, cD, channel,
+				       fB->terminationIndex);
 }
