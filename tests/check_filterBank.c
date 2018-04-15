@@ -74,11 +74,81 @@ START_TEST(test_filterBankSimpleInput)
 }
 END_TEST
 
+/* Here we are implementing a slightly different variation of sosGammatone 
+ * filter to perfectly match the implementation in filterBank.
+ */
+
+
+/* This next function goes through and computes the results for filterBank if 
+ * funcNum is 1 or using the gammatoneFilter if funcNum is 0. */
+double* filterInputs(int numChannels, int lenChannels, int overlap,
+		     int samplerate, float minFreq, float maxFreq,
+		     float* input, int dataLen, int funcNum){
+	float* fltResult = NULL;
+	double *result = NULL;
+	if (funcNum == 1){
+		fltResult = fullFiltering(numChannels, lenChannels, overlap,
+					  samplerate, minFreq, maxFreq, input,
+					  dataLen);
+		float_to_double_array(fltResult, dataLen*numChannels, &result);
+		free(fltResult);
+	} else {
+		float* centralFreq = centralFreqMapper(numChannels, minFreq,
+						       maxFreq);
+		result = malloc(sizeof(double)*numChannels*dataLen);
+		for (int i = 0; i<numChannels;i++){
+			
+			sosGammatoneFast(input, &fltResult, centralFreq[i],
+					 samplerate, dataLen);
+			double *start = result + i*dataLen;
+			for (int j =0; j<dataLen;j++){
+				start[j] = (double)fltResult[j];
+			}
+			free(fltResult);
+		}
+	}
+	return result;
+}
+
+START_TEST(test_filterBank_2Chunks)
+{
+	// Lets try the case where the input can fit into 2 chunks
+	int numChannels = 4;
+	int lenChannels = 50;
+	int overlap = 10;
+	int samplerate = 11025;
+	int minFreq = 80;
+	int maxFreq = 4000;
+	int dataLen = 75;
+	
+	float* input = malloc(sizeof(float)*47);
+	for (int i=0; i<dataLen; i++){
+		input[i] = 0.f;
+	}
+	input[0] = 1;
+	input[1] = 0.5;
+	input[lenChannels] = -0.3;
+	
+	double* result = filterInputs(numChannels, lenChannels, overlap,
+				      samplerate, minFreq, maxFreq, input,
+				      dataLen, 1);
+	double* reference = filterInputs(numChannels, lenChannels, overlap,
+					 samplerate, minFreq, maxFreq, input,
+					 dataLen, 0);
+
+	compareArrayEntries(reference, result, dataLen, 1.e-5, 1, 1.e-5);
+
+	free(input);
+	free(result);
+	free(reference);
+}
+END_TEST
+
 Suite *filterBank_suite(void)
 {
 	Suite *s;
 	TCase *tc_core;
-
+	TCase *tc_run;
 	s = suite_create("filterBank");
 
 	/* Core test case */
@@ -89,6 +159,11 @@ Suite *filterBank_suite(void)
 	tcase_add_test(tc_core,test_filterBankSimpleInput);
 
 	suite_add_tcase(s,tc_core);
+
+	tc_run = tcase_create("filterBank Run Examples");
+	tcase_add_test(tc_run,test_filterBank_2Chunks);
+
+	suite_add_tcase(s,tc_run);
 	
 	return s;
 }

@@ -297,10 +297,12 @@ void sosGammatone(float* data, float** output, float centralFreq,
 
 
 
-//float version of biquadFilter
-void biquadFilterf(float *coef, float *x, float *y, int length)
+
+// version of biquadFilter that starts with an array of floats and returns an
+// array of floats
+void biquadFilterdf(double *coef, float *x, double *y, int length)
 {
-	float d1, d2, cur_x, cur_y, a0,a1,a2,b0,b1,b2;
+	double d1, d2, cur_x, cur_y, a0,a1,a2,b0,b1,b2;
 	int n;
 	/* d1 and d2 are state variables, for now asssume they start at 0,
 	 * because before a recording there is silence. If we are chunking the 
@@ -332,93 +334,51 @@ void biquadFilterf(float *coef, float *x, float *y, int length)
 	}
 }
 
-//float version of cascadeBiquad
-void cascadeBiquadf(int num_stages, float *coef, float *x, float *y,
-		   int length)
+//version of cascadeBiquad that accepts floats and returns doubles
+void cascadeBiquaddf(int num_stages, double *coef, float *x, double *y,
+		     int length)
 {
 	/* run the filter the first time to produce y */
-	biquadFilterf(coef, x, y, length);
+	biquadFilterdf(coef, x, y, length);
 
 	/* run the biquad filter num_stages-1 more times, updating y in place 
 	 */
 	for (int i= 1; i<num_stages; i++){
-		biquadFilterf((coef + (6*i)), y, y, length);
+		biquadFilter((coef + (6*i)), y, y, length);
 	}
 }
 
-//float version of numericalNormalize
-void numericalNormalizef(float centralFreq, int samplerate, float *coef)
-{
-	float TWO_PI = (float)(2 * M_PI);
-	float x1, x2, gain;
-	x1 = TWO_PI * centralFreq/samplerate;
-	x2 = 2 * TWO_PI * centralFreq/samplerate;
-
-	gain = sqrtf((powf(coef[2]+coef[1]*cosf(x1) + coef[0]* cosf(x2),2.0f)
-                 + powf(coef[1]*sinf(x1) + coef[0] * sinf(x2),2.0f))
-                /( powf(coef[5]+coef[4]*cosf(x1) + coef[3]* cosf(x2),2.0f)
-                   + powf(coef[4]*sinf(x1) + coef[3] * sinf(x2),2.)));
-	coef[0] = coef[0]/gain;
-	coef[1] = coef[1]/gain;
-	coef[2] = coef[2]/gain;
-}
-
-//float version of sosCoeff
-void sosCoeff(float centralFreq, int samplerate, float* coef)
-{
-	/* taken from Slaney 1993 
-	 * https://engineering.purdue.edu/~malcolm/apple/tr35/PattersonsEar.pdf
-	 * Expects coef to be already allocated and have room for 24 
-	 * entries
-	 */
-	float TWO_PI = (float)(2 * M_PI);
-	float delta_t = 1.0f/samplerate;
-	float b = TWO_PI*1.019f*24.7f*(4.37f*centralFreq/1000.0f + 1); //bandwidth
-	int i;
-
-	/* Now to actually set the coefficients for each stae of filtering.
-	 * The only coefficient that changes between stages is b1
-	 */
-	for (i=0;i<4;i++){
-		/* We  start by setting b0 */
-		coef[6*i] = delta_t;
-		/* set b1 */
-		if (i<2){
-			coef[6*i+1] = (-((2 * delta_t * cosf(TWO_PI * centralFreq * delta_t)
-					  / expf(b * delta_t))
-					 + (powf(-1,(float)i) * 2
-					    * sqrtf(3 + powf(2.0f, 1.5f)) * delta_t *
-					    sinf(TWO_PI * centralFreq * delta_t)
-					    / expf(b * delta_t))) / 2.0f);
-		} else {
-			coef[6*i+1] = -(2 * delta_t * cosf(TWO_PI * centralFreq * delta_t)
-					/ expf(b * delta_t)
-					+ powf(-1,(float)i) * 2
-					* sqrtf(3 - powf(2.0f,1.5f)) * delta_t *
-					sinf(TWO_PI * centralFreq * delta_t)
-					/ expf(b * delta_t)) / 2.0f;
-		}		
-		/* set b2 */
-		coef[6*i+2] = 0;
-		/* set a0 */
-		coef[6*i+3] = 1;
-		/* set a1 */
-		coef[6*i+4] = -2*cosf(TWO_PI*centralFreq*delta_t)/expf(b*delta_t);
-		/* set a2 */
-		coef[6*i+5] = expf(-2*b*delta_t);
-
-		/* now to numerically normalize */
-		numericalNormalizef(centralFreq, samplerate, coef+6*i);
-	}
-}
 
 void sosGammatoneFast(float* data, float** output, float centralFreq,
-			    int samplerate, int datalen)
+		      int samplerate, int datalen)
 {
-	//modified sosGammatone that does not double the samplerate and uses floats instead of doubles.
-	//If the loss in accuracy is negligible, we should switch to this as it is significantly faster
-	float *coef = malloc(sizeof(float)*24);
-	sosCoeff(centralFreq, samplerate, coef);
-	cascadeBiquadf(4, coef, data, (*output), datalen);
+	/* It turns out that 27 indices into a simple IR calculation with a 
+	 * central Freq of ~97.618416 Hz and a samplerate of 11025 Hz, you get 
+	 * relative differences in the response of slightly greater than 
+	 * 5.e-4. Since these errors are only going to compound, we are going 
+	 * to switch back to using doubles for the coefficients (it may 
+	 * ultimately turn out that this change is inconsequential. But, for 
+	 * now, while we are worrying about correctness, we are just going to 
+	 * rely on the use of doubles (plus the change of floats to doubles is 
+	 * negligible in comparison to other parts of onset offset function).
+	 *
+	 * It still remains to be seen just how much the lack of data doubling 
+	 * influences the accuracy.
+	 *
+	 * There is an obvious way to improve performance here. Rather than 
+	 * iterating over the results of the filter and then going through to 
+	 * convert the array into floats, we can do all operations for a 
+	 * single element all at once. For more details see filterBank.c in the 
+	 * StreamedDetFunction Branch.
+	 */
+	//modified sosGammatone that does not double the samplerate
+	double *coef = malloc(sizeof(double)*24);
+	sosCoef(centralFreq, samplerate, coef);
+	double *temp = malloc(sizeof(double)*datalen);
+	cascadeBiquaddf(4, coef, data, temp, datalen);
 	free(coef);
+	for (int i=0;i<datalen;i++){
+		(*output)[i] = temp[i];
+	}
+	free(temp);
 }
