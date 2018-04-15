@@ -35,6 +35,8 @@ filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 
 void filterBankDestroy(filterBank* fB);
 
+float filterBankCentralFreq(filterBank* fB, int channel);
+
 /* we could use 2 separate functions here, but this simplifies the interface
  * and implementation */
 int filterBankSetInputChunk(filterBank* fB, float* input, int length,
@@ -64,3 +66,15 @@ int filterBankProcessInput(filterBank *fB, tripleBuffer *tB, int channel);
 
 int filterBankPropogateFinalOverlap(filterBank *fB, tripleBuffer *tB,
 				    int channel);
+
+/* The following function is only included for debugging purpose. The 
+ * filterBank is used to process an entire input stream all at once. 
+ * The output is a floating point array with length numChannels*dataLen.
+ *
+ * The filtered result for the ith channel begins at index i*dataLen of the 
+ * output.
+ */
+
+float *fullFiltering(int numChannels, int lenChannels, int overlap,
+		     int samplerate, float minFreq, float maxFreq,
+		     float* input, int dataLen);

@@ -152,6 +152,13 @@ void filterBankDestroy(filterBank* fB){
 	free(fB);
 }
 
+float filterBankCentralFreq(filterBank* fB, int channel){
+	if ((channel < 0)||(channel>=fB->numChannels)){
+		return -1;
+	}
+	return ((fB->cDArray)+channel)->cf;
+}
+
 
 float* centralFreqMapper(int numChannels, float minFreq, float maxFreq){
 	/* The paper states that the frequencies are mapped according to the 
@@ -240,11 +247,11 @@ int filterBankNormalChunkLength(filterBank *fB){
 	return fB->lenChannels - fB->overlap;
 }
 
-int filterBankSetInput(filterBank* fB, float * input, int length,
-		       int final_chunk){
+int filterBankSetInputChunk(filterBank* fB, float * input, int length,
+			    int final_chunk){
 	if (length < 0){
 		return -1;
-	} else if ((final_chunk != 0) || final_chunk != 1) {
+	} else if ((final_chunk != 0) && final_chunk != 1) {
 		return -2;
 	}
 
@@ -487,4 +494,143 @@ int filterBankPropogateFinalOverlap(filterBank *fB, tripleBuffer *tB,
 
 	processOverlappingBufferHelper(fB, tB, cD, channel,0);
 	return 1;
+}
+
+
+/* The following 3 functions are written exclusively for debugging purposes.
+ */
+void processAndCopyHelper(float *out, int outOffset, int numCopy,
+			  int numChannels, tripleBuffer *tB, filterBank *fB,
+			  int process, int dataLen){
+	// process expects 1 or 0.
+	// if its 1, then we call filterBankProcessInput
+	// if its 0, then we call filterBankPropogateFinalOverlap
+	int numBuffer = tripleBufferNumBuffers(tB);
+
+	for (int k = 0; k<numChannels; k++){
+		if (process == 1){
+			filterBankProcessInput(fB, tB, k);
+		} else {
+			filterBankPropogateFinalOverlap(fB, tB, k);
+		}
+		float *channelOutput = out + k*dataLen + outOffset;
+		float *buffer = tripleBufferGetBufferPtr(tB, numBuffer-1,k);
+		for (int i=0; i<numCopy; i++){
+			channelOutput[i] = buffer[i];
+		}
+	}
+	
+}
+
+void tBAdvanceBufferHelper(tripleBuffer *tB){
+	if (tripleBufferNumBuffers(tB) == 3){
+		tripleBufferCycle(tB);
+	} else {
+		tripleBufferAddLeadingBuffer(tB);
+	}
+}
+
+
+float *fullFiltering(int numChannels, int lenChannels, int overlap,
+		     int samplerate, float minFreq, float maxFreq,
+		     float* input, int dataLen){
+	float *out = malloc(sizeof(float)*numChannels*dataLen);
+
+	filterBank *fB = filterBankNew(numChannels, lenChannels, overlap,
+				       samplerate, minFreq, maxFreq);
+	tripleBuffer *tB = tripleBufferCreate(numChannels, lenChannels);
+
+	int temp;
+	// Handle the very first Chunk - the expected length is
+	int firstChunkLength = filterBankFirstChunkLength(fB);
+	int chunkLength = filterBankNormalChunkLength(fB);
+	tripleBufferAddLeadingBuffer(tB);
+	if (firstChunkLength >= dataLen){
+		// this means that a single chunk represents the entire stream
+		filterBankSetInputChunk(fB,input, dataLen,1);
+		int iterStop = dataLen;
+		if (chunkLength < dataLen){
+			iterStop = chunkLength;
+		}
+		processAndCopyHelper(out, 0, iterStop, numChannels, tB,
+				     fB, 1,dataLen);
+
+		if (dataLen>chunkLength){
+			// we need to get the last overlap region.
+			// we could have just copied the last overlap region
+			// in the last for loop, but in detFuncCore, we would
+			// probably be using this
+			tripleBufferAddLeadingBuffer(tB);
+			processAndCopyHelper(out, chunkLength,
+					     dataLen-chunkLength,
+					     numChannels, tB, fB, 0, dataLen);
+		}
+	} else {
+		float *buffer;
+		float *channelOutput;
+		// add the first chunk
+		filterBankSetInputChunk(fB,input, firstChunkLength,0);
+		processAndCopyHelper(out, 0, chunkLength, numChannels, tB,
+				     fB, 1,dataLen);
+
+		int remainingInput = dataLen-firstChunkLength;
+		// we have intentionally insert more entries into the
+		// filterBank than we have taken out
+		int inputStart = firstChunkLength;
+		int outOffset = chunkLength;
+		int numBuff = 1;
+
+		while (remainingInput>chunkLength){
+			// need to advance the triple Buffer
+			tBAdvanceBufferHelper(tB);
+
+			// set the new input
+			filterBankSetInputChunk(fB, input+inputStart,
+						chunkLength,0);
+
+			// Now to process the newly input chunk
+			processAndCopyHelper(out, outOffset, chunkLength,
+					     numChannels, tB, fB, 1, dataLen);
+
+			// Update the information about the remaining input
+			remainingInput -= chunkLength;
+			inputStart += chunkLength;
+			outOffset += chunkLength;
+		}
+
+		// now we have made it to inserting the final chunk
+		// need to advance the triple Buffer
+		tBAdvanceBufferHelper(tB);
+		// set the new input
+		filterBankSetInputChunk(fB, input+inputStart,
+					remainingInput,1);
+
+		// Now to process the newly input chunk
+		// Remember, we added more input in the original chunk than we
+		// took out. We want to copy the last (dataLen - outOffset),
+		// but if this exceeds chunkLength, then we will only copy
+		// chunkLength, and deal with the reaminder afterwards
+
+		int iterStop = dataLen - outOffset;
+		if (chunkLength < iterStop){
+			iterStop = chunkLength;
+		}
+		processAndCopyHelper(out, outOffset, iterStop,
+				     numChannels, tB, fB, 1, dataLen);
+		if ((dataLen - outOffset)>chunkLength){
+			// This is only executed if more than
+			// (chunkLength-overlap) elements were added in the
+			// last chunk because the first (overlap) elements
+			// that were added to the output came from from the
+			// penultimate input chunk
+			tripleBufferAddLeadingBuffer(tB);
+			processAndCopyHelper(out, outOffset + chunkLength,
+					     dataLen - outOffset - chunkLength,
+					     numChannels, tB, fB, 0, dataLen);
+		}
+	}
+	
+	tripleBufferDestroy(tB);
+	filterBankDestroy(fB);
+
 }
