@@ -1,0 +1,1 @@
+float PSM_Gauss_Fast(float* arr, int winSize, float sigma);

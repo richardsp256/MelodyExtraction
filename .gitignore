@@ -63,8 +63,7 @@ Testing/*
 #Ignore compiled code
 extract
 tests/check_gammatone
+tests/check_detFunction
 tests/check_tripleBuffer
-
 tests/check_sigOpt
-
 tests/check_filterBank
