@@ -374,6 +374,7 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 				     - pooledSummaryMatrix[i]);
 	}
 	free(pooledSummaryMatrix);
+	free(centralFreq);
 	return dFLength;
 }
 
