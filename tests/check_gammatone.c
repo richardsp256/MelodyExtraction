@@ -98,11 +98,10 @@ START_TEST(test_sos_performance_1)
 {
 	double *impulse_input = calloc(1000,sizeof(double));
 	impulse_input[0] = 1.;
-	int length;
 	double *ref1;
-	length = readDoubleArray(("tests/test_files/gammatone/"
-				  "sos_gammatone_response1"),
-				 isLittleEndian(), &ref1);
+	readDoubleArray(("tests/test_files/gammatone/"
+			 "sos_gammatone_response1"),
+			 isLittleEndian(), &ref1);
 
 	int rel = 1;
 	double tol = 1.e-5;
@@ -120,11 +119,10 @@ START_TEST(test_sos_performance_2)
 	double *input2 = calloc(100,sizeof(double));
 	stepFunction(&input2,100, -2.0, 3.0,17);
 
-	int length;
 	double *ref2;
-	length = readDoubleArray(("tests/test_files/gammatone/"
-				  "sos_gammatone_response2"),
-				 isLittleEndian(), &ref2);
+	readDoubleArray(("tests/test_files/gammatone/"
+			 "sos_gammatone_response2"),
+			 isLittleEndian(), &ref2);
 
 	int rel = 1;
 	double tol = 1.e-5;
@@ -322,6 +320,7 @@ struct dblArrayTestEntry* construct_biquad_test_table()
 				("tests/test_files/gammatone/"
 				 "step_function_biquad_response"),
 				&biquadFilterTestTemplate);
+	return biquad_filter_table;
 }
 
 
@@ -354,6 +353,7 @@ struct dblArrayTestEntry* construct_cascade_biquad_test_table()
 				("tests/test_files/gammatone/"
 				 "step_function_biquad_response"),
 				&biquadFilterTestTemplate);
+	return cascade_biquad_filter_table;
 }
 
 START_TEST (check_cascade_biquad_filter_table)

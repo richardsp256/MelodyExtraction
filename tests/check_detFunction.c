@@ -79,6 +79,7 @@ struct dblArrayTestEntry* construct_rollSigma_test_table()
 				"tests/test_files/roll_sigma/roll_sigma_sample_input",
 				"tests/test_files/roll_sigma/roll_sigma_sample_test",
 				&rollSigmaTestTemplate);
+	return sigma_table;
 }
 
 void destroy_roll_Sigma_test_table(){

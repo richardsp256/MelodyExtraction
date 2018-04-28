@@ -540,7 +540,6 @@ float *fullFiltering(int numChannels, int lenChannels, int overlap,
 				       samplerate, minFreq, maxFreq);
 	tripleBuffer *tB = tripleBufferCreate(numChannels, lenChannels);
 
-	int temp;
 	// Handle the very first Chunk - the expected length is
 	int firstChunkLength = filterBankFirstChunkLength(fB);
 	int chunkLength = filterBankNormalChunkLength(fB);
@@ -566,8 +565,6 @@ float *fullFiltering(int numChannels, int lenChannels, int overlap,
 					     numChannels, tB, fB, 0, dataLen);
 		}
 	} else {
-		float *buffer;
-		float *channelOutput;
 		// add the first chunk
 		filterBankSetInputChunk(fB,input, firstChunkLength,0);
 		processAndCopyHelper(out, 0, chunkLength, numChannels, tB,
@@ -578,7 +575,6 @@ float *fullFiltering(int numChannels, int lenChannels, int overlap,
 		// filterBank than we have taken out
 		int inputStart = firstChunkLength;
 		int outOffset = chunkLength;
-		int numBuff = 1;
 
 		while (remainingInput>chunkLength){
 			// need to advance the triple Buffer
@@ -632,5 +628,5 @@ float *fullFiltering(int numChannels, int lenChannels, int overlap,
 	
 	tripleBufferDestroy(tB);
 	filterBankDestroy(fB);
-
+	return out;
 }

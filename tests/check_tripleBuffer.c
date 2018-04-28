@@ -62,8 +62,8 @@ void setUniqueBufferVals(tripleBuffer *tB, int numChannels, int bufferNum,
 	}
 }
 
-int checkUniqueBufferVals(tripleBuffer *tB, int numChannels, int bufferNum,
-			  int bufferIndex)
+void checkUniqueBufferVals(tripleBuffer *tB, int numChannels, int bufferNum,
+			   int bufferIndex)
 {
 	float* temp;
 	int length = tripleBufferBufferLength(tB);

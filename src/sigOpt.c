@@ -524,6 +524,7 @@ int sigOptAdvanceBuffer(sigOpt *sO)
 		bufferIndexAdvanceBuffer((sO->channels)[i].windowLeft);
 		bufferIndexAdvanceBuffer((sO->channels)[i].windowRight);
 	}
+	return 1;
 }
 
 /* the following draws HEAVY inspiration from implementation of pandas 
@@ -588,7 +589,6 @@ int advanceLeftEdgeHelper(bufferIndex *leftEdge, bufferIndex *stopIndex,
 	 * stop index are different
 	 */
 	int start_buffer_num = bufferIndexGetBufferNum(leftEdge);
-	//int stop_buffer_num = bufferIndexGetBufferNum(stopIndex);
 
 	// this could be updated so that we are not incrementing startIndex
 	/* First we would check to see if startIndex and stopIndex have the 
@@ -601,7 +601,7 @@ int advanceLeftEdgeHelper(bufferIndex *leftEdge, bufferIndex *stopIndex,
 	 * start of the second arry to the stop index.
 	 */
 
-	for (leftEdge; bufferIndexLt(leftEdge,stopIndex);
+	for (; bufferIndexLt(leftEdge,stopIndex);
 	     bufferIndexIncrement(leftEdge)) {
 		double val;
 		int buffer_num = bufferIndexGetBufferNum(leftEdge);
@@ -646,7 +646,7 @@ int advanceRightEdgeHelper(bufferIndex *rightEdge, bufferIndex *stopIndex,
 
 	int start_buffer_num = bufferIndexGetBufferNum(rightEdge);
 	// Again, we can update this so we are not always incrementing rightEdge
-	for (rightEdge; bufferIndexLt(rightEdge,stopIndex);
+	for (; bufferIndexLt(rightEdge,stopIndex);
 	     bufferIndexIncrement(rightEdge)) {
 		double val;
 		int buffer_num = bufferIndexGetBufferNum(rightEdge);
@@ -1154,7 +1154,7 @@ int sigOptFullRollSigma(int initialOffset, int hopsize, float scaleFactor,
 	//       bufferIndexGetBufferNum(sO->channels[0].windowLeft),
 	//       bufferIndexGetIndex(sO->channels[0].windowLeft));
 	// now calculate the remaining values.
-	for (k; k<numWindows; k++){
+	for (; k<numWindows; k++){
 		//printf("k=%d\n",k);
 		float sig = sigOptAdvanceWindow(sO, trailingBuffer,
 						centralBuffer, leadingBuffer,0);
