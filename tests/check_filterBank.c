@@ -84,30 +84,39 @@ END_TEST
 double* filterInputs(int numChannels, int lenChannels, int overlap,
 		     int samplerate, float minFreq, float maxFreq,
 		     float* input, int dataLen, int funcNum){
-	float* fltResult = NULL;
-	double *result = NULL;
-	if (funcNum == 1){
-		fltResult = fullFiltering(numChannels, lenChannels, overlap,
-					  samplerate, minFreq, maxFreq, input,
-					  dataLen);
-		float_to_double_array(fltResult, dataLen*numChannels, &result);
-		free(fltResult);
-	} else {
+	
+	
+	if (funcNum==0) {
 		float* centralFreq = centralFreqMapper(numChannels, minFreq,
 						       maxFreq);
-		result = malloc(sizeof(double)*numChannels*dataLen);
+		int result_length = numChannels*dataLen;
+		float* fltResultA = malloc(sizeof(float) * result_length);
+
 		for (int i = 0; i<numChannels;i++){
+			float* start = fltResultA; //+ i*dataLen;
 			
-			sosGammatoneFast(input, &fltResult, centralFreq[i],
+			sosGammatoneFast(input, &start, centralFreq[i],
 					 samplerate, dataLen);
-			double *start = result + i*dataLen;
-			for (int j =0; j<dataLen;j++){
-				start[j] = (double)fltResult[j];
-			}
-			free(fltResult);
 		}
+
+		double *returnArray = malloc(sizeof(double)*
+					     (numChannels*dataLen));
+		for (int j =0; j<dataLen*numChannels;j++){
+			returnArray[j] = (double)fltResultA[j];
+		}
+		free(fltResultA);
+		free(centralFreq);
+		return returnArray;
+	}else{
+		double *returnArray = NULL;
+		float *fltResult = fullFiltering(numChannels, lenChannels,
+						 overlap, samplerate, minFreq,
+						 maxFreq, input, dataLen);
+		float_to_double_array(fltResult, dataLen*numChannels,
+				      &returnArray);
+		free(fltResult);
+		return returnArray;
 	}
-	return result;
 }
 
 START_TEST(test_filterBank_2Chunks)
@@ -121,20 +130,23 @@ START_TEST(test_filterBank_2Chunks)
 	int maxFreq = 4000;
 	int dataLen = 75;
 	
-	float* input = malloc(sizeof(float)*47);
+	float* input = malloc(sizeof(float)*dataLen);
 	for (int i=0; i<dataLen; i++){
 		input[i] = 0.f;
 	}
 	input[0] = 1;
 	input[1] = 0.5;
 	input[lenChannels] = -0.3;
-	
-	double* result = filterInputs(numChannels, lenChannels, overlap,
-				      samplerate, minFreq, maxFreq, input,
-				      dataLen, 1);
+
 	double* reference = filterInputs(numChannels, lenChannels, overlap,
 					 samplerate, minFreq, maxFreq, input,
 					 dataLen, 0);
+	ck_assert_ptr_nonnull(reference);
+	double* result = filterInputs(numChannels, lenChannels, overlap,
+				      samplerate, minFreq, maxFreq, input,
+				      //dataLen, 1);
+				      47,1);
+	ck_assert_ptr_nonnull(result);
 
 	compareArrayEntries(reference, result, dataLen, 1.e-5, 1, 1.e-5);
 
