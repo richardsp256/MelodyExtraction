@@ -1,3 +1,7 @@
+#include "tripleBuffer.h"
+#include "filterBank.h"
+#include "sigOpt.h"
+
 /* detFuncCore is the struct and interface for computing the correntropy 
  * detection function of a data stream.
  * 
@@ -11,16 +15,63 @@
  * the interface has been planned so that minimal changes will be required. 
  *
  * We have toyed around with having a struct with the sole purpose of keeping 
- * track of the interface functions to the subobjects to allow for mocking and 
- * real unit testing, but its probably more effort than its worth. In that case,
- * we probably would have needed another set of files for the full 
- * implementation.
+ * track of the interface functions to the subObjects to allow for mocking and 
+ * true unit testing, but it may be more effort than its worth. 
+
+ * I think it would only have been worth doing if we had chosen a unit testing 
+ framework that supports mocking, like CMocka. If we were to do this, we would 
+ * need to declare the following function pointers:
+ *
+ * 
+ * tripleBuffer - 10 functions
+ * typedef tripleBuffer* (*tBNewPtr)(int num_channels, int buffer_length);
+ * typedef void (*tBDestroyPtr)(tripleBuffer *tB);
+ * typedef int (*tBGeneralPtr)(tripleBuffer *tB);
+ * - for NumBuffers, AddLeadingBuffer, RemoveTrailingBuffer, Cycle, 
+ *   IsTerminatedStream, and GetTerminalIndex
+ * typedef float(*tBGetBufferPtr)(tripleBuffer *tB, int bufferIndex,
+ *                                int channelNum);
+ * typedef int (*tBSetTerm)(tripleBuffer *tB, int terminalBufferIndex);
+
+ * sigOpt - 8 functions
+ * typedef sigOpt* (*sONewPtr)(int winSize, int hopsize, int initialOffset,
+ *                             int numChannels, float scaleFactor);
+ * typedef void (*sODestroyPtr)(sigOpt *sO);
+ * typedef int (*sOGeneralPtr)(sigOpt *sO);
+ * - for bufferLength, GetSigmasPerBuffer, and Advance Buffer
+ * typedef int (*sOSetTermPtr)(sigOpt *sO,int index);
+ * typedef int (*sOSetupPtr)(sigOpt *sO, int channel, float *buffer);
+ * typedef int (*sOAdvWinPtr)(sigOpt *sO, float *trailingBuffer,
+ *                            float *centralBuffer, float *leadingBuffer,
+ *                            int channel);
+ *
+ * filterBank - 7 functions
+ * typedef filterBank* (*fBNewPtr)(int numChannels, int lenChannels, 
+ *                                 int overlap, int samplerate, float minFreq,
+ *                                 float maxFreq);
+ * typedef void (*fBDestroyPtr)(filterBank* fB);
+ * typedef int (*fBSetInputChunkPtr)(filterBank* fB, float* input, int length,
+ *                                   int final_chunk);
+ * typedef int (*fBChunkLengthPtr)(filterBank *fB);
+ * - for Normal and First chunks
+ * typedef int (*fBProcessPtr)(filterBank *fB, tripleBuffer *tB, int channel);
+ * - for both processInput and propogateFinal Overlap
  */
 
 typedef struct detFuncCore detFuncCore;
 
-detFuncCore *detFuncCoreCreate();
-void detFuncCoreDestroy(detFuncCore * dFC);
+
+/* 2 Main use case: 
+ * 1. Only having one thread responsible for both reading in the stream and 
+ *    then processing it. dedicatedThreads = 0.
+ * 2. Having 1 thread assigned to reading in the stream and having N threads 
+ *    assigned to detFuncCore for processing it. dedicatedThreads = N.
+ */
+detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
+			       int numChannels, int sigWinSize,
+			       float scaleFactor, int samplerate,
+			       float minFreq, float maxFreq,
+			       int dedicatedThreads);
 
 int detFuncCoreFirstChunkLength(detFuncCore *dFC);
 int detFuncCoreNormalChunkLength(detFuncCore *dFC);

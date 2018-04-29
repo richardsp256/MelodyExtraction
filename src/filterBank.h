@@ -28,6 +28,16 @@ float* centralFreqMapper(int numChannels, float minFreq, float maxFreq);
  * within the central buffer.
  */
 
+enum streamState {
+	NO_CHUNK,     // before any chunks have been set in the filterBank
+	FIRST_CHUNK,  // The very first chunk has been added - there is no
+	              // overlap between buffers
+	NORMAL_CHUNK, // The current chunk is neither the first nor the last
+	LAST_CHUNK,   // The current chunk is the final chunk - the end of the
+	              // chunk must be zero-padded
+	SINGLE_CHUNK, // The current chunk is both the first and the last CHUNK
+};
+
 typedef struct filterBank filterBank;
 
 filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
