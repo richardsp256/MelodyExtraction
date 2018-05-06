@@ -1,13 +1,16 @@
 #include "detFuncCore.h"
 
 
-typedef int (*dFCProcessChunkFunc)(detFuncCore *dFC, int channel);
+typedef int (*dFCProcessChunkFunc)(detFuncCore *dFC);
 /* The following functions are tracked by detFuncCore based on its state. */
-int detFuncCoreProcessNoChunk(detFuncCore *dFC, int channel);
-//int detFuncCoreProcessFirstChunk(detFuncCore *dFC, int channel);
-//int detFuncCoreProcessNormalChunk(detFuncCore *dFC, int channel);
-//int detFuncCoreProcessLastChunk(detFuncCore *dFC, int channel);
-//int detFuncCoreProcessSingleChunk(detFuncCore *dFC, int channel);
+int detFuncCoreProcessNoChunk(detFuncCore *dFC);
+int detFuncCoreProcessFirstChunk(detFuncCore *dFC);
+int detFuncCoreProcessNormalChunk(detFuncCore *dFC);
+int detFuncCoreProcessLastChunk(detFuncCore *dFC);
+int detFuncCoreProcessSingleChunk(detFuncCore *dFC);
+
+typedef int (*dFCSetInputChunkFunc)(detFuncCore *dFC,  float* input, int length,
+				    int final_chunk);
 
 struct detFuncCore{
 	enum streamState state;
@@ -19,11 +22,18 @@ struct detFuncCore{
 	float *pooledSummaryMatrix;
 	int pSMLength;
 
+	// the following 2 variables are defined for the purposes of
+	// identifying where the stream terminates. We could come up with a way
+	// to determine this without tracking these quantities.
+	long streamLength;
+	int pSMWinProcessed;
+	int terminationIndex;
+
+	float lastPSMEntry;
 	int detFuncSize;
 	int detFuncFilledLength;
 	float *detFunc;
 
-	int numThreads; // this probably should not be here right now
 	int dedicatedThreads;
 
 	tripleBuffer *tB;
@@ -57,13 +67,6 @@ static inline int detFuncCoreNumChannels(detFuncCore *dFC){
 	return dFC->numChannels;
 }
 
-static inline int detFuncCoreIsTerminated(detFuncCore *dFC){
-	return tripleBufferIsTerminatedStream(dFC->tB);
-}
-
-static inline int detFuncCoreGetTerminalIndex(detFuncCore *dFC){
-	return tripleBufferGetTerminalIndex(dFC->tB);
-}
 
 /* Some utility functions that will likely be repeated frequently */
 
@@ -85,6 +88,11 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 		// temporary
 		return NULL;
 	}
+
+	//temporary
+	//need to assign initial values to streamLength, pSMWinProcessed,
+	//    terminationIndex and lastPSMEntry
+	return NULL;
 
 	// CHECK THAT ALL OF ARGUMENTS that this function explicitly uses (the
 	// subobjects can handle arguments that are simply passed through)
@@ -191,67 +199,438 @@ int detFuncCoreNormalChunkLength(detFuncCore *dFC){
 	return filterBankNormalChunkLength(dFC->fB);
 }
 
-/* If we are only using 1 thread responsible for both reading in the stream and 
- * then processing it, then that thread alternates between calling 
- * detFuncCoreSetInputChunk and the following function. In this case, the basic 
- * flow in the function is as follows:
- *    A. Iterate over all N channels. For channel i: 
- *       a) call filterBankProcessInput(dFC->fB,dFC->tB,i)
- *       b) load the trailing_buffer, central_buffer, and leading_buffers for 
- *          channel i from tripleBuffer. (Depending on the total number of 
- *          buffers, up to 2 buffers may be set to NULL
- *       c) iterate over j=0 up to j<pSMLength. For index j, compute the 
- *          correntropy starting at central_buffer[j] and add it to 
- *          pooledSummaryMatrix[j]
- *    B. Update the detection function (May involve resizing)
- *    C. Save index pooledSummaryMatrix[pSMLength-1] for the future (it is 
- *       required for completing step B next time) and flush all entries of 
- *       pooledSummaryMatrix to 0
- *    D. Check to see if the stream has been terminated. If it has not, return 
- *       1, otherwise continue to E.
- *    E. If the last chunk had a length less than or equal to 
- *       (detFuncCoreNormalChunkLength(dFC)-overlap) skip to F. Otherwise cycle
- *       the buffers and repeat steps A->C. However in step Aa), instead of 
- *       calling filterBankProcessInput, call filterBankPropogateFinalOverlap
- *    F. Delete the trailing buffer from filterBank.
- *    G. Complete steps A->B for the remaining entries in the array.
+
+/* I think we are going to add another state aspect to filterBank. It's going 
+ * to be related to the value of dedicatedThreads.
+ * This involves 2 functions: 
+ *    - detFuncCoreSetInputChunk: an interface function
+ *    - detFuncCorePullNextChunk: an internal helper function.
  * 
- * If there is at least 1 function solely dedicated to the following function, 
- * then it is not released from the following function until it has processed 
- * the entire stream. The basic control flow is very similar to the above. I 
- * will summarize it below. Note that steps labeled as SEQ indicates that only 
- * 1 thread does this operation and all other threads wait.
- *    1. SEQ - look for new input
- *    2. Complete step A. from above (this is parallelized)
- *    3. SEQ - Combine the pooledSummaryMatrices for all channels into 1 
- *       channel. Set the values of the pooledSummaryMatrices of all other 
- *       channels to 0.
- *    4. SEQ - Complete Steps B->C with the same thread used for step 3.
- *    5. SEQ - If the stream has not terminated, evaluate steps E->G, only 
- *       allowing the other threads to parallelize step A wherever applicable.
- * 
- * The above will definitely work with dedicated threads. After it is all 
- * implemented, judging based on how long it takes to complete step 4., it may 
- * be worthwhile to allow the other threads (assuming there is more than 1 
- * dedicated thread) to advance back to steps 1&2 if the stream is not 
- * terminated so that they are not idle. I have a feeling that we won't gain 
- * much from this.
+ * If there are no dedicated threads, then all input chunks are added to 
+ * detFuncCore via detFuncCoreSetInputChunk. detFuncCorePullNextChunk does 
+ * nothing and always succeeds
+ *
+ * If there is at least 1 dedicated thread, then the detFuncCoreSetInputChunk 
+ * should never be called. Instead, the chunk will be provided through some 
+ * external streamBuffer. It is accessed by calling detFuncCorePullNextChunk.
  */
-int detFuncCoreProcess(detFuncCore* dFC, int thread_num){
+
+
+/* Below is a helper function that:
+ * - control state transitions
+ * - advances the tripleBuffer (either adds new buffer or cycles it)
+ * - calls sigOptAdvanceBuffer(dFC->sO) (not sure if this gets called 
+ *   when adding first 2 chunks)
+ * - adds the new input chunk in filterBank
+ */
+int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
+				int final_chunk){
+	// update dFC->streamLength appropriately
+
+
+	
+	return -1;
+}
+
+
+int detFuncCoreSetInputChunk(detFuncCore* dFC, float* input, int length,
+			     int final_chunk){
+
 	if (dFC->dedicatedThreads == 0){
-		return 1;
+		return detFuncCorePrepareNextChunk(dFC, input, length,
+						   final_chunk);
 	} else {
+		/* This always automatically fails. This is not the way to pass
+		 * the input chunks to detFuncCore if it has dedicated threads. 
+		 */
+		printf("The function, detFuncCoreSetInputChunk, should not be "
+		       "called if dFC has at least 1 dedicated thread.\n");
 		return 0;
 	}
 }
 
-/* The following function is explicitly called by detFuncCoreProcessFirstChunk
- * and detFuncCoreProcessSingleChunk
+/* This is a helper function. It is used for retrieving the next Chunk if the 
+ * detFuncCore has at least 1 dedicated thread. If it doesn't then, this 
+ * function just returns True; the same role is carried out by the interface 
+ * function detFuncCoreSetInputChunk 
+*/
+int detFuncCorePullNextChunk(detFuncCore* dFC, float* input, int length,
+			     int final_chunk){
+
+	if (dFC->dedicatedThreads == 0){
+		return 1;
+	} else {
+		/* Pulls the next chunk from the external Stream Buffer, if 
+		 * applicable.
+		 * If the next chunk is not yet ready (unlikely), hang until it
+		 * is ready.
+		 * Pass the next chunk to detFuncCorePrepareNextChunk
+		 *
+		 * Needs to be implemented
+		 */
+		printf("Have not implemented the helper function, "
+		       "detFuncCorePullNextChunk, \nfor use when detFuncCore "
+		       "has at least 1 dedicated thread.\n"); 
+		return -1;
+	}
+}
+
+/* The bottom is a helper function. For some thread, it computes the 
+ * contribution of channel to the PSM for an entire input chunk.
+ * If the chunk for which the PSM is being calculated is the final input chunk,
+ * then needs to take slightly special care to only compute PSM Contrib to the 
+ * end of the chunk (and not any farther)
+ *
+ * In this function: 
+ * first get the trailingBuffer, centralBuffer, and leadingBuffer
+ * for every element we wish to fill in PSMcontrib:
+ *     sigma= sigOptAdvanceWindow(sO, trailingBuffer,
+ *                                centralBuffer, leadingBuffer,
+ *                                channel);
+ *     set element in PSMcontrib equal to itself + PSM contribution from the 
+ *         channel being processed
+ * 
  */
-int detFuncCorePreprocess(detFuncCore *dFC, int channel){
+int calcPSMContrib(detFuncCore *dFC, int channel, int thread, int numPSMWin){
+	return 0;
+}
+
+
+/* The following is a helper function that either sets up sigOpt or computes 
+ * correntropy. The choice between these 2 functionalities is determined by the
+ * value passed to numPSMWin. If the value is 0, then sigOpt is set up. 
+ * Otherwise, calcPSMContrib is called to compute correntropy contributions in 
+ * numPSMWin Correntropy calculations.
+ * The argument fBfunc controls if and how the tripleBuffer is modified for 
+ * every channel. If we are processing the very last input chunk, and the 
+ * tripleBuffer has already been modified with the last input, then fBfunc 
+ * should be set to NULL. If we are treating a normal chunk or the very first 
+ * chunk, then fBfunc should be set to filterBankProcessInput. If the final 
+ * input chunk was at least as long as detFuncCoreNormalChunkLength, then we 
+ * can also set fBfunc to filterBankPropogateFinalOverlap.
+ *
+ * If we adopt a simple master-slave thread pool parallelization model, then 
+ * the following function must simply be modified.
+ */
+
+typedef int (*fBProcessPtr)(filterBank *fB, tripleBuffer *tB, int channel);
+
+int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
+				  int numPSMWin){
+	if (dFC->dedicatedThreads != 0){
+		printf("Have not implemented the helper function, "
+		       "detFuncCoreProcessInputHelper, \nfor use when "
+		       "detFuncCore has at least 1 dedicated thread.\n"); 
+		return -1;
+	}
+
+	for (int channel = 0; channel<detFuncCoreNumChannels(dFC); channel++){
+		int temp;
+		if (fBfunc != NULL){
+			temp = fBfunc(dFC->fB, dFC->tB, channel);
+			if (temp!=1){
+				printf("There has been a problem with "
+				       "execution of fBfunc\n");
+				return temp;
+			}
+		}
+
+		if (numPSMWin>0){
+			temp = calcPSMContrib(dFC, channel, 0, numPSMWin);
+			if (temp!=1){
+				printf("There has been a problem with "
+				       "calcPSMContrib\n");
+				return temp;
+			}
+		} else {
+			temp = sigOptSetup(dFC->sO, channel,
+					   tripleBufferGetBufferPtr(dFC->tB, 0,
+								    channel));
+			if (temp!=1){
+				printf("There has been a problem with "
+				       "sigOptSetup\n");
+				return temp;
+			}
+		}
+	}
 	return 1;
 }
 
-int detFuncCoreProcessNoChunk(detFuncCore *dFC, int channel){
+int detFuncCoreProcess(detFuncCore* dFC, int thread_num){
+	if (dFC->dedicatedThreads == 0){
+		dFC->processChunkFunc(dFC);
+	} else {
+		/* If we decide to use a master slave thread pool, the idea is 
+		 * that we would assign one of the threads the master status.
+		 */
+		printf("Have not implemented the helper function, "
+		       "detFuncCorePullNextChunk, \nfor use when detFuncCore "
+		       "has at least 1 dedicated thread.\n");
+		return -1;
+	}
+}
+
+/* The following function is a helper function in which all information about 
+ * the pooledSummaryMatrix is consolidated. This means that:
+ * - In the threaded case, the entries of PSMbuffers are all added together in 
+ *   the entries of the PSMbuffer of a single thread.
+ */
+
+int detFuncCoreConsolidatePSMEntries(detFuncCore *dFC){
+	if (dFC->dedicatedThreads == 0){
+		return 1;
+	} else {
+		printf("Have not implemented the helper function, "
+		       "detFuncCoreConsolidatePSMInfo, \nfor use when "
+		       "detFuncCore has at least 1 dedicated thread. \n");
+		/* Need to add the pooledSummaryMatrices together so that one 
+		 * thread has a pooledSummaryMatrix with all accumulated 
+		 * entries. This can be done entirely sequentially or partially
+		 * parralellized. 
+		 */
+		return -1;
+	}
+}
+
+int updateDetFunc(detFuncCore *dFC){
+	// Handles the updating of detection function
+	// stores the final entry in pooledSummaryMatrix for later
+	printf("Have not implemented the helper function, updateDetFunc\n");
+	return -1;
+}
+
+int flushPSMEntries(detFuncCore *dFC){
+	// Handles the process of setting all entries in pooledSummaryMatrix
+	// to 0
+	if (dFC->dedicatedThreads == 0){
+		printf("Have not implemented the helper function, "
+		       "flushPSMEntries\n");
+		return -1;
+	} else {
+		printf("Have not implemented the helper function, "
+		       "flushPSMEntries, \nfor use when "
+		       "detFuncCore has at least 1 dedicated thread. \n");
+		return -1;
+	}
+}
+
+int detFuncCoreProcessPenultimateSectionHelper(detFuncCore *dFC,
+					       fBProcessPtr fBfunc){
+	/* This is a helper function called by detFuncCoreProcessLastChunk or
+	 * detFuncCoreProcessSingleChunk
+	 */
+
+	/* Need to implement where we get the terminationIndex from */
+	int terminationIndex = dFC->terminationIndex;
+
+	/* Set the terminationIndex in the tripleBuffer and sigOpt */
+	int temp = tripleBufferSetTerminalIndex(dFC->tB, terminationIndex);
+	if (temp != 1){
+		printf("Error while calling tripleBufferSetTerminalIndex\n");
+		return temp;
+	}
+
+	temp = sigOptSetTerminationIndex(dFC->sO,terminationIndex);
+	if (temp != 1){
+		printf("Error while calling sigOptSetTerminationIndex\n");
+		return temp;
+	}
+
+	/* Process the section */
+	temp = detFuncCoreProcessInputHelper(dFC, fBfunc, dfC->pSMLength);
+	if (temp != 1){
+		return temp;
+	}
+
+	/* Update detection function */
+	temp = updateDetFunc(dFC);
+	if (temp != 1){
+		return temp;
+	}
+
+	/* Flush PSM Entries. */
+	temp = flushPSMEntries(dFC);
+	if (temp != 1){
+		return temp;
+	}
+	return 1;
+}
+
+int detFuncCoreProcessFinalSectionHelper(detFuncCore *dFC){
+	/* This is a helper function called by detFuncCoreProcessLastChunk or
+	 * detFuncCoreProcessSingleChunk */
+
+	if (tripleBufferNumBuffers(dFC->tB) == 3){
+		tripleBufferRemoveTrailingBuffer(tB);
+	}
+
+	/* Need to implement where we get the number of finalPSMWindows from */
+	int finalPSMWindows = -1;
+
+	/* Process the section */
+	temp = detFuncCoreProcessInputHelper(dFC, fBfunc, finalPSMWindows);
+	if (temp != 1){
+		return temp;
+	}
+
+	/* Update detection function */
+	temp = updateDetFunc(dFC);
+	if (temp != 1){
+		return temp;
+	}
+
+	return 1;
+}
+
+int detFuncCoreProcessNoChunk(detFuncCore *dFC){
 	return 0;
+}
+
+int detFuncCoreProcessFirstChunk(detFuncCore *dFC){
+	return detFuncCoreProcessInputHelper(dFC, filterBankProcessInput, 0);
+}
+
+int detFuncCoreProcessNormalChunk(detFuncCore *dFC){
+	/* compute the PooledSummary Matrix entries */
+	int temp = detFuncCoreProcessInputHelper(dFC, filterBankProcessInput,
+						 dfC->pSMLength);
+	if (temp != 1){
+		return temp;
+	}
+	/* The following is only important if the detection Function Core is 
+	 * parallelized using a master-slave thread pool:
+	 * temp = detFuncCoreConsolidatePSMEntries(dFC);
+	 * if (temp != 1){
+	 *	return temp;
+	 * }
+	 */
+
+	/* Update detection function */
+	temp = updateDetFunc(dFC);
+	if (temp != 1){
+		return temp;
+	}
+
+	/* Flush PSM Entries. */
+	temp = flushPSMEntries(dFC);
+	if (temp != 1){
+		return temp;
+	}
+	return 1;
+}
+
+int detFuncCoreProcessLastChunk(detFuncCore *dFC){
+
+	int temp;
+	fBProcessPtr fBfunc;
+	if (dFC->terminationIndex >= detFuncCoreNormalChunkLength(dFC)){
+		temp = detFuncCoreProcessNormalChunk(dFC);
+		if (temp != 1){
+			return temp;
+		}
+
+		if (tripleBufferNumBuffers(dFC->tB) == 3){
+			tripleBufferCycle(dFC->tB);
+		} else {
+			tripleBufferAddLeadingBuffer(dFC->tB);
+		}
+
+		temp = sigOptAdvanceBuffer(dFC->sO);
+		if (temp != 1){
+			printf("An error occured during the first "
+			       "sigOptAdvanceBuffer\n");
+			return temp;
+		}
+
+		fBfunc = filterBankPropogateFinalOverlap;
+		dFC->terminationIndex -= detFuncCoreNormalChunkLength(dFC);
+	} else {
+		fBfunc = filterBankProcessInput;
+	}
+
+	temp = detFuncCoreProcessPenultimateSectionHelper(dFC,fBfunc);
+	if (temp != 1){
+		return temp;
+	}
+
+	temp = sigOptAdvanceBuffer(dFC->sO);
+	if (temp != 1){
+		printf("An error occured during sigOptAdvanceBuffer\n");
+		return temp;
+	}
+
+	return detFuncCoreProcessFinalSectionHelper(dFC);
+}
+
+int detFuncCoreProcessSingleChunk(detFuncCore *dFC){
+
+	int temp;
+	int terminationIndex = dFC->terminationIndex;
+
+	if (terminationIndex >= detFuncCoreNormalChunkLength(dFC)){
+		/* The entire stream is longer than a normal ChunkLength (but 
+		 * smaller than the expected length of the first chunk). This 
+		 * means we need to filter the input, transfer as much as 
+		 * possible into the first tripleBuffer buffer, preprocess 
+		 * sigOpt and then transfer the remainder into the second 
+		 * tripleBuffer. 
+		 *
+		 * If we won't do this then sigOpt will not account for the 
+		 * stream that occurs after the normal ChunkLength in its 
+		 * calculations and it's possible that correntropy calculations
+		 * involving windows starting after the normal Chunk Length 
+		 * will be missed. */
+		
+		/* need to filter the stream and handle sigOpt preprocessing */
+		temp = detFuncCoreProcessInputHelper(dFC,
+						     filterBankProcessInput, 0);
+		if (temp != 1){
+			return temp;
+		}
+
+		// Now, update the terminationIndex
+		dFC->terminationIndex -= detFuncCoreNormalChunkLength(dFC);
+		terminationIndex = dFC->terminationIndex;
+
+		/* Now, let's propogate the remaining stream after normal Chunk
+		 * Length and compute correntropy */
+		fBfunc = filterBankPropogateFinalOverlap;
+
+		temp = detFuncCoreProcessPenultimateSectionHelper(dFC,fBfunc);
+		if (temp != 1){
+			return temp;
+		}
+
+		temp = sigOptAdvanceBuffer(dFC->sO);
+		if (temp != 1){
+			printf("An error occured during sigOptAdvanceBuffer\n");
+			return temp;
+		}
+	} else {
+		/* Set the terminationIndex in the tripleBuffer and sigOpt */
+		int temp = tripleBufferSetTerminalIndex(dFC->tB,
+							terminationIndex);
+		if (temp != 1){
+			printf("Error while calling "
+			       "tripleBufferSetTerminalIndex\n");
+			return temp;
+		}
+
+		temp = sigOptSetTerminationIndex(dFC->sO,terminationIndex);
+		if (temp != 1){
+			printf("Error while calling "
+			       "sigOptSetTerminationIndex\n");
+			return temp;
+		}
+
+		/* need to filter the stream and handle sigOpt preprocessing */
+		temp = detFuncCoreProcessInputHelper(dFC,
+						     filterBankProcessInput, 0);
+		if (temp != 1){
+			return temp;
+		}
+	}
+
+	/* Now lets process the input in the last buffer */
+	return detFuncCoreProcessFinalSectionHelper(dFC);
 }

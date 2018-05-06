@@ -89,6 +89,48 @@ int detFuncCoreNormalChunkLength(detFuncCore *dFC);
 int detFuncCoreSetInputChunk(detFuncCore* dFC, float* input, int length,
 			     int final_chunk);
 
+/* If we are only using 1 thread responsible for both reading in the stream and 
+ * then processing it, then that thread alternates between calling 
+ * detFuncCoreSetInputChunk and detFuncCoreProcessInput. In this case, the 
+ * basic flow in the function is as follows:
+ *    A. Iterate over all N channels. For channel i: 
+ *       - call detFuncCorePSMContrib(dFC, i, 0)
+ *    B. Update the detection function (May involve resizing)
+ *    C. Save index pooledSummaryMatrix[pSMLength-1] for the future (it is 
+ *       required for completing step B next time) and flush all entries of 
+ *       pooledSummaryMatrix to 0
+ *    D. Check to see if the stream has been terminated. If it has not, return 
+ *       1, otherwise continue to E.
+ *    E. If the last chunk had a length less than or equal to 
+ *       (detFuncCoreNormalChunkLength(dFC)-overlap) skip to F. Otherwise cycle
+ *       the buffers, call sigOptAdvanceBuffer, and repeat steps A->C. However 
+ *       in step Aa), instead of calling filterBankProcessInput, call 
+ *       filterBankPropogateFinalOverlap
+ *    F. Delete the trailing buffer from filterBank. Call sigOptAdvanceBuffer.
+ *    G. Complete steps A->B for the remaining entries in the array.
+ * 
+ * If there is at least 1 function solely dedicated to the following function, 
+ * then it is not released from the following function until it has processed 
+ * the entire stream. The basic control flow is very similar to the above. I 
+ * will summarize it below. Note that steps labeled as SEQ indicates that only 
+ * 1 thread does this operation and all other threads wait.
+ *    1. SEQ - look for new input with detFuncCorePullNextChunk
+ *    2. Complete step A. from above (this is parallelized)
+ *    3. SEQ - Combine the pooledSummaryMatrices for all channels into 1 
+ *       channel. Set the values of the pooledSummaryMatrices of all other 
+ *       channels to 0.
+ *    4. SEQ - Complete Steps B->C with the same thread used for step 3.
+ *    5. SEQ - If the stream has not terminated, evaluate steps E->G, only 
+ *       allowing the other threads to parallelize step A wherever applicable.
+ * 
+ * The above will definitely work with dedicated threads. After it is all 
+ * implemented, judging based on how long it takes to complete step 4., it may 
+ * be worthwhile to allow the other threads (assuming there is more than 1 
+ * dedicated thread) to advance back to steps 1&2 if the stream is not 
+ * terminated so that they are not idle. I have a feeling that we won't gain 
+ * much from this.
+ */
+
 /* This function would be designed for actually processing the input. If 
  * running this without threading, we would alternate calling this function and 
  * setting the input function. If we use threading, the idea would be that the 
