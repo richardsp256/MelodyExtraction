@@ -1,5 +1,29 @@
+#include <math.h>
 #include "detFuncCore.h"
 
+// We have placed a requirement that the entire stream is at least twice the
+// length of the correntropy window if the stream is shorter than the first
+// buffer.
+
+// remaining to do before debugging:
+//     -identify what the central tripleBuffer index to be during processing
+//     -identify when pSMWinProcessed is updated
+//     -implement the updating of the detection function and any resizing
+//     -implement the clearing of the pooledSummaryMatrix and the storing
+//      of the last entry in lastPSMEntry
+//     -implement the retrieval of the detection function
+
+/* The following 2 macros affect the memory allocation and reallocation for the 
+ * detFunc member of detFuncCore.
+ * Specifically, we initially allocate memory for 
+ * (1 + INITIAL_DFL_EXTRA_CHUNKS) chunks of audio. Consequently, 
+ * INITIAL_DFL_EXTRA_CHUNKS must be zero or greater.
+ * Later, during reallocation, we always grow the array to hold
+ * (1 + GROWTH_DFL_EXTRA_CHUNKS) additional chunks. Consequently, 
+ * GROWTH_DFL_EXTRA_CHUNKS must also be zero or greater.
+ */
+#define INITIAL_DFL_EXTRA_CHUNKS 1
+#define GROWTH_DFL_EXTRA_CHUNKS 1
 
 typedef int (*dFCProcessChunkFunc)(detFuncCore *dFC);
 /* The following functions are tracked by detFuncCore based on its state. */
@@ -26,7 +50,6 @@ struct detFuncCore{
 	// identifying where the stream terminates. We could come up with a way
 	// to determine this without tracking these quantities.
 	long streamLength;
-	int pSMWinProcessed;
 	int terminationIndex;
 
 	float lastPSMEntry;
@@ -88,13 +111,7 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 		// temporary
 		return NULL;
 	}
-
-	//temporary
-	//need to assign initial values to streamLength, pSMWinProcessed,
-	//    terminationIndex and lastPSMEntry
-	return NULL;
-
-	// CHECK THAT ALL OF ARGUMENTS that this function explicitly uses (the
+	// CHECK ALL OF ARGUMENTS that this function explicitly uses (the
 	// subobjects can handle arguments that are simply passed through)
 
 
@@ -167,14 +184,25 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 	dFC->pSMLength = pSMLength;
 	dFC->numThreads = numThreads;
 
-	dFC->state = NO_CHUNK;
-	dFC->processChunkFunc = &detFuncCorePreprocess;
+	dFC->streamLength = 0;
+	dFC->terminationIndex = -1;
+	dFC->lastPSMEntry = -1.;
 
-	// we should actually set a real value for detFunc
-	// this needs to be changed
-	dFC->detFunc =NULL;
-	dFC->detFuncSize = 0;
+	dFC->state = NO_CHUNK;
+	dFC->processChunkFunc = &detFuncCoreProcessNoChunk;
+
+	/* here we will allocate the initial memory for detFunc.
+	 * Note that detection function will always have 1 fewer entry than 
+	 * the total number of pooledSummaryMatrix windows that have been 
+	 * calculated
+	 */
 	dFC->detFuncFilledLength = 0;
+	dFC->detFuncSize = pSMLength * (INITIAL_DFL_EXTRA_CHUNKS + 1) - 1;
+	dFC->detFunc = malloc(sizeof(float) * dFC->detFuncSize);
+	if (dFC->detFunc == NULL){
+		detFuncCoreDestroy(dFC);
+		return NULL;
+	}
 	return dFC;
 }
 
@@ -219,23 +247,109 @@ int detFuncCoreNormalChunkLength(detFuncCore *dFC){
 /* Below is a helper function that:
  * - control state transitions
  * - advances the tripleBuffer (either adds new buffer or cycles it)
- * - calls sigOptAdvanceBuffer(dFC->sO) (not sure if this gets called 
- *   when adding first 2 chunks)
+ * - calls sigOptAdvanceBuffer(dFC->sO) (if starting state is NORMAL_CHUNK)
  * - adds the new input chunk in filterBank
  */
 int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 				int final_chunk){
-	// update dFC->streamLength appropriately
+	if (length < 0){
+		return -2;
+	} else if ((final_chunk != 0) && final_chunk != 1) {
+		return -3;
+	}
 
+	switch(dFC->state){
+	case LAST_CHUNK :
+		return -4;
+	case SINGLE_CHUNK :
+		return -4;
+	case NO_CHUNK :
+		/* Can Become FIRST_CHUNK or SINGLE_CHUNK */
 
-	
+		/* add buffer to tripleBuffer */
+		tripleBufferAddLeadingBuffer(dFC->tB);
+
+		if (final_chunk == 0){
+			if (length != detFuncCoreFirstChunkLength(dFC)){
+				return -5;
+			}
+			dFC->state = FIRST_CHUNK;
+			dFC->processChunkFunc = &detFuncCoreProcessFirstChunk;
+		} else {
+
+			if (length > detFuncCoreFirstChunkLength(dFC)){
+				return -6;
+			} else if (length < (dFC->corrWinSize*2)){
+				// could probably do better
+				printf("The entire stream must be at least "
+				       "twice the length of the correntropy "
+				       "window.\n");
+				return -7;
+			}
+
+			dFC->terminationIndex = length;
+			// all further dealings with the termination Index are
+			// handled later
+			dFC->state = SINGLE_CHUNK;
+			dFC->processChunkFunc = &detFuncCoreProcessSingleChunk;
+		}
+		break;
+	default :
+		/* Only accesed by FIRST_CHUNK or NORMAL CHUNK
+		 * Both cases only allow transitions to NORMAL_CHUNK or 
+		 * LAST_CHUNK */
+
+		if (tripleBufferNumBuffers(dFC->tB) == 3){
+			tripleBufferCycle(dFC->tB);
+		} else {
+			tripleBufferAddLeadingBuffer(dFC->tB);
+		}
+
+		// check that the input length is valid
+
+		if (final_chunk == 0){
+			if (length != detFuncCoreNormalChunkLength(dFC)){
+				return -5;
+			}
+			if (dFC->state == NORMAL_CHUNK){
+				sigOptAdvanceBuffer(sO);
+			}
+
+			dFC->state = NORMAL_CHUNK;
+			dFC->processChunkFunc = &detFuncCoreProcessNormalChunk;
+		} else {
+			if (length > detFuncCoreNormalChunkLength(dFC)){
+				return -6;
+			}
+			if (dFC->state == NORMAL_CHUNK){
+				sigOptAdvanceBuffer(sO);
+			}
+			dFC->terminationIndex = length;
+			// all further dealings with the termination Index are
+			// handled later
+			dFC->state = LAST_CHUNK;
+			dFC->processChunkFunc = &detFuncCoreProcessLastChunk;
+		}
+
+	}
+	// update internal steamLength
+	dFC->streamLength = dFC->streamLength + length;
+
+	printf("Unclear if I should update numWindowsProcessed Now or later\n");
 	return -1;
+
+	// add input chunk to filterBank
+	filterBankSetInputChunk(dFC->fB, input, length, final_chunk);
+
+	return 1;
 }
 
 
 int detFuncCoreSetInputChunk(detFuncCore* dFC, float* input, int length,
 			     int final_chunk){
 
+	
+	
 	if (dFC->dedicatedThreads == 0){
 		return detFuncCorePrepareNextChunk(dFC, input, length,
 						   final_chunk);
@@ -254,8 +368,7 @@ int detFuncCoreSetInputChunk(detFuncCore* dFC, float* input, int length,
  * function just returns True; the same role is carried out by the interface 
  * function detFuncCoreSetInputChunk 
 */
-int detFuncCorePullNextChunk(detFuncCore* dFC, float* input, int length,
-			     int final_chunk){
+int detFuncCorePullNextChunk(detFuncCore* dFC){
 
 	if (dFC->dedicatedThreads == 0){
 		return 1;
@@ -290,8 +403,14 @@ int detFuncCorePullNextChunk(detFuncCore* dFC, float* input, int length,
  *     set element in PSMcontrib equal to itself + PSM contribution from the 
  *         channel being processed
  * 
+ * Probably need to indicate which buffer in the triple Buffer is the central 
+ * buffer. For nearly every case:
+ *    - if there are 2 buffers, then its the first buffer
+ *    - if there are 3 buffers, then its the second buffer
+ * the only exception is during the processing of the very last buffer.
  */
-int calcPSMContrib(detFuncCore *dFC, int channel, int thread, int numPSMWin){
+int calcPSMContrib(detFuncCore *dFC, int channel, int thread, int numPSMWin,
+		   int centralBuffIndex){
 	return 0;
 }
 
@@ -315,8 +434,10 @@ int calcPSMContrib(detFuncCore *dFC, int channel, int thread, int numPSMWin){
 
 typedef int (*fBProcessPtr)(filterBank *fB, tripleBuffer *tB, int channel);
 
+// if centralBuff index is -1 automatically compute it.
+// otherwise use the value passed through
 int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
-				  int numPSMWin){
+				  int numPSMWin,int centralBuffIndex){
 	if (dFC->dedicatedThreads != 0){
 		printf("Have not implemented the helper function, "
 		       "detFuncCoreProcessInputHelper, \nfor use when "
@@ -336,7 +457,9 @@ int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
 		}
 
 		if (numPSMWin>0){
-			temp = calcPSMContrib(dFC, channel, 0, numPSMWin);
+			printf("need to compute centralBuffIndex\n");
+			temp = calcPSMContrib(dFC, channel, 0, numPSMWin,
+					      centralBuffIndex);
 			if (temp!=1){
 				printf("There has been a problem with "
 				       "calcPSMContrib\n");
@@ -392,6 +515,50 @@ int detFuncCoreConsolidatePSMEntries(detFuncCore *dFC){
 	}
 }
 
+int totalNumPSMEntriesHelper(detFuncCore *dFC){
+	/* Helper function that the computes the total number of 
+	 * pooledSummaryMatrix values to be computed.
+	 * This should only be called once terminationIndex has been set. 
+	 */
+	if (dFC->terminationIndex == -1){
+		return -1;
+	}
+	return (int)ceil(((double)(dFC->streamLength
+				      - (long)dFC->corrWinSize))
+			    / (double)detFuncCoreHopsize(dFC)) + 1;
+}
+
+int numberPSMEntriesFinalChunkHelper(detFuncCore *dFC){
+	/* Helper function that computes the total number of remaining
+	 * pooledSummaryMatrix elements that should be computed for the 
+	 * very last chunk.
+	 * This should only be called once termination index has been set 
+	 *
+	 * The implementation could probably be modified so that we don't need 
+	 * need to know the entire length of the stream*/
+
+	int totalLength = totalNumPSMEntriesHelper(dFC);
+	if (totalLength == -1){
+		return -1;
+	}
+
+	/* first we will compute the total number of PSM entries to be computed
+	 */
+	int numWindows = totalNumPSMEntriesHelper(dFC);
+	int pSMLength = detFuncCorePSMLength(dFC);
+
+	if (numWindows % pSMLength != 0){
+		return numWindows % pSMLength;
+	} else {
+		return pSMLength;
+	}
+}
+
+// I'm thinking of having separate resizing functions for Normal, Final, and
+// Single (the last 2 may use the same function). Alternatively, we could have
+// a single function with an if statement that depends on the value of
+// terminalIndex
+
 int updateDetFunc(detFuncCore *dFC){
 	// Handles the updating of detection function
 	// stores the final entry in pooledSummaryMatrix for later
@@ -437,7 +604,11 @@ int detFuncCoreProcessPenultimateSectionHelper(detFuncCore *dFC,
 	}
 
 	/* Process the section */
-	temp = detFuncCoreProcessInputHelper(dFC, fBfunc, dfC->pSMLength);
+
+	printf("Need to decide on the index of the tripleBuffer\n");
+	int centralBuffIndex = -1;
+	temp = detFuncCoreProcessInputHelper(dFC, fBfunc, dfC->pSMLength,
+					     centralBuffIndex);
 	if (temp != 1){
 		return temp;
 	}
@@ -464,11 +635,14 @@ int detFuncCoreProcessFinalSectionHelper(detFuncCore *dFC){
 		tripleBufferRemoveTrailingBuffer(tB);
 	}
 
-	/* Need to implement where we get the number of finalPSMWindows from */
-	int finalPSMWindows = -1;
-
-	/* Process the section */
-	temp = detFuncCoreProcessInputHelper(dFC, fBfunc, finalPSMWindows);
+	/* Process the section - the final section has already been calculated
+	 * If there are any problems, it likely has to do with how we set 
+	 * centralBuffIndex, or with assuming the final chunk has already been 
+	 * processed in SINGLE_CHUNK mode */
+	int finalPSMWindows = numberPSMEntriesFinalChunkHelper(dFC);
+	int centralBuffIndex = tripleBufferNumBuffers(dFC->tB) - 1;
+	temp = detFuncCoreProcessInputHelper(dFC, NULL, finalPSMWindows,
+					     centralBuffIndex);
 	if (temp != 1){
 		return temp;
 	}
@@ -487,13 +661,15 @@ int detFuncCoreProcessNoChunk(detFuncCore *dFC){
 }
 
 int detFuncCoreProcessFirstChunk(detFuncCore *dFC){
-	return detFuncCoreProcessInputHelper(dFC, filterBankProcessInput, 0);
+	return detFuncCoreProcessInputHelper(dFC, filterBankProcessInput, 0,
+					     0);
 }
 
 int detFuncCoreProcessNormalChunk(detFuncCore *dFC){
 	/* compute the PooledSummary Matrix entries */
+
 	int temp = detFuncCoreProcessInputHelper(dFC, filterBankProcessInput,
-						 dfC->pSMLength);
+						 dfC->pSMLength,-1);
 	if (temp != 1){
 		return temp;
 	}
@@ -583,7 +759,8 @@ int detFuncCoreProcessSingleChunk(detFuncCore *dFC){
 		
 		/* need to filter the stream and handle sigOpt preprocessing */
 		temp = detFuncCoreProcessInputHelper(dFC,
-						     filterBankProcessInput, 0);
+						     filterBankProcessInput, 0,
+						     0);
 		if (temp != 1){
 			return temp;
 		}
@@ -625,7 +802,8 @@ int detFuncCoreProcessSingleChunk(detFuncCore *dFC){
 
 		/* need to filter the stream and handle sigOpt preprocessing */
 		temp = detFuncCoreProcessInputHelper(dFC,
-						     filterBankProcessInput, 0);
+						     filterBankProcessInput, 0,
+						     0);
 		if (temp != 1){
 			return temp;
 		}
