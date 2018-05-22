@@ -6,12 +6,8 @@
 // buffer.
 
 // remaining to do before debugging:
-//     -identify what the central tripleBuffer index to be during processing
-//     -identify when pSMWinProcessed is updated
-//     -implement the updating of the detection function and any resizing
-//     -implement the clearing of the pooledSummaryMatrix and the storing
-//      of the last entry in lastPSMEntry
-//     -implement the retrieval of the detection function
+//     -identify the value of central tripleBuffer index during processing
+//     -implement argument checking in the initialization of the detFuncCore
 
 /* The following 2 macros affect the memory allocation and reallocation for the 
  * detFunc member of detFuncCore.
@@ -21,11 +17,23 @@
  * Later, during reallocation, we always grow the array to hold
  * (1 + GROWTH_DFL_EXTRA_CHUNKS) additional chunks. Consequently, 
  * GROWTH_DFL_EXTRA_CHUNKS must also be zero or greater.
+ *
+ * We should probably use some kind of growth factor instead of a constant 
+ * number of chunks for updating the size of the detection function, with the 
+ * guaruntee that there is alway enough space for an integer number of chunks.
  */
 #define INITIAL_DFL_EXTRA_CHUNKS 1
 #define GROWTH_DFL_EXTRA_CHUNKS 1
 
-typedef int (*dFCProcessChunkFunc)(detFuncCore *dFC);
+// the following give the default values of the lastPSMEntry and
+// terminationIndex members of detFuncCore. The values are unattainable through
+// normal means and they indicate that the detection function of the first
+// audio chunk has not yet been calculated, and that the stream has not been
+// terminated, respectively
+#define DEFAULT_LASTPSMENTRY -1.f
+#define DEFAULT_TERMINATIONINDEX -1
+
+typedef int (*dFCHelperFuncPtr)(detFuncCore *dFC);
 /* The following functions are tracked by detFuncCore based on its state. */
 int detFuncCoreProcessNoChunk(detFuncCore *dFC);
 int detFuncCoreProcessFirstChunk(detFuncCore *dFC);
@@ -33,12 +41,17 @@ int detFuncCoreProcessNormalChunk(detFuncCore *dFC);
 int detFuncCoreProcessLastChunk(detFuncCore *dFC);
 int detFuncCoreProcessSingleChunk(detFuncCore *dFC);
 
+int detFuncCoreResizeDetFuncDefault(detFuncCore *dFC);
+int detFuncCoreResizeDetFuncNormal(detFuncCore *dFC);
+int detFuncCoreResizeDetFuncTerminal(detFuncCore *dFC);
+
 typedef int (*dFCSetInputChunkFunc)(detFuncCore *dFC,  float* input, int length,
 				    int final_chunk);
 
 struct detFuncCore{
 	enum streamState state;
-	dFCProcessChunkFunc processChunkFunc;
+	dFCHelperFuncPtr processChunk_Func;
+	dFCHelperFuncPtr resizeDetFunc_Func;
 
 	int numChannels;
 	int hopsize;
@@ -185,11 +198,12 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 	dFC->numThreads = numThreads;
 
 	dFC->streamLength = 0;
-	dFC->terminationIndex = -1;
-	dFC->lastPSMEntry = -1.;
+	dFC->terminationIndex = DEFAULT_TERMINATIONINDEX;
+	dFC->lastPSMEntry = DEFAULT_LASTPSMENTRY;
 
 	dFC->state = NO_CHUNK;
-	dFC->processChunkFunc = &detFuncCoreProcessNoChunk;
+	dFC->processChunk_Func = &detFuncCoreProcessNoChunk;
+	dFC->resizeDetFunc_Func = &detFuncCoreResizeDetFuncDefault;
 
 	/* here we will allocate the initial memory for detFunc.
 	 * Note that detection function will always have 1 fewer entry than 
@@ -274,7 +288,9 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 				return -5;
 			}
 			dFC->state = FIRST_CHUNK;
-			dFC->processChunkFunc = &detFuncCoreProcessFirstChunk;
+			dFC->processChunk_Func = &detFuncCoreProcessFirstChunk;
+			dFC->resizeDetFunc_Func =
+				&detFuncCoreResizeDetFuncDefault;
 		} else {
 
 			if (length > detFuncCoreFirstChunkLength(dFC)){
@@ -291,7 +307,9 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 			// all further dealings with the termination Index are
 			// handled later
 			dFC->state = SINGLE_CHUNK;
-			dFC->processChunkFunc = &detFuncCoreProcessSingleChunk;
+			dFC->processChunk_Func = &detFuncCoreProcessSingleChunk;
+			dFC->resizeDetFunc_Func =
+				&detFuncCoreResizeDetFuncTerminal;
 		}
 		break;
 	default :
@@ -316,7 +334,9 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 			}
 
 			dFC->state = NORMAL_CHUNK;
-			dFC->processChunkFunc = &detFuncCoreProcessNormalChunk;
+			dFC->processChunk_Func = &detFuncCoreProcessNormalChunk;
+			dFC->resizeDetFunc_Func =
+				&detFuncCoreResizeDetFuncNormal;
 		} else {
 			if (length > detFuncCoreNormalChunkLength(dFC)){
 				return -6;
@@ -328,7 +348,9 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 			// all further dealings with the termination Index are
 			// handled later
 			dFC->state = LAST_CHUNK;
-			dFC->processChunkFunc = &detFuncCoreProcessLastChunk;
+			dFC->processChunk_Func = &detFuncCoreProcessLastChunk;
+			dFC->resizeDetFunc_Func =
+				&detFuncCoreResizeDetFuncTerminal;
 		}
 
 	}
@@ -481,7 +503,7 @@ int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
 
 int detFuncCoreProcess(detFuncCore* dFC, int thread_num){
 	if (dFC->dedicatedThreads == 0){
-		dFC->processChunkFunc(dFC);
+		dFC->processChunk_Func(dFC);
 	} else {
 		/* If we decide to use a master slave thread pool, the idea is 
 		 * that we would assign one of the threads the master status.
@@ -520,7 +542,7 @@ int totalNumPSMEntriesHelper(detFuncCore *dFC){
 	 * pooledSummaryMatrix values to be computed.
 	 * This should only be called once terminationIndex has been set. 
 	 */
-	if (dFC->terminationIndex == -1){
+	if (dFC->terminationIndex == DEFAULT_TERMINATIONINDEX){
 		return -1;
 	}
 	return (int)ceil(((double)(dFC->streamLength
@@ -554,25 +576,131 @@ int numberPSMEntriesFinalChunkHelper(detFuncCore *dFC){
 	}
 }
 
-// I'm thinking of having separate resizing functions for Normal, Final, and
-// Single (the last 2 may use the same function). Alternatively, we could have
-// a single function with an if statement that depends on the value of
-// terminalIndex
+// Define helper functions for resizing the detection function
+// We could consolidate these into a single function that updates based on the
+// internal state of detFuncCore
 
-int updateDetFunc(detFuncCore *dFC){
+int resizeHelper(detFuncCore *dFC, int newLength){
+	float* temp = realloc(dFC->detFunc, sizeof(float) * newLength);
+	if (temp == NULL){
+		free(dFC->detFunc);
+		return -1;
+	} else { 
+		dFC->detFuncFilledLength = newLength;
+		dFC->detFunc = temp;
+	}
+}
+
+// this is a dummy function used during NO_CHUNK and FIRST_CHUNK
+int detFuncCoreResizeDetFuncDefault(detFuncCore *dFC){
+	return 0;
+}
+
+int detFuncCoreResizeDetFuncNormal(detFuncCore *dFC){
+
+	if ((dFC->detFuncFilledLength == 0) ||
+	    ((dFC->detFuncSize - dFC->detFuncFilledLength) >=
+	     detFuncCorePSMLength(dFC))){
+		// resizing is not necessary
+		return 1;
+	}
+	int newLength = (dFC->detFuncFilledLength +
+			 (GROWTH_DFL_EXTRA_CHUNKS + 1) *
+			 detFuncCorePSMLength(dFC));
+	return resizeHelper(dFC, newLength);
+}
+
+// this is a helper function to be during LAST_CHUNK or SINGLE_CHUNK when the
+// termination index is known
+int detFuncCoreResizeDetFuncTerminal(detFuncCore *dFC){
+	int newLength = totalNumPSMEntriesHelper(dFC) - 1;
+
+	if (newLength == dFC->detFuncSize){
+		// resizing is not necessary (this is unlikely to occur)
+		return 1;
+	}
+
+	if (newLength <1){
+		printf("Error - attempting to resize detFunc down to a "
+		       "size of zero\n");
+		return -2;
+	} else if (newLength < dFC->detFuncSize){
+		printf("Error - attempting to resize detFunc to a length "
+		       "smaller than its current length\n");
+		return -3;
+	}
+	return resizeHelper(dFC, newLength);
+}
+
+int updateDetFunc(detFuncCore *dFC, int activeResize){
 	// Handles the updating of detection function
 	// stores the final entry in pooledSummaryMatrix for later
-	printf("Have not implemented the helper function, updateDetFunc\n");
-	return -1;
+
+	// active resize is an int, of value 0 or 1
+	// it should always be 1, except for the very last chunks, where we are
+	// attempting to resize the detection function just once
+	
+	if (activeResize == 1){
+		int temp = *(dFC->resizeDetFunc_Func)(dFC);
+		if (temp!=1){
+			printf("Problem during detection function resize\n");
+			return temp;
+		}
+	}
+
+	int extraLength = detFuncCorePSMLength(dFC);
+	if (dFC->lastPSMEntry == DEFAULT_LASTPSMENTRY){
+		// this means that we are processing the very first chunk
+		// at most the length of the detFunc will increase by
+		// detFuncCorePSMLength(dFC)-1
+		extraLength--;
+	}
+
+	if (dFC->terminationIndex != DEFAULT_TERMINATIONINDEX){
+		// this means that the length could be shorter since the stream
+		// is terminated
+		int temp = (dFC->detFuncSize-dFC->detFuncFilledLength);
+		if (temp < extraLength){
+			extraLength = temp;
+		}
+	}
+
+	int start = dFC->detFuncFilledLength;
+	float* pSM = dFC->pooledSummaryMatrix;
+	int nIter = extraLength;
+	
+	// now time to fill in the detection function
+	if ((dFC->lastPSMEntry != DEFAULT_LASTPSMENTRY) && (nIter>0)){
+		dFC->detFunc[start] = pSM[0] -  dFC->lastPSMEntry;
+		start++;
+		nIter--;
+	}
+
+	float* curDetFunc = dFC->detFunc + start;
+
+	for (int i=0;i<nIter; i++){
+		curDetFunc[i] = pSM[i+1]-pSM[i];
+	}
+
+	// finally, let's update the filled length and lastPSMEntry
+	dFC->detFuncFilledLength += extraLength;
+	// if this was the very last chunk then it is irrelevant what we set
+	// lastPSMEntry equal to
+	dFC->lastPSMEntry = pSM[detFuncCorePSMLength(dFC) -1];
+
+	return 1;
+		
 }
 
 int flushPSMEntries(detFuncCore *dFC){
-	// Handles the process of setting all entries in pooledSummaryMatrix
-	// to 0
+	/* Handles the process of setting all entries in pooledSummaryMatrix
+	 * to 0 */
 	if (dFC->dedicatedThreads == 0){
-		printf("Have not implemented the helper function, "
-		       "flushPSMEntries\n");
-		return -1;
+		float *pooledSummaryMatrix = detFuncCoreGetPSM(dFC, 0);
+		for (int i=0; i<detFuncCorePSMLength; i++){
+			pooledSummaryMatrix[i] = 0.f;
+		}
+		return 1;
 	} else {
 		printf("Have not implemented the helper function, "
 		       "flushPSMEntries, \nfor use when "
@@ -582,9 +710,13 @@ int flushPSMEntries(detFuncCore *dFC){
 }
 
 int detFuncCoreProcessPenultimateSectionHelper(detFuncCore *dFC,
-					       fBProcessPtr fBfunc){
+					       fBProcessPtr fBfunc,
+					       int activeResize){
 	/* This is a helper function called by detFuncCoreProcessLastChunk or
 	 * detFuncCoreProcessSingleChunk
+	 *
+	 * The third argument indicates whether or not the detection function 
+	 * gets resized during this function call
 	 */
 
 	/* Need to implement where we get the terminationIndex from */
@@ -614,7 +746,7 @@ int detFuncCoreProcessPenultimateSectionHelper(detFuncCore *dFC,
 	}
 
 	/* Update detection function */
-	temp = updateDetFunc(dFC);
+	temp = updateDetFunc(dFC, activeResize);
 	if (temp != 1){
 		return temp;
 	}
@@ -627,9 +759,13 @@ int detFuncCoreProcessPenultimateSectionHelper(detFuncCore *dFC,
 	return 1;
 }
 
-int detFuncCoreProcessFinalSectionHelper(detFuncCore *dFC){
+int detFuncCoreProcessFinalSectionHelper(detFuncCore *dFC, int activeResize){
 	/* This is a helper function called by detFuncCoreProcessLastChunk or
-	 * detFuncCoreProcessSingleChunk */
+	 * detFuncCoreProcessSingleChunk 
+	 *
+	 * The second argument indicates whether or not the detection function 
+	 * gets resized during this function call
+	 */
 
 	if (tripleBufferNumBuffers(dFC->tB) == 3){
 		tripleBufferRemoveTrailingBuffer(tB);
@@ -648,7 +784,7 @@ int detFuncCoreProcessFinalSectionHelper(detFuncCore *dFC){
 	}
 
 	/* Update detection function */
-	temp = updateDetFunc(dFC);
+	temp = updateDetFunc(dFC, activeResize);
 	if (temp != 1){
 		return temp;
 	}
@@ -681,8 +817,9 @@ int detFuncCoreProcessNormalChunk(detFuncCore *dFC){
 	 * }
 	 */
 
-	/* Update detection function */
-	temp = updateDetFunc(dFC);
+	/* Update detection function, we always want to check if the detection 
+	 * function must be resized */
+	temp = updateDetFunc(dFC,1);
 	if (temp != 1){
 		return temp;
 	}
@@ -699,6 +836,7 @@ int detFuncCoreProcessLastChunk(detFuncCore *dFC){
 
 	int temp;
 	fBProcessPtr fBfunc;
+	int activeResize;
 	if (dFC->terminationIndex >= detFuncCoreNormalChunkLength(dFC)){
 		temp = detFuncCoreProcessNormalChunk(dFC);
 		if (temp != 1){
@@ -720,11 +858,26 @@ int detFuncCoreProcessLastChunk(detFuncCore *dFC){
 
 		fBfunc = filterBankPropogateFinalOverlap;
 		dFC->terminationIndex -= detFuncCoreNormalChunkLength(dFC);
+
+		/* During the detFuncCoreProcessNormalChunk function call, the 
+		 * detection function was already resized for the final time. 
+		 * We do not want to attempt to resize it again during the 
+		 * subsequent call of 
+		 * detFuncCoreProcessPenultimateSectionHelper. Doing so would 
+		 * not cause any errors, but it would waste time.
+		 */
+		activeResize = 0;
 	} else {
 		fBfunc = filterBankProcessInput;
+
+		/* The detection function must be resized during the call of 
+		 * detFuncCoreProcessPenultimateSectionHelper 
+		 */
+		activeResize = 1;
 	}
 
-	temp = detFuncCoreProcessPenultimateSectionHelper(dFC,fBfunc);
+	temp = detFuncCoreProcessPenultimateSectionHelper(dFC, fBfunc,
+							  activeResize);
 	if (temp != 1){
 		return temp;
 	}
@@ -735,13 +888,16 @@ int detFuncCoreProcessLastChunk(detFuncCore *dFC){
 		return temp;
 	}
 
-	return detFuncCoreProcessFinalSectionHelper(dFC);
+	/* at this point we never want to resize the detection function. It 
+	 * should always been taken care of by now */
+	return detFuncCoreProcessFinalSectionHelper(dFC,0);
 }
 
 int detFuncCoreProcessSingleChunk(detFuncCore *dFC){
 
 	int temp;
 	int terminationIndex = dFC->terminationIndex;
+	int activeResize;
 
 	if (terminationIndex >= detFuncCoreNormalChunkLength(dFC)){
 		/* The entire stream is longer than a normal ChunkLength (but 
@@ -759,7 +915,7 @@ int detFuncCoreProcessSingleChunk(detFuncCore *dFC){
 		
 		/* need to filter the stream and handle sigOpt preprocessing */
 		temp = detFuncCoreProcessInputHelper(dFC,
-						     filterBankProcessInput, 0,
+						     &filterBankProcessInput, 0,
 						     0);
 		if (temp != 1){
 			return temp;
@@ -773,7 +929,12 @@ int detFuncCoreProcessSingleChunk(detFuncCore *dFC){
 		 * Length and compute correntropy */
 		fBfunc = filterBankPropogateFinalOverlap;
 
-		temp = detFuncCoreProcessPenultimateSectionHelper(dFC,fBfunc);
+		/* Here we process the penultimate section (coincidentally, 
+		 * it's the very first section). During this processing, the 
+		 * detection function will be resized to its final length 
+		 */
+		temp = detFuncCoreProcessPenultimateSectionHelper(dFC,
+								  fBfunc, 1);
 		if (temp != 1){
 			return temp;
 		}
@@ -783,6 +944,8 @@ int detFuncCoreProcessSingleChunk(detFuncCore *dFC){
 			printf("An error occured during sigOptAdvanceBuffer\n");
 			return temp;
 		}
+		/* The detection function does not need to be resized again. */
+		activeResize = 0;
 	} else {
 		/* Set the terminationIndex in the tripleBuffer and sigOpt */
 		int temp = tripleBufferSetTerminalIndex(dFC->tB,
@@ -802,13 +965,39 @@ int detFuncCoreProcessSingleChunk(detFuncCore *dFC){
 
 		/* need to filter the stream and handle sigOpt preprocessing */
 		temp = detFuncCoreProcessInputHelper(dFC,
-						     filterBankProcessInput, 0,
+						     &filterBankProcessInput, 0,
 						     0);
 		if (temp != 1){
 			return temp;
 		}
+		/* The detection function must be resized to its final size 
+		 * while processing the first and only section. */
+		activeResize = 1;
 	}
 
 	/* Now lets process the input in the last buffer */
-	return detFuncCoreProcessFinalSectionHelper(dFC);
+	return detFuncCoreProcessFinalSectionHelper(dFC,activeResize);
+}
+
+
+float *detFuncCoreGetDetectionFunction(detFuncCore* dFC, int *length){
+	if (dFC->dedicatedThreads != 0){
+		/* This function would need to wait until all of the threads 
+		 * are complete */
+		printf("Have not implemented the interface function, "
+		       "detFuncCoreGetDetectionFunction, \nfor use when "
+		       "detFuncCore has at least 1 dedicated thread.\n");
+		return -1;
+	}
+
+	if (dFC->detFuncSize != dFC->detFuncFilledLength){
+		// sanity check
+		printf("Something went wrong. detFuncSize must be equal to "
+		       "detFuncFilledLength.\n");
+	}
+	*length = dFC->detFuncFilledLength;
+
+	float* out = dFC->detFunc;
+	dFC->detFunc = NULL;
+	return out;
 }
