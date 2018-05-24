@@ -5,10 +5,6 @@
 // length of the correntropy window if the stream is shorter than the first
 // buffer.
 
-// remaining to do before debugging:
-//     -identify the value of central tripleBuffer index during processing
-//     -implement argument checking in the initialization of the detFuncCore
-
 /* The following 2 macros affect the memory allocation and reallocation for the 
  * detFunc member of detFuncCore.
  * Specifically, we initially allocate memory for 
@@ -120,13 +116,29 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 			       float scaleFactor, int samplerate,
 			       float minFreq, float maxFreq,
 			       int dedicatedThreads){
-	if (dedicatedThreads !=0){
+
+	if (dedicatedThreads < 0){
+		return NULL;
+	} else if (dedicatedThreads !=0){
 		// temporary
 		return NULL;
 	}
-	// CHECK ALL OF ARGUMENTS that this function explicitly uses (the
-	// subobjects can handle arguments that are simply passed through)
 
+	if (correntropyWinSize <= 0){
+		return NULL;
+	}
+	if (hopsize <= 0){
+		return NULL;
+	}
+	if (numChannels <=0){
+		return NULL;
+	}
+
+	/* No need to check sigWinSize, scaleFactor, samplerate, minFreq, or
+	 * maxFreq. None of these values are directly employed by detFuncCore; 
+	 * they are all used in the construction of the subobjects, which will 
+	 * flag any problems.
+	 */
 
 	// Begin the Creation
 	detFuncCore *dFC = malloc(sizeof(detFuncCore)):
@@ -151,13 +163,12 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 	// construct the pooledSummaryMatrix
 	int pSMLength = sigOptGetSigmasPerBuffer(dFC->sO);
 	if (dedicatedThreads == 0){
-		dFC->pooledSummaryMatrix = malloc(sizeof(pSMLength));
+		dFC->pooledSummaryMatrix = calloc(pSMLength, sizeof(float));
 	} else {
-		dFC->pooledSummaryMatrix = malloc(sizeof(pSMLength)
-						  * dedicatedThreads);
+		dFC->pooledSummaryMatrix = calloc(pSMLength * dedicatedThreads,
+						  sizeof(float));
 	}
 
-	// should probably using calloc - otherwise set all values to 0
 	free(dFC->pooledSummaryMatrix);
 
 	if (dFC->pooledSummaryMatrix == NULL){
@@ -431,11 +442,90 @@ int detFuncCorePullNextChunk(detFuncCore* dFC){
  *    - if there are 3 buffers, then its the second buffer
  * the only exception is during the processing of the very last buffer.
  */
-int calcPSMContrib(detFuncCore *dFC, int channel, int thread, int numPSMWin,
-		   int centralBuffIndex){
-	return 0;
+
+#define M_1_SQRT2PI 0.3989422804f
+float calcPSMEntryContrib(float* x, int winSize, float sigma)
+{
+	/* this is ripped from fastGaussTransform.h. We need to implement this 
+	 * function in a separate file so that it can be called for this file, 
+	 * for simpleDetFunc and for fastGaussTransform
+	 */
+	int i, j;
+	float out, temp;
+	float denom = -0.5/(sigma * sigma);
+	out = 0;
+	for (i = 0; i < winSize; i++){
+		for (j = 1; j <= winSize; j++){
+			temp = x[i] - x[i+j];
+			out += expf(temp * temp * denom);
+		}
+	}
+	out *= M_1_SQRT2PI / sigma;
+	return out;
 }
 
+int calcPSMContrib(detFuncCore *dFC, int channel, int thread, int numPSMWin,
+		   int centralBuffIndex){
+
+	// load the trailing, central, and leading buffers
+	float *trailingBuffer, *centralBuffer, *leadingBuffer;
+	centralBuffer = tripleBufferGetBufferPtr(dFC->tB, centralBuffIndex,
+						 channel);
+	if (centralBuffIndex == 0){
+		trailingBuffer = NULL;
+		if (tripleBufferNumBuffers(dFC->tB) == 1){
+			leadingBuffer=NULL;
+		} else if (tripleBufferNumBuffers(dFC->tB) == 2){
+			leadingBuffer = tripleBufferGetBufferPtr(dFC->tB, 1,
+								 channel);
+		} else {
+			// sanity check
+			printf("Unexpected number of buffers.\n");
+			return -1;
+		}		
+	} else if (centralBuffIndex == 1){
+		trailingBuffer = tripleBufferGetBufferPtr(dFC->tB, 0, channel);
+		if (tripleBufferNumBuffers(dFC->tB) == 2){
+			leadingBuffer=NULL;
+		} else if (tripleBufferNumBuffers(dFC->tB) == 3){
+			leadingBuffer= tripleBufferGetBufferPtr(dFC->tB, 2,
+								channel);;
+		} else {
+			//sanity check
+			printf("tripleBuffer must have 2 or 3 buffers.\n");
+		}
+
+	} else {
+		// sanity check
+		printf("Unexpected centralBuffIndex\n");
+		return -1;
+	}
+	int corrWinSize = dFC->corrWinSize;
+	int hopsize = detFuncCoreHopsize(dFC);
+	float *pSM = detFuncCoreGetPSM(dFC, thread);
+
+	int start = 0;
+	for (int i = 0; i<numPSM; i++){
+		float sigma = sigOptAdvanceWindow(dFC->sO, trailingBuffer,
+						  centralBuffer, leadingBuffer,
+						  channel);
+		pSM[i] += calcPSMEntryContrib(centralBuffer+start,
+					      corrWinSize, sigma);
+		start += hopsize;
+	}
+	return 1;
+}
+
+int identifyCentralBuffIndex(detFuncCore *dFC){
+	/* this is the default behavior we want to use to identify the central 
+	 * buffer index. (The very last chunk will be handled separately).
+	 * We want the following mapping from NumBuffers:
+	 *    numBuffers = 1 -> return 0
+	 *    numBuffers = 2 -> return 0
+	 *    numBuffers = 3 -> return 1 
+	 */
+	return (tripleBufferNumBuffers(dFC->tB) - 1)/2;
+}
 
 /* The following is a helper function that either sets up sigOpt or computes 
  * correntropy. The choice between these 2 functionalities is determined by the
@@ -456,8 +546,7 @@ int calcPSMContrib(detFuncCore *dFC, int channel, int thread, int numPSMWin,
 
 typedef int (*fBProcessPtr)(filterBank *fB, tripleBuffer *tB, int channel);
 
-// if centralBuff index is -1 automatically compute it.
-// otherwise use the value passed through
+// centralBuffIndex indicates the index of the central buffer in dFC->tB
 int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
 				  int numPSMWin,int centralBuffIndex){
 	if (dFC->dedicatedThreads != 0){
@@ -478,8 +567,7 @@ int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
 			}
 		}
 
-		if (numPSMWin>0){
-			printf("need to compute centralBuffIndex\n");
+		if (numPSMWin>0){			
 			temp = calcPSMContrib(dFC, channel, 0, numPSMWin,
 					      centralBuffIndex);
 			if (temp!=1){
@@ -736,9 +824,7 @@ int detFuncCoreProcessPenultimateSectionHelper(detFuncCore *dFC,
 	}
 
 	/* Process the section */
-
-	printf("Need to decide on the index of the tripleBuffer\n");
-	int centralBuffIndex = -1;
+	int centralBuffIndex = identifyCentralBuffIndex(dFC);
 	temp = detFuncCoreProcessInputHelper(dFC, fBfunc, dfC->pSMLength,
 					     centralBuffIndex);
 	if (temp != 1){
@@ -797,6 +883,8 @@ int detFuncCoreProcessNoChunk(detFuncCore *dFC){
 }
 
 int detFuncCoreProcessFirstChunk(detFuncCore *dFC){
+	/* The helper function will just setup sigOpt and apply the filter to 
+	 * the very first input chunk */
 	return detFuncCoreProcessInputHelper(dFC, filterBankProcessInput, 0,
 					     0);
 }
@@ -804,8 +892,10 @@ int detFuncCoreProcessFirstChunk(detFuncCore *dFC){
 int detFuncCoreProcessNormalChunk(detFuncCore *dFC){
 	/* compute the PooledSummary Matrix entries */
 
+	int centralBuffIndex = identifyCentralBuffIndex(dFC);
 	int temp = detFuncCoreProcessInputHelper(dFC, filterBankProcessInput,
-						 dfC->pSMLength,-1);
+						 dfC->pSMLength,
+						 centralBuffIndex);
 	if (temp != 1){
 		return temp;
 	}
