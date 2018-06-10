@@ -26,6 +26,7 @@ set(SOURCES
   resample.c
   tripleBuffer.c
   sigOpt.c
+  detFuncCore.c
 )
 
 

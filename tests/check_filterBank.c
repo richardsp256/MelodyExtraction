@@ -18,7 +18,7 @@
 filterBank *four_channel_fB;
 
 void setup_emptyFourChannelfB(void){
-	four_channel_fB = filterBankNew(4, 47, 9, 11025, 80, 4000);
+	four_channel_fB = filterBankNew(4, 47, 9, 11025, 80, 4000,"default");
 }
 
 void teardown_FourChannelfB(void){

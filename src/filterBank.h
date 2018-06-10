@@ -41,7 +41,8 @@ enum streamState {
 typedef struct filterBank filterBank;
 
 filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
-			  int samplerate, float minFreq, float maxFreq);
+			  int samplerate, float minFreq, float maxFreq,
+			  char* filterStrat);
 
 void filterBankDestroy(filterBank* fB);
 

@@ -3,6 +3,7 @@
 #include <math.h>
 #include <string.h>
 #include <time.h>
+#include <ctype.h>
 #include "filterBank.h"
 #include "gammatoneFilter.h"
 
@@ -30,6 +31,16 @@ struct channelData{
 
 typedef int (*fBChunkProcessFunc)(filterBank* fB, tripleBuffer* tB,
 				  struct channelData *cD, int channel);
+
+// We need to refactor the following filter function. It is absurd that it is
+// different from the one in gammatoneFilter.h
+typedef void (*gammatoneStrat)(struct channelData *cD, float* inputChunk,
+			       float* filteredChunk, int nsamples,
+			       int samplerate);
+void filteringHelper(struct channelData *cD, float* inputChunk,
+		     float* filteredChunk, int nsamples, int samplerate);
+
+
 // the following are functions tracked internally by filterbank based on its
 // state
 // They explain how to process the various chunks in each state.
@@ -55,13 +66,15 @@ struct filterBank{
 	float *inputChunk;
 	enum streamState state;
 	fBChunkProcessFunc chunkProcessFunc;
+	gammatoneStrat filterFunc;
 };
 
 
 
 
 filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
-			  int samplerate, float minFreq, float maxFreq)
+			  int samplerate, float minFreq, float maxFreq,
+			  char* filterStrat)
 {
 	struct filterBank* fB;
 	float *fcArray;
@@ -92,6 +105,26 @@ filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 	}
 	if ((maxFreq==minFreq) && (numChannels!=1)){
 		printf("Error: if maxFreq == minFreq, numChannels must be 1\n");
+		return NULL;
+	}
+
+	char *temp_name = strdup(filterStrat);
+	if (!temp_name){
+		printf("Error: Not enough memory to duplicate filterStrat\n");
+		return NULL;
+	}
+	for(int i = 0; temp_name[i]; i++){
+		temp_name[i] = tolower(temp_name[i]);
+	}
+	gammatoneStrat filterFunc;
+	if ((strcmp(temp_name,"default")==0) ||
+	    (strcmp(temp_name, "sosgammatonefast") == 0)){
+		filterFunc = &filteringHelper;
+		free(temp_name);
+	} else {
+		free(temp_name);
+		printf("Error: The filterStrat argument can only be equal to "
+		       "\"default\" or \"sosGammatoneFast\"\n");
 		return NULL;
 	}
 	
@@ -130,6 +163,7 @@ filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 	fB->inputChunk = NULL;
 	fB->state = NO_CHUNK;
 	fB->chunkProcessFunc = filterBankProcessNoChunk;
+	fB->filterFunc = filterFunc;
 
 	free(fcArray);
 	
@@ -376,7 +410,8 @@ int processFirstChunkHelper(filterBank* fB, tripleBuffer* tB,
 	int nsamples = fB->lenChannels;
 	int samplerate = fB->samplerate;
 	
-	filteringHelper(cD, inputChunk, filteredChunk, inputLength, samplerate);
+	(fB->filterFunc)(cD, inputChunk, filteredChunk, inputLength,
+			 samplerate);
 	if (inputLength<nsamples){
 		zeroPaddingHelper(filteredChunk+inputLength,
 				  nsamples-inputLength);
@@ -414,8 +449,8 @@ int processOverlappingBufferHelper(filterBank* fB, tripleBuffer* tB,
 	int samplerate = fB->samplerate;
 
 	// do the filtering
-	filteringHelper(cD, inputChunk, curLeadingBuf+overlap, inputLength,
-			samplerate);
+	(fB->filterFunc)(cD, inputChunk, curLeadingBuf+overlap, inputLength,
+			 samplerate);
 
 	// possibly zero-pad
 	if ((inputLength+overlap)<nsamples){
@@ -526,7 +561,8 @@ float *fullFiltering(int numChannels, int lenChannels, int overlap,
 	float *out = malloc(sizeof(float)*numChannels*dataLen);
 
 	filterBank *fB = filterBankNew(numChannels, lenChannels, overlap,
-				       samplerate, minFreq, maxFreq);
+				       samplerate, minFreq, maxFreq,
+				       "default");
 	tripleBuffer *tB = tripleBufferCreate(numChannels, lenChannels);
 
 	// Handle the very first Chunk - the expected length is

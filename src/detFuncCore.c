@@ -1,4 +1,8 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <math.h>
+#include <string.h>
+#include <ctype.h>
 #include "detFuncCore.h"
 
 // We have placed a requirement that the entire stream is at least twice the
@@ -43,6 +47,10 @@ int detFuncCoreResizeDetFuncTerminal(detFuncCore *dFC);
 
 typedef int (*dFCSetInputChunkFunc)(detFuncCore *dFC,  float* input, int length,
 				    int final_chunk);
+typedef int (*pSMContribStrat)(detFuncCore *dFC, int channel, int thread,
+			       int numPSMWin, int centralBuffIndex);
+int calcPSMContrib(detFuncCore *dFC, int channel, int thread, int numPSMWin,
+		   int centralBuffIndex);
 
 struct detFuncCore{
 	enum streamState state;
@@ -54,6 +62,7 @@ struct detFuncCore{
 	int corrWinSize;
 	float *pooledSummaryMatrix;
 	int pSMLength;
+	pSMContribStrat pSMContribFunc;
 
 	// the following 2 variables are defined for the purposes of
 	// identifying where the stream terminates. We could come up with a way
@@ -104,7 +113,7 @@ static inline int detFuncCoreNumChannels(detFuncCore *dFC){
 
 static inline float* detFuncCoreGetPSM(detFuncCore *dFC, int thread_num){
 	return ((dFC->pooledSummaryMatrix) +
-		(thread_num * detFuncCorePSMLength(detFuncCore *dFC)));
+		(thread_num * detFuncCorePSMLength(dFC)));
 }
 
 
@@ -113,9 +122,9 @@ static inline float* detFuncCoreGetPSM(detFuncCore *dFC, int thread_num){
 
 detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 			       int numChannels, int sigWinSize,
-			       float scaleFactor, int samplerate,
-			       float minFreq, float maxFreq,
-			       int dedicatedThreads){
+			       float scaleFactor, int samplerate, float minFreq,
+			       float maxFreq, char* filterStrat,
+			       char* corrStrat, int dedicatedThreads){
 
 	if (dedicatedThreads < 0){
 		return NULL;
@@ -134,6 +143,25 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 		return NULL;
 	}
 
+	char *temp_name = strdup(corrStrat);
+	if (!temp_name){
+		printf("Error: Not enough memory to duplicate corrStrat\n");
+		return NULL;
+	}
+	for(int i = 0; temp_name[i]; i++){
+		temp_name[i] = tolower(temp_name[i]);
+	}
+	pSMContribStrat pSMContribFunc;
+	if (strcmp(temp_name,"default")==0) {
+		pSMContribFunc = &calcPSMContrib;
+		free(temp_name);
+	} else {
+		free(temp_name);
+		printf("Error: The corrStrat argument can only be equal to "
+		       "\"default\"\n");
+		return NULL;
+	}
+
 	/* No need to check sigWinSize, scaleFactor, samplerate, minFreq, or
 	 * maxFreq. None of these values are directly employed by detFuncCore; 
 	 * they are all used in the construction of the subobjects, which will 
@@ -141,7 +169,7 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 	 */
 
 	// Begin the Creation
-	detFuncCore *dFC = malloc(sizeof(detFuncCore)):
+	detFuncCore *dFC = malloc(sizeof(detFuncCore));
 
 	if (dFC == NULL){
 		return NULL;
@@ -192,7 +220,7 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 	int overlap = bufferLength - sigOptGetBufferLength(dFC->sO);
 	// Construct the filterBank
 	dFC->fB = filterBankNew(numChannels, bufferLength, overlap,
-				samplerate, minFreq, maxFreq);
+				samplerate, minFreq, maxFreq, filterStrat);
 
 	if (dFC->fB == NULL){
 		free(dFC->pooledSummaryMatrix);
@@ -206,7 +234,8 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 	dFC->hopsize = hopsize;
 	dFC->corrWinSize = correntropyWinSize;
 	dFC->pSMLength = pSMLength;
-	dFC->numThreads = numThreads;
+	dFC->pSMContribFunc = pSMContribFunc;
+	dFC->dedicatedThreads = dedicatedThreads;
 
 	dFC->streamLength = 0;
 	dFC->terminationIndex = DEFAULT_TERMINATIONINDEX;
@@ -231,7 +260,7 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 	return dFC;
 }
 
-void *detFuncCoreDestroy(detFuncCore *dFC){
+void detFuncCoreDestroy(detFuncCore *dFC){
 	if (dFC->detFunc != NULL){
 		// we will set detFunc to NULL after returning it
 		free(dFC->detFunc);
@@ -341,7 +370,7 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 				return -5;
 			}
 			if (dFC->state == NORMAL_CHUNK){
-				sigOptAdvanceBuffer(sO);
+				sigOptAdvanceBuffer(dFC->sO);
 			}
 
 			dFC->state = NORMAL_CHUNK;
@@ -353,7 +382,7 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 				return -6;
 			}
 			if (dFC->state == NORMAL_CHUNK){
-				sigOptAdvanceBuffer(sO);
+				sigOptAdvanceBuffer(dFC->sO);
 			}
 			dFC->terminationIndex = length;
 			// all further dealings with the termination Index are
@@ -505,7 +534,7 @@ int calcPSMContrib(detFuncCore *dFC, int channel, int thread, int numPSMWin,
 	float *pSM = detFuncCoreGetPSM(dFC, thread);
 
 	int start = 0;
-	for (int i = 0; i<numPSM; i++){
+	for (int i = 0; i<numPSMWin; i++){
 		float sigma = sigOptAdvanceWindow(dFC->sO, trailingBuffer,
 						  centralBuffer, leadingBuffer,
 						  channel);
@@ -567,12 +596,14 @@ int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
 			}
 		}
 
-		if (numPSMWin>0){			
-			temp = calcPSMContrib(dFC, channel, 0, numPSMWin,
-					      centralBuffIndex);
+		if (numPSMWin>0){
+			temp = (dFC->pSMContribFunc)(dFC, channel, 0, numPSMWin,
+						     centralBuffIndex);
+			//temp = calcPSMContrib(dFC, channel, 0, numPSMWin,
+			//		      centralBuffIndex);
 			if (temp!=1){
 				printf("There has been a problem with "
-				       "calcPSMContrib\n");
+				       "dFC->pSMContribFunc\n");
 				return temp;
 			}
 		} else {
@@ -591,7 +622,7 @@ int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
 
 int detFuncCoreProcess(detFuncCore* dFC, int thread_num){
 	if (dFC->dedicatedThreads == 0){
-		dFC->processChunk_Func(dFC);
+		return dFC->processChunk_Func(dFC);
 	} else {
 		/* If we decide to use a master slave thread pool, the idea is 
 		 * that we would assign one of the threads the master status.
@@ -676,6 +707,7 @@ int resizeHelper(detFuncCore *dFC, int newLength){
 	} else { 
 		dFC->detFuncFilledLength = newLength;
 		dFC->detFunc = temp;
+		return 1;
 	}
 }
 
@@ -729,7 +761,7 @@ int updateDetFunc(detFuncCore *dFC, int activeResize){
 	// attempting to resize the detection function just once
 	
 	if (activeResize == 1){
-		int temp = *(dFC->resizeDetFunc_Func)(dFC);
+		int temp = (dFC->resizeDetFunc_Func)(dFC);
 		if (temp!=1){
 			printf("Problem during detection function resize\n");
 			return temp;
@@ -785,7 +817,7 @@ int flushPSMEntries(detFuncCore *dFC){
 	 * to 0 */
 	if (dFC->dedicatedThreads == 0){
 		float *pooledSummaryMatrix = detFuncCoreGetPSM(dFC, 0);
-		for (int i=0; i<detFuncCorePSMLength; i++){
+		for (int i=0; i<detFuncCorePSMLength(dFC); i++){
 			pooledSummaryMatrix[i] = 0.f;
 		}
 		return 1;
@@ -825,7 +857,7 @@ int detFuncCoreProcessPenultimateSectionHelper(detFuncCore *dFC,
 
 	/* Process the section */
 	int centralBuffIndex = identifyCentralBuffIndex(dFC);
-	temp = detFuncCoreProcessInputHelper(dFC, fBfunc, dfC->pSMLength,
+	temp = detFuncCoreProcessInputHelper(dFC, fBfunc, dFC->pSMLength,
 					     centralBuffIndex);
 	if (temp != 1){
 		return temp;
@@ -854,7 +886,7 @@ int detFuncCoreProcessFinalSectionHelper(detFuncCore *dFC, int activeResize){
 	 */
 
 	if (tripleBufferNumBuffers(dFC->tB) == 3){
-		tripleBufferRemoveTrailingBuffer(tB);
+		tripleBufferRemoveTrailingBuffer(dFC->tB);
 	}
 
 	/* Process the section - the final section has already been calculated
@@ -863,7 +895,7 @@ int detFuncCoreProcessFinalSectionHelper(detFuncCore *dFC, int activeResize){
 	 * processed in SINGLE_CHUNK mode */
 	int finalPSMWindows = numberPSMEntriesFinalChunkHelper(dFC);
 	int centralBuffIndex = tripleBufferNumBuffers(dFC->tB) - 1;
-	temp = detFuncCoreProcessInputHelper(dFC, NULL, finalPSMWindows,
+	int temp = detFuncCoreProcessInputHelper(dFC, NULL, finalPSMWindows,
 					     centralBuffIndex);
 	if (temp != 1){
 		return temp;
@@ -894,7 +926,7 @@ int detFuncCoreProcessNormalChunk(detFuncCore *dFC){
 
 	int centralBuffIndex = identifyCentralBuffIndex(dFC);
 	int temp = detFuncCoreProcessInputHelper(dFC, filterBankProcessInput,
-						 dfC->pSMLength,
+						 dFC->pSMLength,
 						 centralBuffIndex);
 	if (temp != 1){
 		return temp;
@@ -1017,7 +1049,7 @@ int detFuncCoreProcessSingleChunk(detFuncCore *dFC){
 
 		/* Now, let's propogate the remaining stream after normal Chunk
 		 * Length and compute correntropy */
-		fBfunc = filterBankPropogateFinalOverlap;
+		fBProcessPtr fBfunc = filterBankPropogateFinalOverlap;
 
 		/* Here we process the penultimate section (coincidentally, 
 		 * it's the very first section). During this processing, the 
@@ -1077,7 +1109,7 @@ float *detFuncCoreGetDetectionFunction(detFuncCore* dFC, int *length){
 		printf("Have not implemented the interface function, "
 		       "detFuncCoreGetDetectionFunction, \nfor use when "
 		       "detFuncCore has at least 1 dedicated thread.\n");
-		return -1;
+		return NULL;
 	}
 
 	if (dFC->detFuncSize != dFC->detFuncFilledLength){

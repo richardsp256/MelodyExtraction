@@ -69,9 +69,10 @@ typedef struct detFuncCore detFuncCore;
  */
 detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 			       int numChannels, int sigWinSize,
-			       float scaleFactor, int samplerate,
-			       float minFreq, float maxFreq,
-			       int dedicatedThreads);
+			       float scaleFactor, int samplerate, float minFreq,
+			       float maxFreq,  char* filterStrat,
+			       char* corrStrat, int dedicatedThreads);
+void detFuncCoreDestroy(detFuncCore *dFC);
 
 int detFuncCoreFirstChunkLength(detFuncCore *dFC);
 int detFuncCoreNormalChunkLength(detFuncCore *dFC);
