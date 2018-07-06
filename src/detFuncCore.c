@@ -197,8 +197,6 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 						  sizeof(float));
 	}
 
-	free(dFC->pooledSummaryMatrix);
-
 	if (dFC->pooledSummaryMatrix == NULL){
 		sigOptDestroy(dFC->sO);
 		free(dFC);
@@ -207,8 +205,12 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 
 	/* Now calculate the bufferLength and construct the tripleBuffer
 	 * The addition of 1 is intentional - correntropy is calculated using
-	 * the 2* correntropyWinSize elements AFTER the starting index. */
-	int bufferLength = pSMLength * 2 * correntropyWinSize + 1;
+	 * the 2* correntropyWinSize elements AFTER the starting index. 
+	 *
+	 * I don't think this is correct
+	 * it was originally pSMLength * 2 * correntropyWinSize + 1;
+	 */
+	int bufferLength = (pSMLength-1) *hopsize + 2 * correntropyWinSize + 1;
 	dFC->tB = tripleBufferCreate(numChannels, bufferLength);
 	if (dFC->tB == NULL){
 		free(dFC->pooledSummaryMatrix);
@@ -281,22 +283,51 @@ int detFuncCoreNormalChunkLength(detFuncCore *dFC){
 	return filterBankNormalChunkLength(dFC->fB);
 }
 
+enum streamState detFuncCoreState(detFuncCore *dFC){
+	return dFC->state;
+}
 
-/* I think we are going to add another state aspect to filterBank. It's going 
- * to be related to the value of dedicatedThreads.
- * This involves 2 functions: 
- *    - detFuncCoreSetInputChunk: an interface function
- *    - detFuncCorePullNextChunk: an internal helper function.
- * 
- * If there are no dedicated threads, then all input chunks are added to 
- * detFuncCore via detFuncCoreSetInputChunk. detFuncCorePullNextChunk does 
- * nothing and always succeeds
- *
- * If there is at least 1 dedicated thread, then the detFuncCoreSetInputChunk 
- * should never be called. Instead, the chunk will be provided through some 
- * external streamBuffer. It is accessed by calling detFuncCorePullNextChunk.
+/* The following four functions are defined to isolate the state changes in 
+ * detFuncCore, and to handle any direct modifications to values in the 
+ * detFuncCore struct. All updates to sub-objects are handled by 
+ * detFuncCorePrepareNextChunk
  */
 
+void transitionToSINGLE_CHUNK(detFuncCore *dFC, int terminationIndex){
+	dFC->terminationIndex = terminationIndex;
+	// all further dealings with the termination Index are handled later
+	dFC->state = SINGLE_CHUNK;
+	dFC->processChunk_Func = &detFuncCoreProcessSingleChunk;
+	dFC->resizeDetFunc_Func = &detFuncCoreResizeDetFuncTerminal;
+	// update internal steamLength
+	dFC->streamLength = dFC->streamLength + terminationIndex;
+}
+
+void transitionToFIRST_CHUNK(detFuncCore *dFC, int length){
+	dFC->state = FIRST_CHUNK;
+	dFC->processChunk_Func = &detFuncCoreProcessFirstChunk;
+	dFC->resizeDetFunc_Func = &detFuncCoreResizeDetFuncDefault;
+	// update internal steamLength
+	dFC->streamLength = dFC->streamLength + length;
+}
+
+void transitionToNORMAL_CHUNK(detFuncCore *dFC, int length){
+	dFC->state = NORMAL_CHUNK;
+	dFC->processChunk_Func = &detFuncCoreProcessNormalChunk;
+	dFC->resizeDetFunc_Func = &detFuncCoreResizeDetFuncNormal;
+	// update internal steamLength
+	dFC->streamLength = dFC->streamLength + length;
+}
+
+void transitionToLAST_CHUNK(detFuncCore *dFC, int terminationIndex){
+	dFC->terminationIndex = terminationIndex;
+        // all further dealings with the termination Index are handled later
+	dFC->state = LAST_CHUNK;
+	dFC->processChunk_Func = &detFuncCoreProcessLastChunk;
+	dFC->resizeDetFunc_Func = &detFuncCoreResizeDetFuncTerminal;
+	// update internal steamLength
+	dFC->streamLength = dFC->streamLength + terminationIndex;
+}
 
 /* Below is a helper function that:
  * - control state transitions
@@ -327,10 +358,7 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 			if (length != detFuncCoreFirstChunkLength(dFC)){
 				return -5;
 			}
-			dFC->state = FIRST_CHUNK;
-			dFC->processChunk_Func = &detFuncCoreProcessFirstChunk;
-			dFC->resizeDetFunc_Func =
-				&detFuncCoreResizeDetFuncDefault;
+			transitionToFIRST_CHUNK(dFC,length);
 		} else {
 
 			if (length > detFuncCoreFirstChunkLength(dFC)){
@@ -342,14 +370,7 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 				       "window.\n");
 				return -7;
 			}
-
-			dFC->terminationIndex = length;
-			// all further dealings with the termination Index are
-			// handled later
-			dFC->state = SINGLE_CHUNK;
-			dFC->processChunk_Func = &detFuncCoreProcessSingleChunk;
-			dFC->resizeDetFunc_Func =
-				&detFuncCoreResizeDetFuncTerminal;
+			transitionToSINGLE_CHUNK(dFC,length);
 		}
 		break;
 	default :
@@ -372,11 +393,8 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 			if (dFC->state == NORMAL_CHUNK){
 				sigOptAdvanceBuffer(dFC->sO);
 			}
-
-			dFC->state = NORMAL_CHUNK;
-			dFC->processChunk_Func = &detFuncCoreProcessNormalChunk;
-			dFC->resizeDetFunc_Func =
-				&detFuncCoreResizeDetFuncNormal;
+			transitionToNORMAL_CHUNK(dFC,length);
+			
 		} else {
 			if (length > detFuncCoreNormalChunkLength(dFC)){
 				return -6;
@@ -384,21 +402,10 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 			if (dFC->state == NORMAL_CHUNK){
 				sigOptAdvanceBuffer(dFC->sO);
 			}
-			dFC->terminationIndex = length;
-			// all further dealings with the termination Index are
-			// handled later
-			dFC->state = LAST_CHUNK;
-			dFC->processChunk_Func = &detFuncCoreProcessLastChunk;
-			dFC->resizeDetFunc_Func =
-				&detFuncCoreResizeDetFuncTerminal;
+			transitionToLAST_CHUNK(dFC, length);
 		}
 
 	}
-	// update internal steamLength
-	dFC->streamLength = dFC->streamLength + length;
-
-	printf("Unclear if I should update numWindowsProcessed Now or later\n");
-	return -1;
 
 	// add input chunk to filterBank
 	filterBankSetInputChunk(dFC->fB, input, length, final_chunk);
@@ -406,11 +413,18 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 	return 1;
 }
 
+/* If there are no dedicated threads, then all input chunks are added to 
+ * detFuncCore externally via the detFuncCoreSetInputChunk interface function.
+ *
+ * If there is at least 1 dedicated thread, then all the 
+ * detFuncCoreSetInputChunk interface function should never be called. Instead, 
+ * all chunks will be externally added to an external streamBuffer. Internally, 
+ * dFC will pull subsequent chunks from the external streamBuffer using the 
+ * helper function detFuncCorePullNextChunk.
+ */
 
 int detFuncCoreSetInputChunk(detFuncCore* dFC, float* input, int length,
 			     int final_chunk){
-
-	
 	
 	if (dFC->dedicatedThreads == 0){
 		return detFuncCorePrepareNextChunk(dFC, input, length,

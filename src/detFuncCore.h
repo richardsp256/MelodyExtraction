@@ -76,7 +76,7 @@ void detFuncCoreDestroy(detFuncCore *dFC);
 
 int detFuncCoreFirstChunkLength(detFuncCore *dFC);
 int detFuncCoreNormalChunkLength(detFuncCore *dFC);
-
+enum streamState detFuncCoreState(detFuncCore *dFC);
 /* Once we start implementing the threading, we may want to revisit how we add 
  * new input chunks.
  * I tend to think that a better way to do things would be to have some kind of 
@@ -146,3 +146,13 @@ int detFuncCoreProcessInput(detFuncCore* dFC, int thread_num);
 /* This function actually retrieves the full detection function at the end.
  */
 float *detFuncCoreGetDetectionFunction(detFuncCore* dFC, int *length);
+
+/* The following are just some helper functions that are only added to 
+ * detFuncCore for use during unit testing. They should NEVER be called by a 
+ * user.
+ */
+
+void transitionToSINGLE_CHUNK(detFuncCore *dFC, int terminationIndex);
+void transitionToFIRST_CHUNK(detFuncCore *dFC, int length);
+void transitionToNORMAL_CHUNK(detFuncCore *dFC, int length);
+void transitionToLAST_CHUNK(detFuncCore *dFC, int terminationIndex);
