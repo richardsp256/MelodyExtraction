@@ -38,40 +38,68 @@
  * optimization: we could imitate many other implementations and require that
  *               a0 = 1.
  *
- * Probably need to be check for overflows and underflows - since this is 
- * recursive it could screw up a lot.
+ * We previously used pure recursion to avoid allocating extra memory, but it's
+ * MUCH easier to do the filtering for a given index all at once when handling 
+ * chunks
+ *
+ * Probably need to be check for overflows and underflows
  */
-void biquadFilter(double *coef, double *x, double *y, int length)
-{
-	double d1, d2, cur_x, cur_y, a0,a1,a2,b0,b1,b2;
-	int n;
-	/* d1 and d2 are state variables, for now asssume they start at 0,
-	 * because before a recording there is silence. If we are chunking the 
-	 * recording we will need to track d1 and d2 between chunks. */
-	d1 = 0;
-	d2 = 0;
+double _generalRecursiveFiltering(double *state, double* coef, double result,
+				  int recursions){
+	// calculates the output value for input after applying n="recursions"
+	// recursive filters
+	// in the arguments, set result = x[n]
 
-	/* set the feedforward coefficients */
-	b0 = coef[0]; b1 = coef[1]; b2 = coef[2];
-	/* set the feedback coefficients */
-	a0 = coef[3]; a1 = coef[4]; a2 = coef[5];
-
-	for (n = 0; n<length; n++){
-		cur_x = x[n];
-		/* first difference equation: y[n] = (b0 * x[n] + d1[n-1])/a0 
+	for (int i = 0; i <recursions; i++){
+		double input = result;
+		/* y[n] = (b0 * x[n] + d1[n-1])/a0;
 		 */
-		cur_y = (b0 * cur_x + d1)/a0;
-
+		result = (coef[i*6 + 0] * input + state[i*2 + 0]) / coef[i*6+3];
 		/* next difference equation: 
-		 *     d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
+		 *  d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
 		 */
-		d1 = b1 * cur_x - a1 * cur_y + d2;
-		/* final difference equation: d2[n] = b2 * x[n] - a2 * y[n]
-		 */
-		d2 = b2 * cur_x - a2 * cur_y;
+		state[i*2 + 0] = (coef[i*6 + 1] * input
+				  - coef[i*6 + 4] * result + state[i*2 + 1]);
 
-		/* finally set y to cur_y */
-		y[n] = cur_y;
+		/* final difference equation:
+		 *  d2[n] = b2 * x[n] - a2 * y[n]
+		 */
+		state[i*2 + 1] = coef[i*6 + 2] * input - coef[i*6 + 5] * result;
+	}
+	return result;
+}
+
+double _4RecursionFilter(double *state, double* coef, double result){
+	/* Identical to _generalRecursiveFiltering, except it assumes that 
+	 * there are 4 recursions.
+	 *
+	 * This is only included to allow for unrolling of the loop. (It may be 
+	 * unneccessary)
+	 */
+
+	for (int i = 0; i < 4; i++){
+		double input = result;
+		/* y[n] = (b0 * x[n] + d1[n-1])/a0;
+		 */
+		result = (coef[i*6 + 0] * input + state[i*2 + 0]) / coef[i*6+3];
+		/* next difference equation: 
+		 *  d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
+		 */
+		state[i*2 + 0] = (coef[i*6 + 1] * input
+				  - coef[i*6 + 4] * result + state[i*2 + 1]);
+
+		/* final difference equation:
+		 *  d2[n] = b2 * x[n] - a2 * y[n]
+		 */
+		state[i*2 + 1] = coef[i*6 + 2] * input - coef[i*6 + 5] * result;
+	}
+	return result;
+}
+
+void biquadFilter(double *coef, double *x, double *y, int length){
+	double state[2] = {0.0, 0.0};
+	for (int i=0; i <length; i++){
+		y[i] = _generalRecursiveFiltering(state, coef, x[i], 1);
 	}
 }
 
@@ -91,41 +119,56 @@ void biquadFilter(double *coef, double *x, double *y, int length)
  * would be doing the same number of additive/multiplicative operations (to 
  * maintain numerical stability), but it would cut down on the number of for 
  * loops (and the number of times we access the data)
- *
- * again, if processing audio in chunks, we will need to keep track of the 
- * state variables between function calls.
  */
-void cascadeBiquad(int num_stages, double *coef, double *x, double *y,
-		   int length)
+int cascadeBiquad(int num_stages, double *coef, double *x, double *y,
+		  int length)
 {
-	/* run the filter the first time to produce y */
-	biquadFilter(coef, x, y, length);
-
-	/* run the biquad filter num_stages-1 more times, updating y in place 
-	 */
-	for (int i= 1; i<num_stages; i++){
-		biquadFilter((coef + (6*i)), y, y, length);
-		
+	double *state = calloc(2*num_stages, sizeof(double));
+	if (!state){
+		return -1;
 	}
+	for (int i=0; i <length; i++){
+		y[i] = _generalRecursiveFiltering(state, coef, x[i],
+						  num_stages);
+	}
+	free(state);
+	return 0;
+}
+
+/* version of cascadeBiquad that accepts float inputs and returns float 
+ * outputs, but internally uses double coefficients and states
+ */
+int cascadeBiquaddf(int num_stages, double *coef, float *x, float *y,
+		     int length)
+{
+	double *state = calloc(2*num_stages, sizeof(double));
+	if (!state){
+		return -1;
+	}
+	for (int i=0; i <length; i++){
+		y[i] = (float)_generalRecursiveFiltering(state, coef,
+							 (float)x[i],
+							 num_stages);
+	}
+	free(state);
+	return 0;
 }
 
 /* numerically normalize the response to have 0 dB gain at the central 
-	 * frequency.
-	 * Right now, I am just dividing the coefficients in the numerator 
-	 * of each second order stage by the gain. This can almost certainly 
-	 * be improved.*/
-
-	/* so we evaluate the transfer function of the biquad filter designated 
-	 * by the 6 entries in coef.
-	 * The gain is the magnitude of the transfer function evaluated when 
-	 * z = exp(I* 2*PI*centralFreq/samplerate)
-	 */
+ * frequency.
+ * Right now, I am just dividing the coefficients in the numerator of each 
+ * second order stage by the gain. This can almost certainly be improved.*/
 void numericalNormalize(float centralFreq, int samplerate, double *coef)
 {
 	double x1, x2, gain;
 	x1 = 2. * M_PI * centralFreq/samplerate;
 	x2 = 4. * M_PI * centralFreq/samplerate;
 
+	/* so we evaluate the transfer function of the biquad filter designated 
+	 * by the 6 entries in coef.
+	 * The gain is the magnitude of the transfer function evaluated when 
+	 * z = exp(I* 2*PI*centralFreq/samplerate)
+	 */
 	gain = sqrt((pow(coef[2]+coef[1]*cos(x1) + coef[0]* cos(x2),2.)
                  + pow(coef[1]*sin(x1) + coef[0] * sin(x2),2.))
                 /( pow(coef[5]+coef[4]*cos(x1) + coef[3]* cos(x2),2.)
@@ -190,7 +233,7 @@ void sosCoef(float centralFreq, int samplerate, double *coef)
  * or convert two and from floats 
  */
 void sosGammatoneHelper(double* data, double** output, float centralFreq,
-			    int samplerate, int datalen)
+			int samplerate, int datalen)
 {
 	double *coef = malloc(sizeof(double)*24);
 	sosCoef(centralFreq, samplerate, coef);
@@ -292,63 +335,6 @@ void sosGammatone(float* data, float** output, float centralFreq,
 }
 
 
-
-
-
-
-
-
-// version of biquadFilter that starts with an array of floats and returns an
-// array of floats
-void biquadFilterdf(double *coef, float *x, double *y, int length)
-{
-	double d1, d2, cur_x, cur_y, a0,a1,a2,b0,b1,b2;
-	int n;
-	/* d1 and d2 are state variables, for now asssume they start at 0,
-	 * because before a recording there is silence. If we are chunking the 
-	 * recording we will need to track d1 and d2 between chunks. */
-	d1 = 0;
-	d2 = 0;
-
-	/* set the feedforward coefficients */
-	b0 = coef[0]; b1 = coef[1]; b2 = coef[2];
-	/* set the feedback coefficients */
-	a0 = coef[3]; a1 = coef[4]; a2 = coef[5];
-
-	for (n = 0; n<length; n++){
-		cur_x = x[n];
-		/* first difference equation: y[n] = (b0 * x[n] + d1[n-1])/a0 
-		 */
-		cur_y = (b0 * cur_x + d1)/a0;
-
-		/* next difference equation: 
-		 *     d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
-		 */
-		d1 = b1 * cur_x - a1 * cur_y + d2;
-		/* final difference equation: d2[n] = b2 * x[n] - a2 * y[n]
-		 */
-		d2 = b2 * cur_x - a2 * cur_y;
-
-		/* finally set y to cur_y */
-		y[n] = cur_y;
-	}
-}
-
-//version of cascadeBiquad that accepts floats and returns doubles
-void cascadeBiquaddf(int num_stages, double *coef, float *x, double *y,
-		     int length)
-{
-	/* run the filter the first time to produce y */
-	biquadFilterdf(coef, x, y, length);
-
-	/* run the biquad filter num_stages-1 more times, updating y in place 
-	 */
-	for (int i= 1; i<num_stages; i++){
-		biquadFilter((coef + (6*i)), y, y, length);
-	}
-}
-
-
 void sosGammatoneFast(float* data, float** output, float centralFreq,
 		      int samplerate, int datalen)
 {
@@ -374,11 +360,31 @@ void sosGammatoneFast(float* data, float** output, float centralFreq,
 	//modified sosGammatone that does not double the samplerate
 	double *coef = malloc(sizeof(double)*24);
 	sosCoef(centralFreq, samplerate, coef);
-	double *temp = malloc(sizeof(double)*datalen);
-	cascadeBiquaddf(4, coef, data, temp, datalen);
+	cascadeBiquaddf(4, coef, data, *output, datalen);
 	free(coef);
-	for (int i=0;i<datalen;i++){
-		(*output)[i] = temp[i];
+}
+
+
+
+void gammatoneIIRChunkHelper(double *coef, double *state, float* inputChunk,
+			     float* filteredChunk, int nsamples){
+	/* use the gammatone filter on the first nsamples of inputChunk and 
+	 * saving the output in the first nsamples in filteredChunk.
+	 *
+	 * This implementation assumes 4 biquad filters.
+	 * the ith row of the coef contains b0, b1, b2, a0, a1, and a2 
+	 * while the ith row of the state contains d1, d2
+	 *
+	 * The complexity could be improved if we force a0 = 1 and omit it 
+	 * from coef
+	 * In order to avoid denormal numbers, we might need to multiply by 
+	 * Gain
+	 */
+
+	for (int k=0; k<nsamples; k++){
+		/* below we will process 4 recursive filters 
+		 * the input into the i=0 filter is x[k] */
+		filteredChunk[k]=(float)_4RecursionFilter(state, coef,
+							 (double)inputChunk[k]);
 	}
-	free(temp);
 }

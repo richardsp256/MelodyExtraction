@@ -93,8 +93,8 @@ double* filterInputs(int numChannels, int lenChannels, int overlap,
 		float* fltResultA = malloc(sizeof(float) * result_length);
 
 		for (int i = 0; i<numChannels;i++){
-			float* start = fltResultA; //+ i*dataLen;
-			
+			float* start = fltResultA + i*dataLen;
+			printf("centralFreq = %f\n",centralFreq[i]);
 			sosGammatoneFast(input, &start, centralFreq[i],
 					 samplerate, dataLen);
 		}
@@ -119,10 +119,25 @@ double* filterInputs(int numChannels, int lenChannels, int overlap,
 	}
 }
 
+void print_array(double *array,int length){
+	printf("[");
+	if (length == 0){
+		printf("]\n");
+	} else if (length == 1){
+		printf("%e]\n",array[0]);
+	} else {
+		printf("%e", array[0]);
+		for (int i = 1; i<length; i++){
+			printf(", %e",array[i]);
+		}
+		printf("]\n");
+	}
+}
+
 START_TEST(test_filterBank_2Chunks)
 {
 	// Lets try the case where the input can fit into 2 chunks
-	int numChannels = 4;
+	int numChannels = 3;
 	int lenChannels = 50;
 	int overlap = 10;
 	int samplerate = 11025;
@@ -144,10 +159,16 @@ START_TEST(test_filterBank_2Chunks)
 	ck_assert_ptr_nonnull(reference);
 	double* result = filterInputs(numChannels, lenChannels, overlap,
 				      samplerate, minFreq, maxFreq, input,
-				      //dataLen, 1);
-				      47,1);
+				      dataLen, 1);
+				      //47,1);
 	ck_assert_ptr_nonnull(result);
-
+	//for (int i=0; i<numChannels; i++){
+	//	printf("\n\n\nChannel %d:\n",i);
+	//	printf("Ref Array: \n");
+	//	print_array(reference+i*dataLen, dataLen);
+	//	printf("\n\nResult: \n");
+	//	print_array(result+i*dataLen, dataLen);
+	//}
 	compareArrayEntries(reference, result, dataLen, 1.e-5, 1, 1.e-5);
 
 	free(input);

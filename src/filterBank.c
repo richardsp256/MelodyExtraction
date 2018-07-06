@@ -35,10 +35,9 @@ typedef int (*fBChunkProcessFunc)(filterBank* fB, tripleBuffer* tB,
 // We need to refactor the following filter function. It is absurd that it is
 // different from the one in gammatoneFilter.h
 typedef void (*gammatoneStrat)(struct channelData *cD, float* inputChunk,
-			       float* filteredChunk, int nsamples,
-			       int samplerate);
+			       float* filteredChunk, int nsamples);
 void filteringHelper(struct channelData *cD, float* inputChunk,
-		     float* filteredChunk, int nsamples, int samplerate);
+		     float* filteredChunk, int nsamples);
 
 
 // the following are functions tracked internally by filterbank based on its
@@ -337,9 +336,8 @@ int filterBankProcessInput(filterBank *fB, tripleBuffer *tB, int channel){
 	return (fB->chunkProcessFunc)(fB, tB, cD, channel);
 }
 
-// we can remove samplerate as an argument from this function.
 void filteringHelper(struct channelData *cD, float* inputChunk,
-		     float* filteredChunk, int nsamples, int samplerate){
+		     float* filteredChunk, int nsamples){
 	/* use the gammatone filter on the first nsamples of inputChunk and 
 	 * saving the output in the first nsamples in filteredChunk.
 	 *
@@ -351,33 +349,9 @@ void filteringHelper(struct channelData *cD, float* inputChunk,
 	 * In order to avoid denormal numbers, we might need to multiply by 
 	 * Gain
 	 */
-	
-	for (int k=0; k<nsamples; k++){
-		/* below we will process 4 recursive filters 
-		 * the input into the i=0 filter is x[k] */
-		double result = inputChunk[k];
-		for (int i = 0; i <4; i++){
-			double input = result;
-			/* y[n] = (b0 * x[n] + d1[n-1])/a0;
-			 */
-			result = (((cD->coef)[i*6 + 0] * input +
-				   (cD->state)[i*2 + 0]) / (cD->coef)[i*6+3]);
-			/* next difference equation: 
-			 *  d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
-			 */
-			(cD->state)[i*2 + 0] = ((cD->coef)[i*6 + 1] * input -
-						(cD->coef)[i*6 + 4] * result +
-						(cD->state)[i*2 + 1]);
 
-			/* final difference equation:
-			 *  d2[n] = b2 * x[n] - a2 * y[n]
-			 */
-			(cD->state)[i*2 + 1] = ((cD->coef)[i*6 + 2] * input -
-						(cD->coef)[i*6 + 5] * result);
-
-		}
-		filteredChunk[k] = (float)result;
-	}
+	gammatoneIIRChunkHelper(cD->coef, cD->state, inputChunk, filteredChunk,
+				nsamples);
 }
 
 void overlapHelper(float* leadingSpectraChunk, float* trailingSpectraChunk,
@@ -408,10 +382,8 @@ int processFirstChunkHelper(filterBank* fB, tripleBuffer* tB,
 	}
 	float *inputChunk = fB->inputChunk;
 	int nsamples = fB->lenChannels;
-	int samplerate = fB->samplerate;
 	
-	(fB->filterFunc)(cD, inputChunk, filteredChunk, inputLength,
-			 samplerate);
+	(fB->filterFunc)(cD, inputChunk, filteredChunk, inputLength);
 	if (inputLength<nsamples){
 		zeroPaddingHelper(filteredChunk+inputLength,
 				  nsamples-inputLength);
@@ -438,7 +410,7 @@ int processOverlappingBufferHelper(filterBank* fB, tripleBuffer* tB,
 		return -6;
 	}
 	int nsamples = fB->lenChannels;
-	
+
 	int overlap = fB->overlap;
 
 	// copy the overlapping regions
@@ -446,11 +418,9 @@ int processOverlappingBufferHelper(filterBank* fB, tripleBuffer* tB,
 		      overlap);
 
 	float *inputChunk = fB->inputChunk;
-	int samplerate = fB->samplerate;
 
 	// do the filtering
-	(fB->filterFunc)(cD, inputChunk, curLeadingBuf+overlap, inputLength,
-			 samplerate);
+	(fB->filterFunc)(cD, inputChunk, curLeadingBuf+overlap, inputLength);
 
 	// possibly zero-pad
 	if ((inputLength+overlap)<nsamples){

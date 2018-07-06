@@ -1,7 +1,7 @@
 void biquadFilter(double *coef, double *x, double *y, int length);
 
-void cascadeBiquad(int num_stages, double *coef, double *x, double *y,
-		   int length);
+int cascadeBiquad(int num_stages, double *coef, double *x, double *y,
+		  int length);
 
 /* The sosGammatone is another attempt at implementing an approximation 
  * for the gammatone filter.
@@ -47,4 +47,7 @@ void sosGammatoneHelper(double* data, double** output, float centralFreq,
 void sosCoef(float centralFreq, int samplerate, double *coef);
 
 void sosGammatoneFast(float* data, float** output, float centralFreq,
-			    int samplerate, int datalen);
+		      int samplerate, int datalen);
+
+void gammatoneIIRChunkHelper(double *coef, double *state, float* inputChunk,
+			     float* filteredChunk, int nsamples);

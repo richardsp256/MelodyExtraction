@@ -230,7 +230,7 @@ END_TEST
 
 START_TEST(test_sigOptCreate)
 {
-	// using a buffer size of ~70 ms for samplerate of 11025 Hz
+	// using a window size of ~70 ms for samplerate of 11025 Hz
 	// since 55 samples is ~ 5ms. This means the window size is 770
 	// samples
 	sigOpt *sO =sigOptCreate(770,55,22,4,1.06);
