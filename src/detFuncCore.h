@@ -58,14 +58,42 @@
  * - for both processInput and propogateFinal Overlap
  */
 
+
+/* The end goal is to have 2 interfaces:
+ * 1. A callback interface. Basically the detFuncCore pulls chunks of the 
+ *    audioStream as it needs them. We are implementing thread support for this 
+ *    option. This is the main work horse of most applications.
+ *        - There is one minor problem with this methodology. We need to know 
+ *          how long the audio chunks need to be. To get around this, we will 
+ *          separate the creation of detFuncCore from actual processing. That 
+ *          way, the user can configure their audioStream to account for the 
+ *          length requirements of the audio chunks.
+ * 2. A more manual interface (we first built this interface). Currently this 
+ *    interface does not support threading, but is designed to be more easily 
+ *    debugged. One change we should probably make is we should make a single 
+ *    interface function to handle both detFuncCoreSetInputChunk and 
+ *    detFuncCoreProcessInput (this would be much safer - it would make it more 
+ *    explicit that the audio chunk passed into detFuncCoreProcessInput should 
+ *    not be deleted/modified.
+ *
+ */
+
 typedef struct detFuncCore detFuncCore;
+
+/* The following function template is defined for the audio Stream callback
+ * An audio stream callback should set input to a pointer, pointing to the 
+ * audio chunk and should return the length of the chunk. If the length is 
+ * shorter than expected, then the chunk is assumed to be the final chunk. 
+ * The function should return -1 if it is necessary to abort the calculation.
+ */
+typedef int (*aS_callback_t)(void* callback_data, float** input);
 
 
 /* 2 Main use case: 
- * 1. Only having one thread responsible for both reading in the stream and 
- *    then processing it. dedicatedThreads = 0.
- * 2. Having 1 thread assigned to reading in the stream and having N threads 
- *    assigned to detFuncCore for processing it. dedicatedThreads = N.
+ * 1. Having 0-1 threads assigned to reading in the stream and having N threads 
+ *    assigned to detFuncCore for processing it. Set dedicatedThreads = N.
+ * 2. Only having one thread responsible for both reading in the stream and 
+ *    then processing it. Set dedicatedThreads = 0.
  */
 detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 			       int numChannels, int sigWinSize,
@@ -156,3 +184,4 @@ void transitionToSINGLE_CHUNK(detFuncCore *dFC, int terminationIndex);
 void transitionToFIRST_CHUNK(detFuncCore *dFC, int length);
 void transitionToNORMAL_CHUNK(detFuncCore *dFC, int length);
 void transitionToLAST_CHUNK(detFuncCore *dFC, int terminationIndex);
+

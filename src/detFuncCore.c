@@ -5,6 +5,8 @@
 #include <ctype.h>
 #include "detFuncCore.h"
 
+#include "threading/threadPoolInterface.h"
+
 // We have placed a requirement that the entire stream is at least twice the
 // length of the correntropy window if the stream is shorter than the first
 // buffer.
@@ -52,6 +54,21 @@ typedef int (*pSMContribStrat)(detFuncCore *dFC, int channel, int thread,
 int calcPSMContrib(detFuncCore *dFC, int channel, int thread, int numPSMWin,
 		   int centralBuffIndex);
 
+// If we ever make a more complicated implementation, will need to add:
+// IN_PROGRESS
+enum pSMCalcFlag{
+	NEEDS_FLUSH,
+	COMPLETE,
+	ERROR,
+}
+
+// the following struct, defines the workspace that the threads require
+typedef struct threadSpace{
+	enum pSMCalcFlag calcFlag;
+	int returnCode;
+	float* pSMBuffer;
+} threadSpace;
+
 struct detFuncCore{
 	enum streamState state;
 	dFCHelperFuncPtr processChunk_Func;
@@ -60,7 +77,7 @@ struct detFuncCore{
 	int numChannels;
 	int hopsize;
 	int corrWinSize;
-	float *pooledSummaryMatrix;
+	threadSpace* tSArray;
 	int pSMLength;
 	pSMContribStrat pSMContribFunc;
 
@@ -80,6 +97,7 @@ struct detFuncCore{
 	tripleBuffer *tB;
 	filterBank *fB;
 	sigOpt *sO;
+	threadPool *tP;
 };
 
 /* A consequence of using subobjects is that the majority of the information 
@@ -112,11 +130,45 @@ static inline int detFuncCoreNumChannels(detFuncCore *dFC){
 /* Some utility functions that will likely be repeated frequently */
 
 static inline float* detFuncCoreGetPSM(detFuncCore *dFC, int thread_num){
-	return ((dFC->pooledSummaryMatrix) +
-		(thread_num * detFuncCorePSMLength(dFC)));
+	return ((dFC->tSArray) + thread_num)->pSMBuffer;
 }
 
 
+threadSpace* threadSpaceArrayCreate(int bufferLength, int numThreads){
+	if (numThreads <= 0 || bufferLength <= 0){
+		return NULL;
+	}
+	threadSpace* array = malloc(numThreads * sizeof(threadSpace));
+	if (array == NULL){
+		return array;
+	}
+
+	for (int i=0; i<numThreads, i++){
+		(array+i)->pSMBuffer = malloc(bufferLength * sizeof(float));
+
+		if ((array+i)->pSMBuffer == NULL){
+			// Not enough memory. It's time to cleanup.
+			for (int j=0, j<i, j++){
+				free((array+j)->pSMBuffer);
+			}
+			free(array);
+			return NULL;
+		}
+
+		// we don't need to worry about flushing the pSMBuffer, that
+		// will be taken care of later, automatically
+		(array+i)->calcFlag = NEEDS_FLUSH;
+		(array+i)->returnCode = 1;
+	}
+	return array;
+}
+
+void threadSpaceArrayDestroy(threadSpace* tSArray, int numThreads){
+	for (int i=0, i<numThreads, i++){
+		free((tSArray+i)->pSMBuffer);
+	}
+	free(tSArray);
+}
 
 /* Onto implementing the interface */
 
@@ -190,14 +242,15 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 
 	// construct the pooledSummaryMatrix
 	int pSMLength = sigOptGetSigmasPerBuffer(dFC->sO);
-	if (dedicatedThreads == 0){
-		dFC->pooledSummaryMatrix = calloc(pSMLength, sizeof(float));
-	} else {
-		dFC->pooledSummaryMatrix = calloc(pSMLength * dedicatedThreads,
-						  sizeof(float));
+
+	int numThreads = dedicatedThreads;
+	if (numThreads == 0){
+		numThreads = 1;
 	}
 
-	if (dFC->pooledSummaryMatrix == NULL){
+	dFC->tSArray = threadSpaceArrayCreate(pSMLength, numThreads);
+
+	if (dFC->tSArray == NULL){
 		sigOptDestroy(dFC->sO);
 		free(dFC);
 		return NULL;
@@ -213,7 +266,7 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 	int bufferLength = (pSMLength-1) *hopsize + 2 * correntropyWinSize + 1;
 	dFC->tB = tripleBufferCreate(numChannels, bufferLength);
 	if (dFC->tB == NULL){
-		free(dFC->pooledSummaryMatrix);
+		threadSpaceArrayDestroy(dFC->tSArray, numThreads);
 		sigOptDestroy(dFC->sO);
 		free(dFC);
 		return NULL;
@@ -225,11 +278,28 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 				samplerate, minFreq, maxFreq, filterStrat);
 
 	if (dFC->fB == NULL){
-		free(dFC->pooledSummaryMatrix);
+		threadSpaceArrayDestroy(dFC->tSArray, numThreads);
 		sigOptDestroy(dFC->sO);
 		tripleBufferDestroy(dFC->tB);
 		free(dFC);
 		return NULL;
+	}
+
+	// Construct the threadPool
+	if (dedicatedThreads > 1){
+		// dedicatedThreads gives the total number of threads which is
+		// not currently part of the threadPool
+		dFC->tP = threadPoolNew(dedicatedThreads - 1);
+		if (dFC->tP == NULL){
+			threadSpaceArrayDestroy(dFC->tSArray, numThreads);
+			sigOptDestroy(dFC->sO);
+			tripleBufferDestroy(dFC->tB);
+			filterBankDestroy(dFC->fB);
+			free(dFC);
+			return NULL;
+		}
+	} else{
+		dFC->tP = NULL;
 	}
 
 	dFC->numChannels = numChannels;
@@ -259,6 +329,7 @@ detFuncCore *detFuncCoreCreate(int correntropyWinSize, int hopsize,
 		detFuncCoreDestroy(dFC);
 		return NULL;
 	}
+
 	return dFC;
 }
 
@@ -268,10 +339,18 @@ void detFuncCoreDestroy(detFuncCore *dFC){
 		free(dFC->detFunc);
 	}
 
-	free(dFC->pooledSummaryMatrix);
+	int numThreads = dFC->dedicatedThreads;
+	if (numThreads == 0){
+		numThreads = 1;
+	}
+	threadSpaceArrayDestroy(dFC->tSArray, numThreads);
 	tripleBufferDestroy(dFC->tB);
 	sigOptDestroy(dFC->sO);
 	filterBankDestroy(dFC->fB);
+
+	if (dFC->tP != NULL){
+		threadPoolDestroy(dFC->tP);
+	}
 	free(dFC);
 }
 
@@ -425,7 +504,6 @@ int detFuncCorePrepareNextChunk(detFuncCore *dFC, float *input, int length,
 
 int detFuncCoreSetInputChunk(detFuncCore* dFC, float* input, int length,
 			     int final_chunk){
-	
 	if (dFC->dedicatedThreads == 0){
 		return detFuncCorePrepareNextChunk(dFC, input, length,
 						   final_chunk);
@@ -444,23 +522,46 @@ int detFuncCoreSetInputChunk(detFuncCore* dFC, float* input, int length,
  * function just returns True; the same role is carried out by the interface 
  * function detFuncCoreSetInputChunk 
 */
-int detFuncCorePullNextChunk(detFuncCore* dFC){
+int detFuncCorePullNextChunk(detFuncCore* dFC, aS_callback_t func,
+			     void* callback_data){
 
 	if (dFC->dedicatedThreads == 0){
-		return 1;
+		printf("The function, detFuncCoreSetInputChunk, should not be "
+		       "called if dFC has at least no dedicated threads.\n");
+		return 0;
 	} else {
 		/* Pulls the next chunk from the external Stream Buffer, if 
 		 * applicable.
 		 * If the next chunk is not yet ready (unlikely), hang until it
 		 * is ready.
-		 * Pass the next chunk to detFuncCorePrepareNextChunk
-		 *
-		 * Needs to be implemented
 		 */
-		printf("Have not implemented the helper function, "
-		       "detFuncCorePullNextChunk, \nfor use when detFuncCore "
-		       "has at least 1 dedicated thread.\n"); 
-		return -1;
+
+		float* input = NULL;
+		int length = func(callback_data, &input);
+		if (length <0){
+			// this should only ever be -1 to indicate our
+			// requirement to abort
+			return length;
+		} else if (input == NULL){
+			printf("No audio chunk was provided and the audio "
+			       "stream callback function did not return \nan "
+			       "appropriate return code. This should never be "
+			       "printed \n");
+			return -2;
+		}
+
+		int expected_length = detFuncCoreNormalChunkLength(dFC);
+		if (detFuncCoreState(dFC) == NO_CHUNK){
+			expectedLength = detFuncCoreFirstChunkLength(dFC);
+		}
+
+		int final_chunk = 0;
+		if (length != expectedLength){
+			final_chunk = 1;
+		}
+
+		return detFuncCorePrepareNextChunk(dFC, input, length,
+						   final_chunk);
 	}
 }
 
@@ -589,17 +690,13 @@ int identifyCentralBuffIndex(detFuncCore *dFC){
 
 typedef int (*fBProcessPtr)(filterBank *fB, tripleBuffer *tB, int channel);
 
-// centralBuffIndex indicates the index of the central buffer in dFC->tB
-int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
-				  int numPSMWin,int centralBuffIndex){
-	if (dFC->dedicatedThreads != 0){
-		printf("Have not implemented the helper function, "
-		       "detFuncCoreProcessInputHelper, \nfor use when "
-		       "detFuncCore has at least 1 dedicated thread.\n"); 
-		return -1;
-	}
-
-	for (int channel = 0; channel<detFuncCoreNumChannels(dFC); channel++){
+// we could streamline the following function by directly passing the
+// pSMBuffer (so it is not reloaded for every channel
+int _processInputChannelsHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
+				int numPSMWin, int centralBuffIndex,
+				int channelStart, int channelStop,
+				int thread_id){
+	for (int channel = channelStart; channel<channelStop; channel++){
 		int temp;
 		if (fBfunc != NULL){
 			temp = fBfunc(dFC->fB, dFC->tB, channel);
@@ -611,10 +708,9 @@ int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
 		}
 
 		if (numPSMWin>0){
-			temp = (dFC->pSMContribFunc)(dFC, channel, 0, numPSMWin,
+			temp = (dFC->pSMContribFunc)(dFC, channel, thread_id,
+						     numPSMWin,
 						     centralBuffIndex);
-			//temp = calcPSMContrib(dFC, channel, 0, numPSMWin,
-			//		      centralBuffIndex);
 			if (temp!=1){
 				printf("There has been a problem with "
 				       "dFC->pSMContribFunc\n");
@@ -631,7 +727,21 @@ int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
 			}
 		}
 	}
-	return 1;
+}
+// centralBuffIndex indicates the index of the central buffer in dFC->tB
+int detFuncCoreProcessInputHelper(detFuncCore *dFC, fBProcessPtr fBfunc,
+				  int numPSMWin,int centralBuffIndex){
+	if (dFC->dedicatedThreads != 0){
+		printf("Have not implemented the helper function, "
+		       "detFuncCoreProcessInputHelper, \nfor use when "
+		       "detFuncCore has at least 1 dedicated thread.\n"); 
+		return -1;
+	} else {
+		return _processInputChannelsHelper(dFC, fBfunc, numPSMWin,
+						   centralBuffIndex, 0,
+						   detFuncCoreNumChannels(dFC),
+						   0);
+	}
 }
 
 int detFuncCoreProcess(detFuncCore* dFC, int thread_num){
@@ -773,7 +883,10 @@ int updateDetFunc(detFuncCore *dFC, int activeResize){
 	// active resize is an int, of value 0 or 1
 	// it should always be 1, except for the very last chunks, where we are
 	// attempting to resize the detection function just once
-	
+
+	// Current implementation assumes that this function is executed by
+	// the master thread
+
 	if (activeResize == 1){
 		int temp = (dFC->resizeDetFunc_Func)(dFC);
 		if (temp!=1){
@@ -800,9 +913,10 @@ int updateDetFunc(detFuncCore *dFC, int activeResize){
 	}
 
 	int start = dFC->detFuncFilledLength;
-	float* pSM = dFC->pooledSummaryMatrix;
+	// assuming that this is completed by the master thread
+	float* pSM = detFuncCoreGetPSM(dFC, 0);
 	int nIter = extraLength;
-	
+
 	// now time to fill in the detection function
 	if ((dFC->lastPSMEntry != DEFAULT_LASTPSMENTRY) && (nIter>0)){
 		dFC->detFunc[start] = pSM[0] -  dFC->lastPSMEntry;
@@ -826,14 +940,18 @@ int updateDetFunc(detFuncCore *dFC, int activeResize){
 		
 }
 
+void _flushPSMEntriesHelper(detFuncCore *dFC, float *pSMBuffer){
+	for (int i=0; i<detFuncCorePSMLength(dFC); i++){
+			pSMBuffer[i] = 0.f;
+	}
+	return 1;
+}
+
 int flushPSMEntries(detFuncCore *dFC){
 	/* Handles the process of setting all entries in pooledSummaryMatrix
 	 * to 0 */
 	if (dFC->dedicatedThreads == 0){
-		float *pooledSummaryMatrix = detFuncCoreGetPSM(dFC, 0);
-		for (int i=0; i<detFuncCorePSMLength(dFC); i++){
-			pooledSummaryMatrix[i] = 0.f;
-		}
+		_flushPSMEntriesHelper(dFC, detFuncCoreGetPSM(dFC, 0));
 		return 1;
 	} else {
 		printf("Have not implemented the helper function, "
@@ -1136,4 +1254,81 @@ float *detFuncCoreGetDetectionFunction(detFuncCore* dFC, int *length){
 	float* out = dFC->detFunc;
 	dFC->detFunc = NULL;
 	return out;
+}
+
+// presently, we can arbitrarily assign thread_ids since we don't have load
+// balancing or any complex features. If we ever add complex features, the
+// threadPool implementation will need to be modified to pass the thread_id
+// argument to all task functions
+
+typedef struct pSMCalcArgs{
+	int start;
+	int stop;
+	detFuncCore *dFC;
+	fBProcessPtr fBfunc;
+	int numPSMWin;
+	int centralBuffIndex;
+	int thread_id;
+} pSMCalcArgs;
+
+void pSMBufferCalcHelper(void* arg_ptr){
+	pSMCalcArgs* args = (pSMCalcArgs*)arg_ptr;
+
+	int channel_start = args->start;
+	int channel_stop = args->stop;
+	detFuncCore *dFC = args->dFC;
+	fBProcessPtr fBfunc = args->fBfunc;
+	int numPSMWin = args->numPSMWin;
+	int centralBuffIndex = args->centralBuffIndex;
+
+	int thread_id = args->thread_id;
+	threadSpace* tSpace = ((dFC->tSArray)+thread_id);
+
+	// in a more complex implementation: wait for tSpace->calcFlag!=COMPLETE
+
+	pSMBuffer = tSpace->pSMBuffer;
+	if ((tSpace->calcFlag) == NEEDS_FLUSH){
+		_flushPSMEntriesHelper(dFC, pSMBuffer);
+	}
+
+	// in more complex implementation: set tSpace->calcFlag = IN_PROGRESS
+	int temp = _processInputChannelsHelper(dFC, fBfunc, numPSMWin,
+					       centralBuffIndex, channelStart,
+					       channelStop, thread_id);
+
+	tSpace->returnCode = temp;
+	if (temp != 1){
+		tSpace->calcFlag = ERROR;
+	} else {
+		tSpace->calcFlag = COMPLETE;
+	}
+}
+
+/* The following functions will compute the detection function 
+ *
+ * For now, we assume that the thread executing this is the main thread*/
+float *detFuncCoreProcessStream(detFuncCore *dFC, int *length,
+				aS_callback_t func, void* callback_data){
+	int temp_result;
+	enum streamState cur_state = detFuncCoreState(dFC);
+
+	while (cur_state != LAST_CHUNK && cur_state != SINGLE_CHUNK){
+
+		temp_result = detFuncCorePullNextChunk(dFC, func,
+						       callback_data);
+		if (temp_result != 1){
+			return NULL;
+		}
+		// I am not sure that the temp_result will work exactly as we
+		// originally intended
+		// probably should get rid of thread_num argument
+		temp_result = detFuncCoreProcessInput(dFC, 0);
+		if (temp_result != 1){
+			return NULL;
+		}
+
+		cur_state = detFuncCoreState(dFC);
+	}
+
+	return detFuncCoreGetDetectionFunction(dFC, &length);
 }
