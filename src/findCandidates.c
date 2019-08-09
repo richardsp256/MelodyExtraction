@@ -60,17 +60,17 @@ float calcM(float f_i, float f_j){
 }
 
 
-struct distinctList* distinctCandidates(struct orderedList* candidates,
-					 int max_length, float xi,
-					 float f0Min, float f0Max)
+distinctList* distinctCandidates(struct orderedList* candidates,
+				 int max_length, float xi,
+				 float f0Min, float f0Max)
 {	
 	// Finds the distinct candidates from the list of candidates. This is
         // done by selecting the candidate with the most other candidates
         // within xi Hz
 	
 	int first, last, i,j,maxIndex, *confidence, maxConfidence;
-	struct distinctList *distinct;
-	distinct = (distinctListCreate(max_length));
+	distinctList *distinct;
+	distinct = (distinctListCreate(max_length,0));
 
 	confidence = malloc(sizeof(int) * (candidates->length));
 
@@ -108,9 +108,11 @@ struct distinctList* distinctCandidates(struct orderedList* candidates,
 		// add that candidate to distinct
 		if ((candidates->array[maxIndex] >= f0Min) &&
 		    (candidates->array[maxIndex] <= f0Max)){
-			distinctListAdd(distinct,
-					(candidates->array[maxIndex]),
-					confidence[maxIndex]);
+			struct distinctCandidate temp = { candidates->array[maxIndex],
+				 confidence[maxIndex], 0.0, -1};
+			distinctListAppend(distinct,temp);
+			//		   (candidates->array[maxIndex]),
+			//		   confidence[maxIndex]);
 		}
 		// determine first: index of first entry in candidates that is
 		// within xi Hz of the candidate with the highest confidence

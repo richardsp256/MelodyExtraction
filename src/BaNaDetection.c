@@ -32,7 +32,7 @@ float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
 
 
 	float *fundamentals;
-	struct distinctList **windowCandidates;
+	distinctList **windowCandidates;
 	int numBlocks = size / dftBlocksize;
 	long i;
 
@@ -109,17 +109,15 @@ void BaNaPreprocessing(float **AudioData, int size, int dftBlocksize, int p,
 	}
 }
 
-struct distinctList** BaNaFindCandidates(float **AudioData, int size,
-					 int dftBlocksize, int p,
-					 float f0Min, float f0Max,
-					 int first, float xi,
-					 float* frequencies, int fftSize,
-					 int samplerate)
+distinctList** BaNaFindCandidates(float **AudioData, int size,
+				  int dftBlocksize, int p, float f0Min,
+				  float f0Max, int first, float xi,
+				  float* frequencies, int fftSize,
+				  int samplerate)
 {
 	// this finds all of the f0 candiates
 	// windowCandidates is an array of pointers that point to the list of
 	// candidates for each window
-
 
 	int i;
 	int numBlocks = size / dftBlocksize;
@@ -129,7 +127,7 @@ struct distinctList** BaNaFindCandidates(float **AudioData, int size,
 	float *peakFreq, *peakMag;
 	float *magnitudes;
 	struct orderedList candidates;
-	struct distinctList **windowCandidates;
+	distinctList **windowCandidates;
 
 	magnitudes = malloc(dftBlocksize * sizeof(float));
 	if(magnitudes == NULL){
@@ -152,7 +150,7 @@ struct distinctList** BaNaFindCandidates(float **AudioData, int size,
 		free(peakFreq);
 		return NULL;
 	}
-	windowCandidates = malloc(sizeof(struct distinctList*) * numBlocks);
+	windowCandidates = malloc(sizeof(distinctList*) * numBlocks);
 	if(windowCandidates == NULL){
 		printf("malloc error\n");
 		fflush(NULL);
@@ -206,11 +204,11 @@ struct distinctList** BaNaFindCandidates(float **AudioData, int size,
 		//printf("Inserted lowest frequency candidate\n");
 		// add the cepstrum fundamental candidate
 
-		struct distinctList* t = distinctCandidates(&candidates,
-							    ((numPeaks)*
-							     (numPeaks-1)/2)+2,
-							    xi,(float)f0Min,
-							    (float)f0Max);
+		distinctList* t = distinctCandidates(&candidates,
+						     ((numPeaks)*
+						     (numPeaks-1)/2)+2,
+						     xi,(float)f0Min,
+						     (float)f0Max);
 		//distinctListPrintFreq(*t);
 		// determine the distinctive candidates and add them to
 		windowCandidates[blockstart/dftBlocksize] = t;
