@@ -57,7 +57,7 @@ distinctList* distinctListCreate(int capacity, int max_capacity);
 void distinctListDestroy(distinctList* list);
 struct distinctCandidate distinctListGet(distinctList *list, int index);
 int distinctListAppend(distinctList *list, struct distinctCandidate);
-void distinctListResize(distinctList *list);
+int distinctListShrink(distinctList *list);
 void distinctListAdjustCost(distinctList *list, int index,
 			     float cost, int indexLowestCost);
 void distinctListPrintFreq(distinctList list);
@@ -70,7 +70,7 @@ void distinctListPrintIndexLowestCost(distinctList list);
 intList* intListCreate(int capacity, int max_capacity);
 void intListDestroy(intList *list);
 int intListGet(intList *list, int index);
-void intListResize(intList *list);
+int intListShrink(intList *list);
 int intListAppend(intList *list, int val);
 
 #endif /*LISTS_H*/

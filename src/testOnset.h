@@ -1,1 +1,2 @@
-int detectTransients(int** transients, float* detection_func, int len);
+#include "lists.h"
+int detectTransients(intList* transients, float* detection_func, int len);

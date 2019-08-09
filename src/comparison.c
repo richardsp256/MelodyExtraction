@@ -72,15 +72,24 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 		fflush(NULL);
 	}
 
-	int *onsets = NULL;
+	// Make onsets an intList
+	//    - initial size is 20 (might want something different
+	//    - max_capacity is set to the default. We could probably be
+	//      somewhat intelligent about the max_capacity (but it would
+	//      depend on onset strategy)
+	intList* onsets = intListCreate(20, 0);
+
 	//int o_size = ExtractOnset(input, &onsets, info, o_unpaddedSize, o_winSize, o_winInt, 
 	//             onsetStrategy, verbose);
-	int o_size = TransientDetectionStrategy(input, info.frames, 0, info.samplerate, &onsets);
+
+	int o_size = TransientDetectionStrategy(input, info.frames, 0,
+						info.samplerate, onsets);
 	if(o_size == -1){
 		printf("Onset detection failed\n");
 		fflush(NULL);
 		free(activityRanges);
 		free(freq);
+		intListDestroy(onsets);
 		return NULL;
 	}
 	if(verbose){
@@ -97,7 +106,7 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 
 	free(activityRanges);
 	free(freq);
-	free(onsets);
+	intListDestroy(onsets);
 
 	if(num_notes == -1){
 		printf("Construct notes failed!\n");
@@ -261,11 +270,13 @@ int ExtractSilence(float** input, int** activityRanges, audioInfo info,
 	return a_size;
 }
 
-int ExtractOnset(float** input, int** onsets, audioInfo info, int o_unpaddedSize, int o_winSize, 
-                  int o_winInt, OnsetStrategyFunc onsetStrategy, int verbose)
+int ExtractOnset(float** input, intList* onsets, audioInfo info,
+		 int o_unpaddedSize, int o_winSize, int o_winInt,
+		 OnsetStrategyFunc onsetStrategy, int verbose)
 {
 	fftwf_complex* o_fftData = NULL;
-	int o_fftData_size = STFT_r2c(input, info, o_unpaddedSize, o_winSize, o_winInt, &o_fftData);
+	int o_fftData_size = STFT_r2c(input, info, o_unpaddedSize, o_winSize,
+				      o_winInt, &o_fftData);
 	if(o_fftData_size == -1){
 		return -1;
 	}
@@ -275,9 +286,12 @@ int ExtractOnset(float** input, int** onsets, audioInfo info, int o_unpaddedSize
 		fflush(NULL);
 	}
 	float* o_fftData_float = (float*)o_fftData;
-	o_fftData_size *= 2; //because we convert from complex* to float*, o_fftData has twice as many elements
+	// because we convert from complex* to float*, o_fftData has twice as
+	// many elements
+	o_fftData_size *= 2; 
 
-	int o_size = onsetStrategy(&o_fftData_float, o_fftData_size, o_winSize, info.samplerate, onsets);
+	int o_size = onsetStrategy(&o_fftData_float, o_fftData_size,
+				   o_winSize, info.samplerate, onsets);
 	//printf("o_strat return size: %d\n", o_size);
 	free(o_fftData);
 
@@ -285,24 +299,25 @@ int ExtractOnset(float** input, int** onsets, audioInfo info, int o_unpaddedSize
 		return -1;
 	}
 
-	//convert onsets so that the value is not which block of o_fftData it occurred, but which sample of the original audio it occurred
-	for (int i = 0; i < o_size; i++){
-		(*onsets)[i] = winStartRepSampleIndex(o_winInt, o_unpaddedSize,
-						      info.frames,
-						      (*onsets)[i]);
+	// convert onsets so that the value is not which block of o_fftData it
+	// occurred, but which sample of the original audio it occurred
+	int* o_arr = onsets->array;
+	for (int i = 0; i < onsets->length; i++){
+		o_arr[i] = winStartRepSampleIndex(o_winInt, o_unpaddedSize,
+						  info.frames, o_arr[i]);
 		printf("onset at sample: %d, time: %d, and block: %d\n",
-		       (*onsets)[i],
-		       (int)((*onsets)[i] * (1000.0/info.samplerate)),
+		       o_arr[i], (int)(o_arr[i] * (1000.0/info.samplerate)),
 		       repWinIndex(o_winInt, o_unpaddedSize, info.frames,
-				   (*onsets)[i]));
+				   o_arr[i]));
 	}
 
 	return o_size;
 }
 
 int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
-		   int p_size, int* onsets, int onset_size, int* activityRanges,
-		   int aR_size, audioInfo info, int p_unpaddedSize, int p_winInt)
+		   int p_size, intList* onsets, int onset_size,
+		   int* activityRanges, int aR_size, audioInfo info,
+		   int p_unpaddedSize, int p_winInt)
 {
 	//int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
 	//			     aR_size, noteRanges, info.samplerate);
@@ -312,7 +327,7 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 
 	(*noteRanges) = malloc(sizeof(int) * onset_size);
 	for(int i = 0; i < onset_size; i++){
-		(*noteRanges)[i] = onsets[i];
+		(*noteRanges)[i] = onsets->array[i];
 	}
 	int nR_size = onset_size;
 

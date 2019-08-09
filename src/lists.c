@@ -154,16 +154,17 @@ void orderedListPrint(struct orderedList list)
 		return list->array[index];                                  \
 	}                                                                   \
 	                                                                    \
-	void ARR_NAME ## Shrink (ARR_NAME * list)                           \
+	int ARR_NAME ## Shrink (ARR_NAME * list)                            \
 	{                                                                   \
 		/* shrinks capacity to match length */                      \
 		DTYPE * tmp;                                                \
 		tmp = realloc(list->array, (list->length) * sizeof(DTYPE)); \
 		if (tmp == NULL){                                           \
-			/* we should handle this failure here */            \
+			return 0;                                           \
 		}                                                           \
 		list->array = tmp;                                          \
 		list->capacity = list->length;                              \
+		return 1;                                                   \
 	}                                                                   \
 	                                                                    \
 	int ARR_NAME ## Append (ARR_NAME * list, DTYPE val)                 \
@@ -197,7 +198,7 @@ DYNAMIC_ARR_FUNCTIONS(distinctList, struct distinctCandidate);
 //    distinctList* distinctListCreate(int capacity, int max_capacity)
 //    void distinctListDestroy(distinctList *list)
 //    struct distinctCandidate distinctListGet(distinctList *list, int index)
-//    void distinctListResize(distinctList *list)
+//    int distinctListShrink(distinctList *list)
 //    int distinctListAppend(distinctList *list, struct distinctCandidate val)
 
 
@@ -270,7 +271,7 @@ DYNAMIC_ARR_FUNCTIONS(intList, int);
 //    intList* intListCreate(int capacity, int max_capacity)
 //    void intListDestroy(intList *list)
 //    int intListGet(intList *list, int index)
-//    void intListResize(intList *list)
+//    int intListShrink(intList *list)
 //    int intListAppend(intList *list, int val)
 
 /*

@@ -1,5 +1,6 @@
 #include "fftw3.h"
 #include "melodyextraction.h"
+#include "lists.h"
 
 
 float* WindowFunction(int size);
@@ -14,11 +15,12 @@ int ExtractPitch(float** input, float** pitches, audioInfo info,
 int ExtractSilence(float** input, int** activityRanges, audioInfo info,
 		   int s_winSize, int s_winInt, int s_mode,
 		   SilenceStrategyFunc silenceStrategy);
-int ExtractOnset(float** input, int** onsets, audioInfo info, int o_unpaddedSize, int o_winSize, 
+int ExtractOnset(float** input, intList* onsets, audioInfo info, int o_unpaddedSize, int o_winSize, 
                   int o_winInt, OnsetStrategyFunc onsetStrategy, int verbose);
 int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
-		   int p_size, int* onsets, int onset_size, int* activityRanges,
-		   int aR_size, audioInfo info, int p_unpaddedSize, int p_winInt);
+		   int p_size, intList* onsets, int onset_size,
+		   int* activityRanges, int aR_size, audioInfo info,
+		   int p_unpaddedSize, int p_winInt);
 int FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi, int tuning);
 int STFT_r2c(float** input, audioInfo info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data);
 int STFTinverse_c2r(fftwf_complex** input, audioInfo info, int winSize, int interval, float** output);

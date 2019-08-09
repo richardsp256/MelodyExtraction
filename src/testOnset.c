@@ -8,6 +8,8 @@
 #include <math.h>
 #include <float.h>
 
+#include "testOnset.h"
+
 //wmin set to 4 (20ms)
 //wmax set to 500 (2.5s)
 //based on correntropy hopsize h being 5ms
@@ -77,24 +79,8 @@ float FitnessOffset(float* kernel, float* window, int start, int len)
 	return sum/len;
 }
 
-//adds [value] to [transients] at index [index]. if the index is out of bounds, resize the array.
-void AddTransientAt(int** transients, int* size, int value, int index ){
-	if(index >= (*size)){ //out of space in transients array
-		(*size) *= 2;
-		int* temp = realloc((*transients),(*size)*sizeof(int));
-		if(temp != NULL){
-			(*transients) = temp;
-		} else { //realloc failed
-			free(*transients);
-			(*size) = -1;
-			return;
-		}
-	}
-	(*transients)[index] = value;
-}
-
 //populates transients, which will hold indices of onsets and offsets in detection_func
-int detectTransients(int** transients, float* detection_func, int len){
+int detectTransients(intList* transients, float* detection_func, int len){
 	int minkernel = 4;
 	int maxkernel = 1500;
 
@@ -105,8 +91,6 @@ int detectTransients(int** transients, float* detection_func, int len){
 
 	printf("kernel made\n");
 
-	int transients_capacity = 20; //initial size for onsets array. we will realloc for more space as needed
-	int transient_index = 0;
 	int detect_index = 0;
 	int tmpMax = 0;
 	int lastpossibleStart = len-8; //last possible starting index bc notes are at least 8 indices for onset+offset.
@@ -117,8 +101,6 @@ int detectTransients(int** transients, float* detection_func, int len){
 
 	float curFitness;
 	int i;
-
-	(*transients) = malloc(transients_capacity * sizeof(int));
 
 	while(detect_index < lastpossibleStart){
 
@@ -142,14 +124,11 @@ int detectTransients(int** transients, float* detection_func, int len){
 		}
 
 		//printf("    ONSET   FITNESS:  %f  AT INDEX:  %d   AT TIME:  %f\n", bestFitness, bestInd, detect_index/200.0f);
-		AddTransientAt(transients, &transients_capacity, detect_index, transient_index);
-		if(transients_capacity == -1){ //resize failed
+		if(intListAppend(transients, detect_index) != 1){
 			printf("Resizing transients failed. Exitting.\n");
 			freeKernels(Kernels, numKernels);
-			free(*transients);
 			return -1;
 		}
-		transient_index += 1;
 
 		bestFitness = FLT_MAX;
 		bestInd = 0;
@@ -164,39 +143,33 @@ int detectTransients(int** transients, float* detection_func, int len){
 		detect_index += bestInd;
 
 		//printf("    OFFSET   FITNESS:  %f  AT INDEX:  %d   AT TIME:  %f\n", bestFitness, bestInd, detect_index/200.0f);
-		AddTransientAt(transients, &transients_capacity, detect_index, transient_index);
-		if(transients_capacity == -1){ //resize failed
+		if(intListAppend(transients, detect_index) != 1){
 			printf("Resizing transients failed. Exitting.\n");
 			freeKernels(Kernels, numKernels);
-			free(*transients);
 			return -1;
 		}
-		transient_index += 1;
-		
-		//if at end of activity range, jump detect_index forward to start of next range
+		// if at end of activity range, jump detect_index forward to
+		// start of next range
 	}
 
 	freeKernels(Kernels, numKernels);
 
-	//the transient detection algorithm, by its design, will (almost) always have an extra false positive note at the end.
-	//we only go up to transientsLength-2 to remove this note
-	transient_index -= 2;
-	if(transient_index < 0){
-		transient_index = 0;
+	// the transient detection algorithm, by its design, will (almost)
+	// always have an extra false positive note at the end. we only go up
+	// to transients->length-2 to remove this note
+	transients->length -= 2;
+	if(transients->length <= 0){
+		transients->length = 0;
+		// no transients found, do not attempt to shrink here. Unable
+		// to realloc array to size 0
+		return 0;
 	}
 
-	if(transient_index == 0){ //if no transients found, do not realloc here. Unable to realloc array to size 0
-		return transient_index;
-	}
-
-	int* temp = realloc((*transients),transient_index*sizeof(int));
-	if (temp != NULL){
-		(*transients) = temp;
-	} else {
+	if (intListShrink(transients)!=1){
 		printf("Resizing onsets failed. Exitting.\n");
-		free(*transients);
+		// intList was preallocated, we intentionally won't free it
 		return -1;
 	}
 
-	return transient_index;
+	return transients->length;
 }
