@@ -1,4 +1,11 @@
-#include "sndfile.h"
+// Public header file
+// also includes some Library-wide declarations
+
+#ifndef MELODYEXTRACTION_H
+#define MELODYEXTRACTION_H
+
+
+#include <stdint.h> // for int64_t
 #include "pitchStrat.h"
 #include "onsetStrat.h"
 #include "silenceStrat.h"
@@ -22,6 +29,10 @@ struct Midi* GenerateMIDI(int* noteArr, int size, int verbose);
 void freeMidi(struct Midi* midi);
 void SaveMIDI(struct Midi* midi, char* path, int verbose);
 
+typedef struct {
+	int64_t frames;
+	int samplerate;
+} audioInfo;
 
 // like libfvad, libsamplerate, and fftw3, we define an object that we
 // use to actually execute the library
@@ -56,13 +67,11 @@ struct me_settings* me_settings_new();
 void me_settings_free(struct me_settings* inst);
 
 // create an instance of me_data from me_settings
-char* me_data_init(struct me_data** inst, struct me_settings* settings, SF_INFO info);
+char* me_data_init(struct me_data** inst, struct me_settings* settings, audioInfo info);
 
 // destroy me_data
 void me_data_free(struct me_data *inst);
 
+struct Midi* me_process(float **input, audioInfo info, struct me_data *inst);
 
-
-struct Midi* me_process(float **input, SF_INFO info, struct me_data *inst);
-
-int ReadAudioFile(char* inFile, float** buf, SF_INFO* info);
+#endif	/* MELODYEXTRACTION_H */

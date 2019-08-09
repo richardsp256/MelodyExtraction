@@ -8,11 +8,12 @@ libraries. It was tested using fftw-3.3.4, libsndfile-1.0.26, and
 libsamplerate-0.1.9.
 
 This project utilizes Check v0.12.0 for unit testing. Presently, Check
-0.12.0 must be installed to build this project (this needs to be fixed
-in the future).
+0.12.0 is required to build the project, even if tests are not being
+run (This needs to be addressed in future versions). 
 
 INSTALLATION
 ------------
+
 Download and extract FFTW, Libsndfile, libsamplerate, and libfvad to the
 project folder.
 
@@ -74,5 +75,7 @@ Check from the official website.
 
 Shared Library Usage
 --------------------
+
 To make use of the functionallity in this project, include melodyextraction.h
-and tell the compiler to use libmelodyextraction.a
+and tell the compiler to use libmelodyextraction.so. We also make the
+libmelodyextraction_static.a static library available for use.

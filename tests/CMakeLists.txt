@@ -42,5 +42,5 @@ set(DETFUNCTION_TEST_SOURCES
 add_executable(check_gammatone ${GAMMATONE_TEST_SOURCES} ${ARRAY_TEST_SOURCES})
 add_executable(check_detFunction ${DETFUNCTION_TEST_SOURCES}
   ${ARRAY_TEST_SOURCES})
-target_link_libraries(check_gammatone m melodyextraction ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
-target_link_libraries(check_detFunction m melodyextraction ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
+target_link_libraries(check_gammatone m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
+target_link_libraries(check_detFunction m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)

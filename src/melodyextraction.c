@@ -6,7 +6,6 @@
 #include <math.h>
 
 #include "comparison.h"
-#include "sndfile.h"
 #include "pitchStrat.h"
 #include "onsetStrat.h"
 #include "silenceStrat.h"
@@ -24,10 +23,6 @@ OnsetStrategyFunc ONSET_STRATEGY_DEF = &OnsetsDSDetectionStrategy;
 int SILENCE_WINDOW_DEF = 10; //silence window is in ms, not num samples
 int SILENCE_MODE_DEF = 0;
 SilenceStrategyFunc SILENCE_STRATEGY_DEF = &fVADDetectionStrategy;
-
-char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
-char* ERR_FILE_NOT_MONO = "Input file must be Mono."
-                          " Multi-channel audio currently not supported.\n";
 
 int msToFrames(int ms, int samplerate){
 	return (samplerate * ms) / 1000; //integer division
@@ -86,7 +81,7 @@ struct me_data{
 };
 
 
-char* me_data_init(struct me_data** inst, struct me_settings* settings, SF_INFO info)
+char* me_data_init(struct me_data** inst, struct me_settings* settings, audioInfo info)
 {
 	(*inst) = (struct me_data*) calloc(1, sizeof(struct me_data));
 
@@ -311,27 +306,7 @@ void me_settings_free(struct me_settings* inst)
 	free(inst);
 }
 
-int ReadAudioFile(char* inFile, float** buf, SF_INFO* info)
-{
-	SNDFILE * f = sf_open(inFile, SFM_READ, info);
-	if( !f ){
-		printf("%s", ERR_INVALID_FILE);
-		return 0;
-	}
-	if((*info).channels != 1){
-		printf("%s", ERR_FILE_NOT_MONO);
-		sf_close( f );
-		return 0;
-	}
-
-	(*buf) = malloc( sizeof(float) * (*info).frames);
-	sf_readf_float( f, (*buf), (*info).frames );
-	sf_close( f );
-
-	return 1;
-}
-
-struct Midi* me_process(float **input, SF_INFO info, struct me_data *inst)
+struct Midi* me_process(float **input, audioInfo info, struct me_data *inst)
 {
 	struct Midi* midi = NULL;
 	

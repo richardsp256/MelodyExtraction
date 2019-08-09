@@ -6,6 +6,7 @@
 #include <string.h>
 #include <limits.h>
 #include "melodyextraction.h"
+#include "io_wav.h"
 
 /* Usage is as follows:
  * mandatory args:
@@ -160,10 +161,10 @@ int main(int argc, char ** argv)
 
 	if(!badargs){
 
-		SF_INFO info;
+		audioInfo info;
 
 		float* input;
-		if (!ReadAudioFile(inFile, &input, &info)){
+		if (!ReadAudioFile(inFile, &input, &info, settings->verbose)){
 			return 0;
 		}
 

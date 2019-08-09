@@ -5,7 +5,7 @@
 #include <limits.h>
 #include <assert.h>
 #include <string.h>
-#include "sndfile.h"
+
 #include "fftw3.h"
 #include "comparison.h"
 #include "midi.h"
@@ -15,17 +15,6 @@
 #include "winSampleConv.h"
 #include "noteCompilation.h"
 #include "tuningAdjustment.h"
-
-void PrintAudioMetadata(SF_INFO * file)
-{
-	//this is only for printing information for debugging purposes
-	printf("Frames:\t%ld\n", file->frames); 
-	printf("Sample rate:\t%d\n", file->samplerate);
-	printf("Channels: \t%d\n", file->channels);
-	printf("Format: \t%d\n", file->format);
-	printf("Sections: \t%d\n", file->sections);
-	printf("Seekable: \t%d\n", file->seekable);
-}
 
 float* WindowFunction(int size)
 {
@@ -39,15 +28,12 @@ float* WindowFunction(int size)
 	return buffer;
 }
 
-struct Midi* ExtractMelody(float** input, SF_INFO info,
+struct Midi* ExtractMelody(float** input, audioInfo info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int o_unpaddedSize, int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
 		int s_winSize, int s_winInt, int s_mode, SilenceStrategyFunc silenceStrategy,
 		int hpsOvr, int tuning, int verbose, char* prefix)
-{ 
-	if(verbose){
-		PrintAudioMetadata(&info);
-	}
+{
 
 	if(verbose){
 		printf("ARGS:\n");
@@ -191,7 +177,7 @@ struct Midi* ExtractMelody(float** input, SF_INFO info,
 	return midi;
 }
 
-int ExtractPitch(float** input, float** pitches, SF_INFO info,
+int ExtractPitch(float** input, float** pitches, audioInfo info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int hpsOvr, int verbose, char* prefix)
 {
@@ -254,7 +240,7 @@ int ExtractPitch(float** input, float** pitches, SF_INFO info,
 	return p_numBlocks;
 }
 
-int ExtractSilence(float** input, int** activityRanges, SF_INFO info,
+int ExtractSilence(float** input, int** activityRanges, audioInfo info,
 		   int s_winSize, int s_winInt, int s_mode,
 		   SilenceStrategyFunc silenceStrategy){
 	int a_size = silenceStrategy(input, info.frames, s_winSize, s_winInt,
@@ -275,7 +261,7 @@ int ExtractSilence(float** input, int** activityRanges, SF_INFO info,
 	return a_size;
 }
 
-int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, int o_winSize, 
+int ExtractOnset(float** input, int** onsets, audioInfo info, int o_unpaddedSize, int o_winSize, 
                   int o_winInt, OnsetStrategyFunc onsetStrategy, int verbose)
 {
 	fftwf_complex* o_fftData = NULL;
@@ -316,7 +302,7 @@ int ExtractOnset(float** input, int** onsets, SF_INFO info, int o_unpaddedSize, 
 
 int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 		   int p_size, int* onsets, int onset_size, int* activityRanges,
-		   int aR_size, SF_INFO info, int p_unpaddedSize, int p_winInt)
+		   int aR_size, audioInfo info, int p_unpaddedSize, int p_winInt)
 {
 	//int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
 	//			     aR_size, noteRanges, info.samplerate);
@@ -414,7 +400,7 @@ int FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi, int tuning)
 }		
 
 //reads in .wav, returns FFT by reference through fft_data, returns size of fft_data
-int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data)
+int STFT_r2c(float** input, audioInfo info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data)
 {
 	//printf("\n\ninput size %ld\nsamplerate %d\nunpadded %d\npadded %d\ninterval %d\n", info.frames, info.samplerate, unpaddedSize, winSize, interval);
 	//fflush(NULL);
@@ -490,7 +476,7 @@ int STFT_r2c(float** input, SF_INFO info, int unpaddedSize, int winSize, int int
 	return numBlocks * realWinSize;
 }
 
-int STFTinverse_c2r(fftwf_complex** input, SF_INFO info, int winSize, int interval, float** output)
+int STFTinverse_c2r(fftwf_complex** input, audioInfo info, int winSize, int interval, float** output)
 {
 	//length of input is numBlocks * (winSize/2 + 1)
     int i;
@@ -559,68 +545,6 @@ float* Magnitude(fftwf_complex* arr, int size)
 		}
 	}
 	return magArr;
-}
-
-
-
-void SaveAsWav(const double* audio, SF_INFO info, const char* path) {
-	FILE* file = fopen(path, "wb");
-	
-	//Encode samples to 16 bit
-	short* samples = (short*)malloc(info.frames* sizeof(short));
-	unsigned int i;
-	short max = -10000;
-	int maxloc = 0;
-	short min = 10000;
-	int minloc = 0;
-	for (i = 0; i < info.frames; ++i) {
-		samples[i] = htole16(fmin(fmax(audio[i], -1), 1) * SHRT_MAX);
-		if(samples[i] > max){
-			max = samples[i];
-			maxloc = i;
-		}
-		if(samples[i] < min){
-			min = samples[i];
-			minloc = i;
-		}
-	}
-
-	printf("\tmax: %d at %d\tmin: %d at %d\n", max, maxloc, min, minloc);
-	
-	//Heaader chunk
-	fprintf(file, "RIFF");
-	unsigned int chunksize = htole32((info.frames * sizeof(short)) + 36);
-	fwrite(&chunksize, sizeof(chunksize), 1, file);
-	fprintf(file, "WAVE");
-	
-	//Format chunk
-	fprintf(file, "fmt ");
-	unsigned int fmtchunksize = htole32(16);
-	fwrite(&fmtchunksize, sizeof(fmtchunksize), 1, file);
-	unsigned short audioformat = htole16(1);
-	fwrite(&audioformat, sizeof(audioformat), 1, file);
-	unsigned short numchannels = htole16(1);
-	fwrite(&numchannels, sizeof(numchannels), 1, file);
-	unsigned int samplerate = htole32(info.samplerate);
-	fwrite(&samplerate, sizeof(samplerate), 1, file);
-	unsigned int byterate = htole32(samplerate * numchannels * sizeof(short));
-	fwrite(&byterate, sizeof(byterate), 1, file);
-	unsigned short blockalign = htole16(numchannels * sizeof(short));
-	fwrite(&blockalign, sizeof(blockalign), 1, file);
-	unsigned short bitspersample = htole16(sizeof(short) * CHAR_BIT);
-	fwrite(&bitspersample, sizeof(bitspersample), 1, file);
-	
-	//Data chunk
-	fprintf(file, "data");
-	unsigned int datachunksize = htole32(info.frames * sizeof(short));
-	fwrite(&datachunksize, sizeof(datachunksize), 1, file);
-	fwrite(samples, sizeof(short), info.frames, file);
-	
-	//Free encoded samples
-	free(samples);
-	
-	//Close the file
-	fclose(file);
 }
 
 void SaveWeightsTxt(char* fileName, float** AudioData, int size, int dftBlocksize, int samplerate, int unpaddedSize, int winSize){
