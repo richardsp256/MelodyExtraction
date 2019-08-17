@@ -101,7 +101,7 @@ int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize,
 	samplerate = 11025;
 	float* ResampledAudio = NULL;
 	float sampleRatio = samplerate/((float)samplerateOld);
-	int RALength = Resample(AudioData, size, sampleRatio, &ResampledAudio);
+	int RALength = ResampleAndAlloc(AudioData, size, sampleRatio, &ResampledAudio);
 	if(RALength == -1){
 		return -1;
 	}

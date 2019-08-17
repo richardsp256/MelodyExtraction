@@ -243,7 +243,7 @@ void sosGammatone(float* data, float** output, float centralFreq,
 	int doubled_length,result_length,i;
 	// first we do data doubling - to avoid aliasing
 	fdoubled = NULL;
-	doubled_length = Resample(&data, datalen, 2, &fdoubled);
+	doubled_length = ResampleAndAlloc(&data, datalen, 2, &fdoubled);
 	if (doubled_length == (2*datalen-1)){
 		fdoubled[doubled_length] = 0;
 		doubled_length++;
@@ -281,7 +281,7 @@ void sosGammatone(float* data, float** output, float centralFreq,
 	free(dresult);
 
 	/* finally we downsample back down to the starting frequency */
-	result_length = Resample(&fresult, doubled_length, 0.5,
+	result_length = ResampleAndAlloc(&fresult, doubled_length, 0.5,
 				    output);
 	if (result_length == (datalen-1)){
 		(*output)[result_length]=0;
