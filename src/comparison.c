@@ -79,6 +79,14 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	//      depend on onset strategy)
 	intList* onsets = intListCreate(20, 0);
 
+
+	// Commenting the following out was part of a quick and dirty solution
+	// to call the TransientDetectionStrategy. To call this strategy, more
+	// correctly (via ExtractOnset), will require some refactoring of the
+	// ExtractOnset function. We need to make the onsetStrategy take it's
+	// own Short Time Fourier Transform, if necessary. Also the
+	// onsetStrategy should probably indicate whether or not offsets are in
+	// the output
 	//int o_size = ExtractOnset(input, &onsets, info, o_unpaddedSize, o_winSize, o_winInt, 
 	//             onsetStrategy, verbose);
 
@@ -170,7 +178,6 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	printf("printout complete\n");
 	fflush(NULL);
 
-	//todo: restructure generateMidi function to also take noteRanges
 	struct Midi* midi = GenerateMIDIFromNotes(melodyMidi, noteRanges,
 				     num_notes, info.samplerate, verbose);
 
@@ -319,17 +326,22 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 		   int* activityRanges, int aR_size, audioInfo info,
 		   int p_unpaddedSize, int p_winInt)
 {
-	//int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
-	//			     aR_size, noteRanges, info.samplerate);
-	//if(nR_size == -1){
-	//	return -1;
-	//}
 
+	// Quick and dirty method to allow us to use the full note ranges
+	// returned by TransientDetectionStrategy. In the future, we should
+	// extend calcNoteRanges to accept an intList of transients that always
+	// includes onsets and optionally includes offsets
 	(*noteRanges) = malloc(sizeof(int) * onset_size);
 	for(int i = 0; i < onset_size; i++){
 		(*noteRanges)[i] = onsets->array[i];
 	}
 	int nR_size = onset_size;
+	
+	//int nR_size = calcNoteRanges(onsets, onset_size, activityRanges,
+	//			     aR_size, noteRanges, info.samplerate);
+	//if(nR_size == -1){
+	//	return -1;
+	//}
 
 	int nF_size = assignNotePitches(pitches, p_size, *noteRanges, nR_size,
 					p_winInt, p_unpaddedSize, info.frames,

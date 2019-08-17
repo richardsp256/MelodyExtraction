@@ -9,6 +9,7 @@
 #include <float.h>
 
 #include "testOnset.h"
+#include "simpleDetFunc.h"
 
 //wmin set to 4 (20ms)
 //wmax set to 500 (2.5s)
@@ -79,8 +80,35 @@ float FitnessOffset(float* kernel, float* window, int start, int len)
 	return sum/len;
 }
 
+
+void normalizeDetFunction(float ** detFunction, int length)
+{
+	float maxVal = -FLT_MAX;
+	for(int i = 0; i < length; ++i){
+		if(fabs((*detFunction)[i]) > maxVal){
+			maxVal = fabs((*detFunction)[i]);
+		}
+	}
+	//printf("maxVal: %f\n", maxVal);
+
+	// instead of normalizing detfunction between -1 and 1, we normalize
+	// between -6.666 and 6.666, as each kernel we compare to ranges
+	// between +/- 6.666 (more precisly, +/- 1/0.15)
+	maxVal = maxVal / 6.666f;
+	for(int i = 0; i < length; ++i){
+		(*detFunction)[i] = (*detFunction)[i] / maxVal;
+		//printf("    index %d, time %f,     %f\n", i, i/200.0f, (*detFunction)[i]);
+	}
+}
+
 //populates transients, which will hold indices of onsets and offsets in detection_func
-int detectTransients(intList* transients, float* detection_func, int len){
+int detectTransients(float* detection_func, int len, intList* transients){
+
+	// normalize the detection function so that values lie between -1 and 1
+	// (unclear if this is necessary)
+	// also divides 0.15 by all values
+	normalizeDetFunction(&detection_func, len);
+	
 	int minkernel = 4;
 	int maxkernel = 1500;
 
@@ -172,4 +200,58 @@ int detectTransients(intList* transients, float* detection_func, int len){
 	}
 
 	return transients->length;
+}
+
+int pairwiseTransientDetection(float *audioData, int size, int samplerate,
+			       intList* transients){
+
+	// use parameters suggested by paper
+	int numChannels = 64;
+	float minFreq = 80.f; // 80 Hz
+	float maxFreq = 4000.f; // 4000 Hz 
+	int correntropyWinSize = samplerate/80; // assumes minFreq=80
+	int interval = samplerate/200; // 5ms
+	float scaleFactor = powf(4./3.,0.2); // magic, grants three wishes
+	int sigWindowSize = (samplerate*7); // 7s
+
+	// allocate the detectionFunction
+	int detectionFunctionLength =
+		computeDetFunctionLength(size, correntropyWinSize, interval);
+	float* detectionFunction = malloc(sizeof(float) *
+					  detectionFunctionLength);
+
+	// compute the detectionFunction
+	if (1 != simpleDetFunctionCalculation(correntropyWinSize, interval,
+					      scaleFactor, sigWindowSize,
+					      numChannels, minFreq, maxFreq,
+					      samplerate, size, audioData,
+					      detectionFunctionLength,
+					      detectionFunction)){
+		free(detectionFunction);
+		return -1;
+	}
+
+	printf("detect func computed\n");
+
+	// idendify the transients
+	int transientsLength = detectTransients(detectionFunction,
+						detectionFunctionLength,
+						transients);
+
+	if(transientsLength == -1){
+		printf("detectTransients failed\n");
+		free(detectionFunction);
+		return -1;
+	}
+
+	printf("transients created\n");
+
+	// convert transients so that the values are not the indices of
+	// detectionFunction, but corresponds to the frame of audioData
+	int* t_arr = transients->array;
+	for(int i = 0; i < transientsLength; ++i){
+		t_arr[i] = t_arr[i] * interval;
+	}
+
+	return transientsLength;
 }

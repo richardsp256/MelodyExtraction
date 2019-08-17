@@ -321,21 +321,35 @@ void simpleComputePSM(int numChannels, float* data, float **buffer,
 	printf("  average time: %f\n", (averageTime*1000) / numChannels);
 }
 
+int computeNumWindows(int dataLength, int correntropyWinSize, int interval)
+{
+	int numWindows = (int)ceil((dataLength - correntropyWinSize)/
+				   (float)interval) + 1;
+	return numWindows;
+}
+
+int computeDetFunctionLength(int dataLength, int correntropyWinSize,
+			     int interval)
+{
+	return computeNumWindows(dataLength, correntropyWinSize, interval) - 1;
+}
+
 int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 				 float scaleFactor, int sigWindowSize,
-				 int sampleRate, int numChannels,
-				 float minFreq, float maxFreq,
-				 float* data, int dataLength,
-				 float** detFunction)
+				 int numChannels, float minFreq, float maxFreq,
+				 int sampleRate, int dataLength, float* data,
+				 int detFunctionLength, float* detFunction)
 {
 
 	int dFLength,numWindows,bufferLength,i,startIndex;
 	float *pooledSummaryMatrix, *sigmas, *centralFreq, *buffer;
 
-	numWindows = (int)ceil((dataLength - correntropyWinSize)/
-			       (float)interval) + 1;
+	numWindows = computeNumWindows(dataLength, correntropyWinSize,
+				       interval);
 	printf("datalen: %d, numWindows: %d\n", dataLength, numWindows);
-	dFLength = numWindows - 1;
+	if (detFunctionLength != (numWindows-1)){
+		return -1;
+	}
 
 	/* for simplicity, we are just going pad the buffer with some extra 
 	 * zeros at the end so that we don't need to specially treat the 
@@ -368,93 +382,11 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 
 	free(sigmas);
 	free(buffer);
-	(*detFunction) = malloc(sizeof(float)*dFLength);
-	for (i = 0; i<dFLength; i++){
-		(*detFunction)[i] = (pooledSummaryMatrix[i+1]
-				     - pooledSummaryMatrix[i]);
+	for (i = 0; i<detFunctionLength; i++){
+		detFunction[i] = (pooledSummaryMatrix[i+1]
+				  - pooledSummaryMatrix[i]);
 	}
 	free(pooledSummaryMatrix);
 	free(centralFreq);
-	return dFLength;
-}
-
-
-/* Defining a function to generate an array of randomly distributed values for 
-   testing*/
-
-/*float uniform_rand_inclusive(){
-	// returns a random number with uniform distribution in [0,1]
-	return ((float)rand() - 1.0)/((float)RAND_MAX-2.0);
-}
-
-void pos_rand_double_norm(float mu, float sigma, float* x, float* y){
-	// Generate 2 random numbers in normal distribution. 
-	// For the random distribution, use the polar form of the Box–Muller 
-	// transform described on 
-	// https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform 
-	// According to the page:
-	// - the basic formula gives returns values from the standard normal 
-	// distribution where mu = 0 (mean) & sigma = 1 (standard deviation) 
-	// - to achieve a normal distribution, multiply the generated number by 
-	// sigma and then add mu
-	float s, u, v;
-
-	s = 0.0;
-	while(s == 0.0 || s >= 1.0) {
-		v = uniform_rand_inclusive() * 2.0 - 1.0;
-		u = uniform_rand_inclusive() * 2.0 - 1.0;
-		s = v*v + u*u;
-	}
-
-	*x = sigma*u * sqrtf((-2.0 * logf(s))/s) + mu;
-	*y = sigma*v * sqrtf((-2.0 * logf(s))/s) + mu;
-}
-
-float* normal_distribution_array(int length, float mu, float sigma){
-	float *out,t1,t2;
-	int i;
-
-	out = malloc(sizeof(float)*length);
-
-	for (i=0;i<length;i++){
-		pos_rand_double_norm(mu, sigma, &t1, &t2);
-		out[i] = t1;
-		i++;
-		if (i<length){
-			out[i] = t2;
-		}
-	}
-	return out;
-}
-
-int main(int argc, char *argv[]){
-	float *array;
-	int length, sampleRate;
-
-	sampleRate = 11025;
-	length = 7*sampleRate;
-
-	//set the seed
-	srand(341535264);
-	array = normal_distribution_array(length, 0.0, 1.0);
-	printf("Constructed Array\n");
-
-	clock_t c1 = clock();
-
-	float* detectionFunc = NULL;
-	int detectionFuncLength = simpleDetFunctionCalculation(137, 55, powf(4./3.,0.2), 1403,
-				     sampleRate, 64,
-				     80, 4000,
-				     array, length,
-				     &detectionFunc);
-
-	clock_t c2 = clock();
-
-	float elapsed = ((float)(c2-c1))/CLOCKS_PER_SEC;
-	printf("elapsed = %e\n",(elapsed/1000.f));
-	
-	free(array);
-	free(detectionFunc);
 	return 1;
 }
-*/

@@ -87,30 +87,16 @@ int OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, int
 	return onsets->length;
 }
 
-void normalizeDetFunction(float ** detFunction, int length)
-{
-	float maxVal = -FLT_MAX;
-	for(int i = 0; i < length; ++i){
-		if(fabs((*detFunction)[i]) > maxVal){
-			maxVal = fabs((*detFunction)[i]);
-		}
-	}
-	//printf("maxVal: %f\n", maxVal);
 
-	//instead of normalizing detfunction between -1 and 1, we normalize between -6.666 and 6.666, 
-	//as each kernel we compare to ranges between +/- 6.666 (more precisly, +/- 1/0.15)
-	maxVal = maxVal / 6.666f;
-	for(int i = 0; i < length; ++i){
-		(*detFunction)[i] = (*detFunction)[i] / maxVal;
-		//printf("    index %d, time %f,     %f\n", i, i/200.0f, (*detFunction)[i]);
-	}
-}
-
-int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize, int samplerate, intList* onsets)
+// Note: This function signature is a little hacky. DftBlocksize is never used
+// and onsets contains all transients (including onsets and offsets)
+// May want to rename this something like "PairwiseTransientStrategy"
+int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize,
+			       int samplerate, intList* onsets)
 {
 	printf("in transientDetectionStrategy\n");
 
-	//1. downsample audiodata to 11025 using libsamplerate
+	//downsample audiodata to 11025 using libsamplerate
 	int samplerateOld = samplerate;
 	samplerate = 11025;
 	float* ResampledAudio = NULL;
@@ -122,62 +108,20 @@ int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize, in
 
 	printf("resample complete\n");
 
+	int transientsLength = 
+		pairwiseTransientDetection(ResampledAudio, RALength,
+					   samplerate, onsets);
 
-	// 2+3 generate Detection Function from Gammatone Filter Bank
-
-	// numchannels of gammatone filter. should always be 64
-	int numChannels = 64;
-	// min freq for ERB to determine central freqs of gammatone channels
-	float minFreq = 80;
-	// max freq for ERB to determine central freqs of gammatone channels
-	float maxFreq = 4000;
-	// length of the correntropy window. According to the paper, if
-	// minFreq = 80 Hz, set to samplerate/80 
-	int correntropyWinSize = samplerate/80;
-	// hopsize, h, for detect func, in samples. Paper says 5ms
-	// (samplerate/200). Assumed to be same as interval h where sigma is
-	// optimized. 
-	int interval = samplerate/200;
-	// magic, grants three wishes
-	float scaleFactor = powf(4./3.,0.2);
-	// window size for sigma optimizer in numbers of samples. Paper suggests
-	// 7s.
-	int sigWindowSize = (samplerate*7);
-
-	float* detectionFunction = NULL;
-	int detectionFunctionLength =
-		simpleDetFunctionCalculation(correntropyWinSize, interval,
-					     scaleFactor, sigWindowSize,
-					     samplerate, numChannels, minFreq,
-					     maxFreq, ResampledAudio, RALength,
-					     &detectionFunction);
-
-	printf("detect func created\n");
-
-	normalizeDetFunction(&detectionFunction, detectionFunctionLength);
-
-	//4. generate transients
-	int transientsLength = detectTransients(onsets, detectionFunction,
-						detectionFunctionLength);
-	if(transientsLength == -1){
-		printf("detectTransients failed\n");
+	if(transientsLength <= 0){
 		free(ResampledAudio);
-		free(detectionFunction);
-		return -1;
+		return transientsLength;
 	}
 
-	printf("transients created\n");
-
-	// convert onsets so that the value is not the index of
-	// detectionFunction, but the sample of the original audio it occurred
-	// onsets[i] * interval gives us the sample index in 11025 Hz, then we
-	// convert to the original samplerate first significant frame instead
-	// of first frame is the better way to do it, but do this for now.
+	// convert onsets so that the sample corresponds to the old sample rate
+	// rather than the resampled audio samplerate
 	int* o_arr = onsets->array;
 	for(int i = 0; i < transientsLength; ++i){
-		//with samplerateOld of 44100, equivalent to arr[i] * 220
-		o_arr[i] = (int)(o_arr[i] * interval
-				 * (samplerateOld / (float)samplerate));
+		o_arr[i] *= (int)((samplerateOld / (float)samplerate));
 	}
 
 	for(int k = 0; k < transientsLength; k+=2){
@@ -190,6 +134,5 @@ int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize, in
 
 
 	free(ResampledAudio);
-	free(detectionFunction);
 	return transientsLength;
 }
