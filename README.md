@@ -1,4 +1,4 @@
-This tool is designed to analyze an audio file and output a MIDI 
+This tool is designed to take in an audio file as input and output a MIDI 
 representation of the melodic line.
 
 This is a work-in-progress, with not all components implemented yet.
@@ -50,8 +50,7 @@ in that library's directory.
 
 
 
-The project is built with CMake v3.0 or greater (it can probably be built
-with an earlier version). Build the executable and archived library with 
+CMake 3.x is used to build the project. Earlier versions of CMake are untested. Build the executable and archived library with 
 	
 	cmake .
 	make
@@ -61,7 +60,7 @@ in the project directory.
 Unit Testing
 ------------
 
-After building the project, run tests with
+Run tests on the built project with
 	
 	make test
 
