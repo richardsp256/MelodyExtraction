@@ -47,7 +47,13 @@ master.zip
 # Text editor related files
 *.c~
 *.h~
+*.py~
+*.txt~
 .dir-locals.el
+
+# pymelex related files
+pymelex/pymelex.egg-info/*
+pymelex/pymelex/__pycache__/*
 
 # CMake related files
 CMakeFiles/*

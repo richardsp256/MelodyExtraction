@@ -73,6 +73,18 @@ repository. An older version of Check will be installed and errors will occur
 while building the unit tests (last checked on 12/27/17). Instead, install
 Check from the official website.
 
+pymelex
+-------
+
+We provide a work-in-progress python package called pymelex to wrap the
+library. This package supports python 3 and requires the numpy package. After
+installation of the library, this package can installed with:
+
+	# assuming you are in the root directory
+	cd pymelex
+	pip install -e .
+
+
 Shared Library Usage
 --------------------
 
