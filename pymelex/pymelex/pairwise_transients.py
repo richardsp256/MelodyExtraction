@@ -221,11 +221,7 @@ def compute_detection_function(audio_data, sample_rate,
     if sig_window_size is None:
         # set it to about 7 seconds, and round up to the next largest odd
         # integer
-
-        target_samples = 7 * sample_rate
-        sig_window_size = int(ceil(float(7*sample_rate)/interval))
-        if sig_window_size % 2 == 0:
-            sig_window_size += 1
+        sig_window_size = 7*sample_rate
     assert sig_window_size > 0
     assert scale_factor > 0
 
@@ -273,6 +269,10 @@ def detect_transients(detection_func):
     We added an extra step to this function (not detailed in the paper) in 
     which we normalize the detection function such that it has maximum 
     magnitude of 1.
+
+    We added another extra step in which we dropped the last pair of detected 
+    transients (the algorithm almost always return an extra false positive note 
+    at the end)
     """
     detection_func = np.array(detection_func)
     max_capacity = len(detection_func)

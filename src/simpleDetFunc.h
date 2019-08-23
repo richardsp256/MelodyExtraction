@@ -4,9 +4,10 @@
 /// definitely be improved to be much faster
 ///
 /// \param[in] correntropyWinSize The window size for the calculation of
-///            correntropy. In this implementation, the maximum lag value is
-///            also given by this value. The paper suggests a value of
-///            samplerate/80 if minFreq = 80 Hz
+///            correntropy (specified as a number of audio frames). In this
+///            implementation, the maximum lag value is also given by this
+///            value. The paper suggests a value of samplerate/80 if
+///            minFreq = 80 Hz
 /// \param[in] interval The hopsize, h, used in calculation of detection
 ///            function (specified as a number of audio frames). This is
 ///            assumed to be the same as the interval h for optimizing sigma.
@@ -15,10 +16,8 @@
 /// \param[in] scaleFactor The constant used to estimate the optimized sigma.
 ///            For Silverman's rule of thumb, this is (4./3.)^(1/5)
 /// \param[in] sigWindowSize The size of the window used to compute the
-///            optimized sigma for the kernel. The specified value multiplied
-///            by the interval size gives the window size of in units of audio
-///            frames. The paper suggests a window size of 7s (For a
-///            sampleRate of 11025 Hz and interval of 55, this is ~1403).
+///            optimized sigma for the kernel (specified as a number of audio
+///            frames). The paper suggests a window size of 7s (7*sampleRate).
 /// \param[in] numChannels The number of channels in the FilterBank. This must
 ///            be positive. The paper suggests a value of 64. If set to 1, then
 ///            minFreq and maxFreq must be equal; the filterbank will have 1

@@ -19,6 +19,10 @@
 ///
 /// Note: We added an extra step not detailed in the paper in which we
 /// normalized the detection such that it has maximum magnitude of 1.
+///
+/// Note: We added another extra step in which we dropped the last pair of
+/// detected transients (the algorithm almost always return an extra false
+/// positive note at the end)
 int detectTransients(float* detection_func, int len, intList* transients);
 
 /// Identifies pairs of onsets and offsets from audio data using the algorithm
