@@ -35,24 +35,26 @@ PitchStrategyFunc choosePitchStrategy(char* name)
 	return detectionStrategy;
 }
 
-float* HPSDetectionStrategy(float** AudioData, int size, int dftBlocksize,
-			    int hpsOvr, int fftSize, int samplerate)
+int HPSDetectionStrategy(float* spectrogram, int size, int dftBlocksize,
+			 int hpsOvr, int fftSize, int samplerate,
+			 float *pitches)
 {
-	return HarmonicProductSpectrum(AudioData, size, dftBlocksize, hpsOvr,
-				       fftSize, samplerate);
+	return HarmonicProductSpectrum(&spectrogram, size, dftBlocksize, hpsOvr,
+				       fftSize, samplerate, pitches);
 }
 
-float* BaNaDetectionStrategy(float** AudioData, int size, int dftBlocksize,
-			   int hpsOvr, int fftSize, int samplerate)
+int BaNaDetectionStrategy(float* spectrogram, int size, int dftBlocksize,
+			  int hpsOvr, int fftSize, int samplerate,
+			  float *pitches)
 {
-	return BaNa(AudioData, size, dftBlocksize, 5, 50, 600, 10.0,
-		    fftSize, samplerate, 1);
+	return BaNa(&spectrogram, size, dftBlocksize, 5, 50, 600, 10.0,
+		    fftSize, samplerate, 1, pitches);
 }
 
-float* BaNaMusicDetectionStrategy(float** AudioData, int size,
-				  int dftBlocksize, int hpsOvr, int fftSize,
-				  int samplerate)
+int BaNaMusicDetectionStrategy(float* spectrogram, int size,
+			       int dftBlocksize, int hpsOvr, int fftSize,
+			       int samplerate, float *pitches)
 {
-	return BaNa(AudioData, size, dftBlocksize, 5, 50, 3000, 3.0,
-		    fftSize, samplerate, 0);
+	return BaNa(&spectrogram, size, dftBlocksize, 5, 50, 3000, 3.0,
+		    fftSize, samplerate, 0, pitches);
 }

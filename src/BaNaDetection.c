@@ -13,9 +13,9 @@
 
 // NOTE: modify use of doubles to represent frequency to floats for consistency
 
-float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
-	    float f0Min, float f0Max, float xi, int fftSize, int samplerate,
-	    int first)
+int BaNa(float **AudioData, int size, int dftBlocksize, int p,
+	 float f0Min, float f0Max, float xi, int fftSize, int samplerate,
+	 int first, float *fundamentals)
 {
 	// Implements the BaNa fundamental pitch detection algorithm
 	// This algorithm is split into 3 parts:
@@ -31,7 +31,6 @@ float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
 	// 3. Post-Processing. Selection of F0 from candidates
 
 
-	float *fundamentals;
 	distinctList **windowCandidates;
 	int numBlocks = size / dftBlocksize;
 	long i;
@@ -41,9 +40,9 @@ float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
 	if(frequencies == NULL){
 		printf("malloc error\n");
 		fflush(NULL);
-		return NULL;
+		return 0;
 	}
-	
+
 	// preprocess each of the frames
 	BaNaPreprocessing(AudioData, size, dftBlocksize, p, f0Min, f0Max,
 			  frequencies);
@@ -54,16 +53,16 @@ float* BaNa(float **AudioData, int size, int dftBlocksize, int p,
 					      frequencies, fftSize, samplerate);
 
 	// determine which candidate is the fundamental
-	fundamentals = candidateSelection(windowCandidates, numBlocks);
-	
+	candidateSelection(windowCandidates, numBlocks, fundamentals);
+
 	// clean up
 	for (i=0;i<numBlocks;i++){
 		distinctListDestroy(windowCandidates[i]);
 	}
 	free(windowCandidates);
 	free(frequencies);
-	
-	return fundamentals;
+
+	return 1;
 }
 
 float* calcFrequencies(int dftBlocksize, int fftSize, int samplerate)

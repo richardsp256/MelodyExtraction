@@ -55,10 +55,13 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 		printf("Silence detection complete\n");
 		fflush(NULL);
 	}
-	float* freq;
-	int freqSize = ExtractPitch(input, &freq, info, p_unpaddedSize, p_winSize,
-	                          p_winInt, pitchStrategy, hpsOvr, verbose, prefix);
-	if(freqSize == -1){
+
+	float* freq = NULL;
+	int freqSize = ExtractPitchAndAllocate(input, &freq, info,
+					       p_unpaddedSize, p_winSize,
+					       p_winInt, pitchStrategy,
+					       hpsOvr, verbose, prefix);
+	if(freqSize <=0 ){
 		printf("Pitch detection failed\n");
 		fflush(NULL);
 		free(activityRanges);
@@ -193,16 +196,31 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	return midi;
 }
 
-int ExtractPitch(float** input, float** pitches, audioInfo info,
+// allocates memory for pitches and the computes the value of pitches
+int ExtractPitchAndAllocate(float** input, float** pitches, audioInfo info,
+			    int p_unpaddedSize, int p_winSize, int p_winInt,
+			    PitchStrategyFunc pitchStrategy,
+			    int hpsOvr, int verbose, char* prefix)
+{
+	(*pitches) = malloc(sizeof(float) * NumSTFTBlocks(info, p_unpaddedSize,
+							  p_winInt));
+	if (*pitches == NULL){
+		return -1;
+	}
+	return ExtractPitch(*input, *pitches, info, p_unpaddedSize, p_winSize,
+			    p_winInt, pitchStrategy, hpsOvr, verbose, prefix);
+}
+
+int ExtractPitch(float* input, float* pitches, audioInfo info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int hpsOvr, int verbose, char* prefix)
 {
 	fftwf_complex* p_fftData = NULL;
-	int p_size = STFT_r2c(input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
+	int p_size = STFT_r2c(&input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
 	if(p_size == -1){
 		return -1;
 	}
-	int p_numBlocks = p_size/(p_winSize/2);
+	int p_numBlocks = NumSTFTBlocks(info, p_unpaddedSize, p_winInt);
 	if(verbose){
 		printf("numblcks of pitch FFT: %d\n", p_numBlocks);
 		fflush(NULL);
@@ -237,11 +255,11 @@ int ExtractPitch(float** input, float** pitches, audioInfo info,
 		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
 		free(spectraFile);
 	}
-	
-	(*pitches) = pitchStrategy(&spectrum, p_size, p_winSize/2, hpsOvr,
-					p_winSize, info.samplerate);
-	if((*pitches) == NULL){
-		return -1;
+
+	int result = pitchStrategy(spectrum, p_size, p_winSize/2, hpsOvr,
+				   p_winSize, info.samplerate, pitches);
+	if(result <= 0){
+		return result;
 	}
 
 	if (prefix !=NULL){
@@ -426,6 +444,16 @@ int FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi, int tuning)
 	return num_notes;
 }		
 
+int NumSTFTBlocks(audioInfo info, int unpaddedSize, int interval)
+{
+	int numBlocks = (int)ceil((info.frames - unpaddedSize)
+				  / (float)interval) + 1;
+	if (numBlocks < 1){
+		numBlocks = 1;
+	}
+	return numBlocks;
+}
+
 //reads in .wav, returns FFT by reference through fft_data, returns size of fft_data
 int STFT_r2c(float** input, audioInfo info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data)
 {
@@ -435,10 +463,7 @@ int STFT_r2c(float** input, audioInfo info, int unpaddedSize, int winSize, int i
     int j;
 
     //malloc space for result fft_data
-	int numBlocks = (int)ceil((info.frames - unpaddedSize) / (float)interval) + 1;
-	if(numBlocks < 1){
-		numBlocks = 1;
-	}
+	int numBlocks = NumSTFTBlocks(info, unpaddedSize, interval);
 	//printf("numblocks %d\n", numBlocks);
 	//fflush(NULL);
 

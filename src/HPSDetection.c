@@ -4,7 +4,7 @@
 #include <float.h>
 #include "HPSDetection.h"
 
-float* HarmonicProductSpectrum(float** AudioData, int size, int dftBlocksize, int hpsOvr, int fftSize, int samplerate)
+int HarmonicProductSpectrum(float** AudioData, int size, int dftBlocksize, int hpsOvr, int fftSize, int samplerate, float*loudestFreq)
 {
 	//for now, doesn't attempt to distinguish if a note is or isnt playing.
 	//if no note is playing, the dominant tone will just be from the noise.
@@ -13,9 +13,10 @@ float* HarmonicProductSpectrum(float** AudioData, int size, int dftBlocksize, in
 	float loudestOfBlock;
 	int loudestIndex = -1;
 	assert(size % dftBlocksize == 0);
+
+	// numBlocks is the length of loudestFreq
 	numBlocks = size / dftBlocksize;
 
-	float* loudestFreq = malloc( sizeof(float) * numBlocks );
 
 	//create a copy of AudioData
 	float* AudioDataCopy = malloc( sizeof(float) * dftBlocksize );
@@ -49,7 +50,7 @@ float* HarmonicProductSpectrum(float** AudioData, int size, int dftBlocksize, in
 
 	free(AudioDataCopy);
 
-	return loudestFreq;
+	return 1;
 }
 
 float BinToFreq(int bin, int fftSize, int samplerate){

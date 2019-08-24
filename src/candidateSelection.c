@@ -14,12 +14,11 @@ float costFunction(struct distinctCandidate cand1,
 	return (float)fabs(log(cand1.frequency/cand2.frequency)/log(2.0))+(0.4/(double)cand1.confidence);
 }
 
-float* candidateSelection(distinctList **windowList, long length)
+void candidateSelection(distinctList **windowList, long length,
+			float *fundamentals)
 {
 	// selects the candidates that represent the fundamentals
 	// finds blocks of candidates, and passes it to candidateSelectionSegment
-
-	float *fundamentals = malloc(sizeof(float)*length);
 
 	long i=0;
 	long start = -1;
@@ -62,7 +61,6 @@ float* candidateSelection(distinctList **windowList, long length)
 			end = -1;
 		}
 	}
-	return fundamentals;
 }
 
 void candidateSelectionSegment(float* fundamentals, distinctList **windowList,
