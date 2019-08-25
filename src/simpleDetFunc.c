@@ -290,9 +290,9 @@ void simpleComputePSM(int numChannels, float* data, float **buffer,
 		clock_t c1 = clock();
 
 		//printf("compute channel %d...\n", i);
-		//sosGammatone(data, buffer, centralFreq[i], sampleRate,
+		//sosGammatone(data, *buffer, centralFreq[i], sampleRate,
 		//	       dataLength);
-		sosGammatoneFast(data, buffer, centralFreq[i], sampleRate,
+		sosGammatoneFast(data, *buffer, centralFreq[i], sampleRate,
 			       dataLength);
 
 		clock_t c2 = clock();

@@ -6,14 +6,6 @@
 #include "resample.h"
 
 
-/* MA note: I don't know a lot about Impulse Response Filtering, but going off 
- * my previous experience using filtering in image processing, I assume that 
- * to apply a gammatone impules filter one convolves the impulse response with 
- * the input signal. The above function does not do that. Applying that seems 
- * really, costly so I might not know what I am talking about. Below I attempt 
- * to implement a version taken from a paper*/
-
-
 
 /* We are implementing the biquad filter with a Direct Form II Transposed 
  * Structure (this structure seems to be fairly standard for implementing 
@@ -189,54 +181,17 @@ void sosCoef(float centralFreq, int samplerate, double *coef)
  * It is maintained separately for testing. It does not upsample, downsample, 
  * or convert two and from floats 
  */
-void sosGammatoneHelper(double* data, double** output, float centralFreq,
+void sosGammatoneHelper(double* data, double* output, float centralFreq,
 			    int samplerate, int datalen)
 {
-	double *coef = malloc(sizeof(double)*24);
+	double coef[24];
 	sosCoef(centralFreq, samplerate, coef);
-	cascadeBiquad(4, coef, data, (*output), datalen);
-	free(coef);
+	cascadeBiquad(4, coef, data, output, datalen);
 }
 
 
-/* The sosGammatone approximates the gammatone function. 
- *
- * The sos Gammatone Filter is described by Slaney 1993:
- *    https://engineering.purdue.edu/~malcolm/apple/tr35/PattersonsEar.pdf
- * Our entire implementation is based on his description (It is implemented 
- * using a cascade of 4 biquad filters or using 4 second order sections - sos).
- *
- * Need to be careful about sampling rate. We can definitely run into aliasing 
- * problems due to the Nyquist Frequency being close to the highest central 
- * frequency depending on the input. For now we will just upsample and 
- * downsample like with the naiveGammatone function (not exactly right, but 
- * close).
- *
- * To start with, this is implemented using doubles - we can probably make this 
- * work on floats but we need to be careful as precision does matter.
- *
- * This function can certainly be optimized. Currently the cascade filter calls 
- * the biquadFilter 4 times meaning that we iterate over the array 4 times. We 
- * could consolidate that into filtering one time through. We could optimize 
- * the biquadFilter function to expect a0 = 1 (which is standard and would 
- * remove datalen*4 unnecessary multiplications). If we know that we are 
- * definitely using this function, we could also modify our filtering to know 
- * that b2 is always 0 (this would remove datalen*4 unnecessary multiplications
- * and subtractions).
- *
- * Note that in the future, it may be worthwhile to implement a different 
- * approximation of the gammatone function.
- * The All-Pole Gammatone Filter (APGF) is described by Slaney 1993:
- *   https://engineering.purdue.edu/~malcolm/apple/tr35/PattersonsEar.pdf
- * The all-pole Gammatone filter should have better complexity.
- * I believe there is further disccusionabout the filter by Lyon 1996:
- *   http://www.dicklyon.com/tech/Hearing/APGF_Lyon_1996.pdf
- * He also discuses how the One-Zero Gammatone Filter (OZGF) is a 
- * better approximation for a gammatone than the APGF. It is slightly modified 
- * from the APGF.
- */
-void sosGammatone(float* data, float** output, float centralFreq,
-		      int samplerate, int datalen)
+void sosGammatone(float* data, float* output, float centralFreq,
+		  int samplerate, int datalen)
 {
 	double *ddoubled, *dresult;
 	float *fdoubled, *fresult;
@@ -264,7 +219,7 @@ void sosGammatone(float* data, float** output, float centralFreq,
 	dresult = malloc(sizeof(double)*doubled_length);
 
 	// perform filtering
-	sosGammatoneHelper(ddoubled, &dresult, centralFreq,
+	sosGammatoneHelper(ddoubled, dresult, centralFreq,
 			   2*samplerate, doubled_length);
 	// no longer need ddoubled
 	free(ddoubled);
@@ -282,9 +237,9 @@ void sosGammatone(float* data, float** output, float centralFreq,
 
 	/* finally we downsample back down to the starting frequency */
 	result_length = ResampleAndAlloc(&fresult, doubled_length, 0.5,
-				    output);
+					 &output);
 	if (result_length == (datalen-1)){
-		(*output)[result_length]=0;
+		output[result_length]=0;
 		result_length++;
 	}
 	assert((result_length == datalen));
@@ -412,13 +367,12 @@ void sosCoeff(float centralFreq, int samplerate, float* coef)
 	}
 }
 
-void sosGammatoneFast(float* data, float** output, float centralFreq,
-			    int samplerate, int datalen)
+void sosGammatoneFast(float* data, float* output, float centralFreq,
+		      int samplerate, int datalen)
 {
 	//modified sosGammatone that does not double the samplerate and uses floats instead of doubles.
 	//If the loss in accuracy is negligible, we should switch to this as it is significantly faster
-	float *coef = malloc(sizeof(float)*24);
+	float coef[24];
 	sosCoeff(centralFreq, samplerate, coef);
-	cascadeBiquadf(4, coef, data, (*output), datalen);
-	free(coef);
+	cascadeBiquadf(4, coef, data, output, datalen);
 }

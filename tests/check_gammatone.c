@@ -36,7 +36,7 @@ void testSOSGammatoneFramework(float centralFreq, int samplerate,
 				   double tol, int rel, double abs_zero_tol){
 
 	double *result = malloc(sizeof(double)*length);
-	sosGammatoneHelper(input, &result, centralFreq, samplerate, length);
+	sosGammatoneHelper(input, result, centralFreq, samplerate, length);
 	compareArrayEntries(ref, result, length, tol, rel, abs_zero_tol);
 	free(result);
 }
