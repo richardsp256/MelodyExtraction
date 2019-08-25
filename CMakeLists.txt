@@ -154,9 +154,6 @@ set(CONFIG_HEADER ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 # the Check tutorial.
 ###############################################################################
 
-SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
-SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-SET(CMAKE_INSTALL_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/libfvad-master/src/.libs")
 
 # Determine the paths to libraries that should have been installed in the local
 # directory and have names that depend on version numbers:
@@ -238,6 +235,11 @@ IDENTIFY_PATH( FVAD_INC
   "${CMAKE_CURRENT_SOURCE_DIR}/libfvad-master/include" )
 IDENTIFY_PATH( FVAD_LIB
   "${CMAKE_CURRENT_SOURCE_DIR}/libfvad-master/src/.libs" )
+
+
+SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
+SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+SET(CMAKE_INSTALL_RPATH ${FVAD_LIB})
 
 
 INCLUDE_DIRECTORIES(
