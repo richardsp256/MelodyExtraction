@@ -53,7 +53,7 @@ int rollSigmaTestTemplate(int *intInput, int intInputLen, double *dblInput,
 	float *original_sigma = malloc(sizeof(float)*numWindows);
 
 	rollSigma(intInput[0], intInput[1], dblInput[0], intInput[2],
-		  input_length, numWindows, buffer, &original_sigma);
+		  input_length, numWindows, buffer, original_sigma);
 	free(buffer);
 
 	float_to_double_array(original_sigma, numWindows, array);

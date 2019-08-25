@@ -138,7 +138,7 @@ static inline void remove_var(double val, int *nobs, double *mean_x,
 
 void rollSigma(int startIndex, int interval, float scaleFactor,
 	       int sigWindowSize, int dataLength, int numWindows,
-	       float *buffer, float **sigmas)
+	       float *buffer, float *sigmas)
 {
 	int i,j,k,nobs = 0,winStart, winStop, prevStop,prevStart;
 	double mean_x = 0, ssqdm_x = 0;
@@ -186,7 +186,7 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 
 		/* compute sigma */
 		std = sqrtf((float)calc_var(nobs, ssqdm_x));
-		(*sigmas)[i] = (scaleFactor*std/powf((float)nobs,0.2));
+		sigmas[i] = (scaleFactor*std/powf((float)nobs,0.2));
 
 		/* Now we need to advance the window over the interval between  
 		 * the current where we just calculated sigma and the next 
@@ -282,7 +282,7 @@ void pSMContribution(int correntropyWinSize, int interval,
 void simpleComputePSM(int numChannels, float* data, float **buffer,
 		      float *centralFreq, int sampleRate, int dataLength,
 		      int startIndex, int interval, float scaleFactor,
-		      int sigWindowSize, int numWindows, float **sigmas,
+		      int sigWindowSize, int numWindows, float *sigmas,
 		      int correntropyWinSize, float **pooledSummaryMatrix)
 {
 	float averageTime = 0.0f;
@@ -307,7 +307,7 @@ void simpleComputePSM(int numChannels, float* data, float **buffer,
 
 		/* compute the pooledSummaryMatrixValues */
 		pSMContribution(correntropyWinSize, interval, numWindows,
-				*buffer, *sigmas, pooledSummaryMatrix);
+				*buffer, sigmas, pooledSummaryMatrix);
 		//printf("   matrix %d...\n", i);
 		
 		clock_t c4 = clock();
@@ -376,7 +376,7 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 
 	simpleComputePSM(numChannels, data, &buffer, centralFreq, sampleRate, 
 			 dataLength, startIndex, interval, scaleFactor, 
-			 sigWindowSize, numWindows, &sigmas,
+			 sigWindowSize, numWindows, sigmas,
 			 correntropyWinSize, 
 			 &pooledSummaryMatrix);
 

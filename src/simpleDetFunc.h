@@ -61,6 +61,28 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 int computeDetFunctionLength(int dataLength, int correntropyWinSize,
 			     int interval);
 
+/// Computes the rolling optimized sigma to be used by the kernel functions 
+///
+/// This function is implemented with a rolling window and the implementation
+/// is adapted/inspired by the implementation of the Rolling.std function of
+/// the pandas Python package
+///
+/// @param[in] startIndex The index in buffer where the first window used to
+///            compute sigma is centered. The window is expected to extend
+///            sigWindowSize/2 to the left and to the right
+/// @param[in] interval The number of indices that the window should be
+///            advanced to compute the next sigma.
+/// @param[in] scaleFactor The constant scale factor used to compute the sigma
+///            for the kernel. For Silverman's rule of thumb, this is
+///            (4./3.)^(1/5)
+/// @param[in] sigWindowSize The length of the rolling window
+/// @param[in] dataLength The length of the input window
+/// @param[in] numWindows The number of times that the value should be computed
+///            for the given input stream and the length of `sigmas`.
+///            Typically, this is 1 larger than the value returned by
+///            `computeDetFunctionLength`
+/// @param[in] buffer The buffer of data for which the rolling sigma is computed
+/// @param[out] sigmas The buffer of data that the results get written into
 void rollSigma(int startIndex, int interval, float scaleFactor,
 	       int sigWindowSize, int dataLength, int numWindows,
-	       float *buffer, float **sigmas);
+	       float *buffer, float *sigmas);
