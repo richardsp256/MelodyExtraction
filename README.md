@@ -49,6 +49,9 @@ the current configuration files with
 in that library's directory.
 
 
+If you built/installed any of the preceding libraries at locations other than
+the project folder, you will need to follow the instructions in the CMake file
+to specify the paths to where the libraries can be found.
 
 
 CMake 3.x is used to build the project. Earlier versions of CMake are untested. Build the executable and archived library with 
