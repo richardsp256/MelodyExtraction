@@ -130,15 +130,15 @@ static inline void remove_var(double val, int *nobs, double *mean_x,
 }
 
 /* Basically we compute the rolling variance following the algorithm from 
- * python pandas. (This algorithm can still be further optimized to be much 
- * more similar to the standard deviation algorithm used for the alternative 
- * detection function calculation. (It just requires a more careful 
- * implementation that I don't currently have the patience for).
+ * python pandas. This algorithm can still be further optimized so that we add
+ * and remove values from the windows in chunks (rather than 1 at a time). 
+ * Additionally, if we store wInd on the stack, we might get better 
+ * optimizations.
  */
 
-void rollSigma(int startIndex, int interval, float scaleFactor,
-	       int sigWindowSize, int dataLength, int numWindows,
-	       float *buffer, float *sigmas)
+int rollSigma(int startIndex, int interval, float scaleFactor,
+	      int sigWindowSize, int dataLength, int numWindows,
+	      float *buffer, float *sigmas)
 {
 	int i,j,k,nobs = 0,winStart, winStop, prevStop,prevStart;
 	double mean_x = 0, ssqdm_x = 0;
@@ -219,7 +219,8 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 			prevStop = winStop;
 		}
 	}
-	windowIndexerDestroy(wInd);	
+	windowIndexerDestroy(wInd);
+	return 1;
 }
 
 
@@ -263,9 +264,9 @@ static inline float calcPSMEntryContrib(float* x, int window_size, float sigma)
 	return out;
 }
 
-void pSMContribution(int correntropyWinSize, int interval,
-		     int numWindows, float *buffer,
-		     float *sigmas,float **pSMatrix)
+int pSMContribution(int correntropyWinSize, int interval,
+		    int numWindows, float *buffer,
+		    float *sigmas,float *pSMatrix)
 {
 	int i,start,j,calcBufferLength;
 	float *calcBuffer, denom;
@@ -287,9 +288,9 @@ void pSMContribution(int correntropyWinSize, int interval,
 		for (j=1;j<=calcBufferLength;j++){
 			calcBuffer[j] = (buffer[start+j]) * denom;
 		}
-		(*pSMatrix)[i] += calcPSMEntryContrib(calcBuffer,
-						      correntropyWinSize,
-						      sigmas[i]);
+		pSMatrix[i] += calcPSMEntryContrib(calcBuffer,
+						   correntropyWinSize,
+						   sigmas[i]);
 		//if (i>=1400){
 		//	printf("Current pSMatrix[%d] value: %f\n",
 		//	       i,(*pSMatrix)[i]);
@@ -297,6 +298,7 @@ void pSMContribution(int correntropyWinSize, int interval,
 		start+=interval;
 	}
 	free(calcBuffer);
+	return 1;
 }
 
 void simpleComputePSM(int numChannels, float* data, float **buffer,
@@ -327,7 +329,7 @@ void simpleComputePSM(int numChannels, float* data, float **buffer,
 
 		/* compute the pooledSummaryMatrixValues */
 		pSMContribution(correntropyWinSize, interval, numWindows,
-				*buffer, sigmas, pooledSummaryMatrix);
+				*buffer, sigmas, *pooledSummaryMatrix);
 		//printf("   matrix %d...\n", i);
 		
 		clock_t c4 = clock();
@@ -376,21 +378,21 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 	 * function that computes correntropy. Add correntropyWinSize zeros 
 	 * will be sufficient.
 	 */
-	bufferLength = dataLength + correntropyWinSize;
+	bufferLength = (numWindows-1)*interval + 2*correntropyWinSize + 2;
 	printf("bufferLength: %d\n",bufferLength);
 	buffer = malloc(sizeof(float)*bufferLength);
 	for (i = dataLength; i<bufferLength;i++){
 		buffer[i] = 0;
 	}
 
-	
 	pooledSummaryMatrix = malloc(sizeof(float)*numWindows);
 	for (i=0;i<numWindows;i++){
 		pooledSummaryMatrix[i] = 0;
 	}
 	sigmas = malloc(sizeof(float)*numWindows);
 
-	centralFreq = centralFreqMapper(numChannels, minFreq, maxFreq);
+	centralFreq = malloc(sizeof(float)*numChannels);
+	centralFreqMapper(numChannels, minFreq, maxFreq, centralFreq);
 
 	startIndex = correntropyWinSize/2;
 
