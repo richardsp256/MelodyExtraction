@@ -224,7 +224,23 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 
 
 
+#define EXP_A 184
+#define EXP_C 16249 
 
+float EXP_APPROX(float x)
+{
+	//union allows us to treat the same 4 bytes of memory as both a float and 2 shorts
+	union {
+		float f;
+		struct {
+			short j, i; //if on big-endian architecture, j, i must be flipped to i, j
+		} s;
+	} res;
+	
+	res.s.i = EXP_A*(x) + (EXP_C);
+	res.s.j = 0;
+	return res.f;
+}
 
 #define M_1_SQRT2PI 0.3989422804f
 static inline float calcPSMEntryContrib(float* x, int window_size, float sigma)
@@ -234,12 +250,16 @@ static inline float calcPSMEntryContrib(float* x, int window_size, float sigma)
 	out=0;
 	for (i=0;i<window_size;i++){
 		for (j=1; j<=window_size;j++){
-			temp = x[i] - x[i+j]; 
-			out+=expf(-1.0f * temp * temp);
+			temp = x[i] - x[i+j];
+			//for values of temp greater in magnitude than 9.345, e^(-(temp^2)) is smaller than FLT_MIN
+			//expf() would return 0.0f for results smaller than FLT_MIN, but EXP_APPROX will return NaN,-NaN for most (not all, some underflow)
+			//by only computing values in valid range, ones outside are treated as 0.
+			if(temp < 9.345f && temp > -9.345){
+				out+=EXP_APPROX(-1.0f * temp * temp);
+			}
 		}
 	}
 	out *= M_1_SQRT2PI / sigma;
-	//printf("out = %f\n",(float)out);
 	return out;
 }
 

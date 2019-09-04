@@ -29,7 +29,7 @@ project (MelodyExtraction)
 ###############################################################################
 # C compiler flags
 ###############################################################################
-SET(CMAKE_C_FLAGS, "-Wall -O2 -g")
+SET(CMAKE_C_FLAGS, "-Wall -O3 -g")
 
 
 ###############################################################################
@@ -86,7 +86,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 ###############################################################################
 # Set build features
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 ###############################################################################
 include(CheckCSourceCompiles)
