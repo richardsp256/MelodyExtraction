@@ -27,7 +27,6 @@ typedef struct {
 	struct distinctCandidate *array;
 	int length;
 	int capacity;
-	int max_capacity;
 } distinctList;
 
 // more general purpose resizable list used to store results of Onset detection
@@ -36,7 +35,6 @@ typedef struct {
 	int *array;         // data
 	int length;         // current length
 	int capacity;       // current capacity
-	int max_capacity;   // maximum possible capacity
 } intList;
 
 // used by the orderedList struct
