@@ -1,7 +1,6 @@
 #ifndef LISTS_H
 #define LISTS_H
 
-#define DYNAMIC_ARR_MAX_CAPACITY 10000
 #define DYNAMIC_ARR_GROWTH_FACTOR 2
 
 
@@ -53,7 +52,7 @@ void orderedListPrint(struct orderedList list);
 
 // If max_capacity is 0 or exceeds DYNAMIC_ARR_MAX_CAPACITY, then
 // DYNAMIC_ARR_MAX_CAPACITY is used
-distinctList* distinctListCreate(int capacity, int max_capacity);
+distinctList* distinctListCreate(int capacity);
 void distinctListDestroy(distinctList* list);
 struct distinctCandidate distinctListGet(distinctList *list, int index);
 int distinctListAppend(distinctList *list, struct distinctCandidate);
@@ -67,7 +66,7 @@ void distinctListPrintIndexLowestCost(distinctList list);
 
 // If max_capacity is 0 or exceeds DYNAMIC_ARR_MAX_CAPACITY, then
 // DYNAMIC_ARR_MAX_CAPACITY is used
-intList* intListCreate(int capacity, int max_capacity);
+intList* intListCreate(int capacity);
 void intListDestroy(intList *list);
 int intListGet(intList *list, int index);
 int intListShrink(intList *list);

@@ -77,10 +77,7 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 
 	// Make onsets an intList
 	//    - initial size is 20 (might want something different
-	//    - max_capacity is set to the default. We could probably be
-	//      somewhat intelligent about the max_capacity (but it would
-	//      depend on onset strategy)
-	intList* onsets = intListCreate(20, 0);
+	intList* onsets = intListCreate(20);
 
 
 	// Commenting the following out was part of a quick and dirty solution

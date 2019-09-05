@@ -70,7 +70,7 @@ distinctList* distinctCandidates(struct orderedList* candidates,
 	
 	int first, last, i,j,maxIndex, *confidence, maxConfidence;
 	distinctList *distinct;
-	distinct = (distinctListCreate(max_length,0));
+	distinct = (distinctListCreate(max_length));
 
 	confidence = malloc(sizeof(int) * (candidates->length));
 

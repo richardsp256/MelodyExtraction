@@ -29,9 +29,8 @@ float calcZ(int index, int max)
 	return ((DOUBLEMAXZ * index) / (max-1)) + MINZ;
 }
 
-float** GenKernels(int minK, int maxK)
+float** GenKernels(int minK, int numKernels)
 {
-	int numKernels = maxK - minK + 1;
 	int i, j, kernelLen;
 	float z;
 	if(numKernels <= 0){
@@ -114,8 +113,8 @@ int detectTransients(float* detection_func, int len, intList* transients){
 
 	printf("detection with len %d, minK %d, maxK %d\n", len, minkernel, maxkernel);
 
-	float** Kernels = GenKernels(minkernel, maxkernel);
 	int numKernels = maxkernel - minkernel + 1;
+	float** Kernels = GenKernels(minkernel, numKernels);
 
 	printf("kernel made\n");
 
