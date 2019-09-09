@@ -87,8 +87,6 @@ int computeDetFunctionLength(int dataLength, int correntropyWinSize,
 ///            computed
 /// @param[out] sigmas The buffer of data that the results get written into
 ///
-/// @return Returns a value of 1 for success
-///
 /// @par Implementation Notes:
 /// For values of sigma near the start and of buffer, the windows are
 /// automatically adjusted not to include values beyond the edge of the array.
@@ -116,9 +114,9 @@ int computeDetFunctionLength(int dataLength, int correntropyWinSize,
 /// probability distribution function resembling a Gaussian. (If the
 /// is not univariate or different kernel functions are used, it is advisable
 /// to try to optimize the bandwidth of each kernel in a different manner)
-int rollSigma(int startIndex, int interval, float scaleFactor,
-	      int sigWindowSize, int dataLength, int numWindows,
-	      float *buffer, float *sigmas);
+void rollSigma(int startIndex, int interval, float scaleFactor,
+	       int sigWindowSize, int dataLength, int numWindows,
+	       float *buffer, float *sigmas);
 
 
 /// Iterates over the input from a given channel and computes Pooled Summary
@@ -152,6 +150,5 @@ int rollSigma(int startIndex, int interval, float scaleFactor,
 /// an array of zeros and then repeatedly call this function (but passing
 /// different values to `buffer` and `sigmas` that correspond to the different
 /// channels).
-int pSMContribution(int correntropyWinSize, int interval,
-		    int numWindows, float *buffer,
-		    float *sigmas, float *pSMatrix);
+void pSMContribution(int correntropyWinSize, int interval, int numWindows,
+		     float *buffer, float *sigmas, float *pSMatrix);

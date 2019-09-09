@@ -24,6 +24,7 @@ _centralFreqMapper.argtypes = [ctypes.c_int, ctypes.c_float, ctypes.c_float,
                                np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
                                                       flags=('C_CONTIGUOUS',
                                                              'WRITEABLE'))]
+_centralFreqMapper.restype = None
 def central_freq_mapper(num_channels = 64, min_freq = 80., max_freq=4000.):
     """
     Computes the central frequency used by the gammatone filter for each
@@ -57,8 +58,7 @@ def central_freq_mapper(num_channels = 64, min_freq = 80., max_freq=4000.):
         assert max_freq > min_freq
 
     out = np.empty((num_channels,),dtype=np.single)
-    ret_val = _centralFreqMapper(num_channels, min_freq, max_freq, out)
-    assert ret_val == 1
+    _centralFreqMapper(num_channels, min_freq, max_freq, out)
     return out
 
 # implement sosGammatone
@@ -142,6 +142,7 @@ _rollSigma.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float,
                        np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
                                               flags=('C_CONTIGUOUS',
                                                      'WRITEABLE'))]
+_rollSigma.restype = None
 
 def roll_sigma(input_data, start_index, interval, sig_window_size,
                num_windows = None,
@@ -220,10 +221,8 @@ def roll_sigma(input_data, start_index, interval, sig_window_size,
 
     out = np.empty((num_windows,), np.single, order='C')
 
-    ret_val =  _rollSigma(start_index, interval, scale_factor, sig_window_size,
-                          input_data.size, num_windows, input_data, out)
-    if ret_val != 1:
-        raise RuntimeError()
+    _rollSigma(start_index, interval, scale_factor, sig_window_size,
+               input_data.size, num_windows, input_data, out)
     return out
 
 _pSMContribution = libmelex.pSMContribution
@@ -235,6 +234,7 @@ _pSMContribution.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int,
                              np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
                                                     flags=('C_CONTIGUOUS',
                                                            'WRITEABLE'))]
+_pSMContribution.restypes = None
 
 def psm_contribution(correntropy_win_size, interval, num_windows, input_data,
                      sigmas, psmatrix=None):

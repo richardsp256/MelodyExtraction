@@ -43,8 +43,8 @@
 /// ERBS(fcArray[i]) = minERBS + i * (maxERBS-minERBS)/(numChannels - 1)
 /// Finally, we can invert the formula for ERBS to get the frequency of each
 /// entry: fcArray[i] =(10.^((minERBS + i * (maxERBS-minERBS)
-int centralFreqMapper(int numChannels, float minFreq, float maxFreq,
-		      float* fcArray);
+void centralFreqMapper(int numChannels, float minFreq, float maxFreq,
+		       float* fcArray);
 
 // The remainder of this header file was written with the intention of being
 // used to process chunks. This functionallity does not currently exist (the

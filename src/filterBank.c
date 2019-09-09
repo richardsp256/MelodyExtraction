@@ -81,14 +81,14 @@ void filterBankDestroy(struct filterBank* fB){
 }
 
 
-int centralFreqMapper(int numChannels, float minFreq, float maxFreq,
-		      float* fcArray){
+void centralFreqMapper(int numChannels, float minFreq, float maxFreq,
+		       float* fcArray){
 	float minERBS,maxERBS;
 	int i;
 
 	if (numChannels == 1){
 		fcArray[0] = minFreq;
-		return 1;
+		return;
 	}
 	
 	/* calculate the minimum central frequency */
@@ -107,7 +107,6 @@ int centralFreqMapper(int numChannels, float minFreq, float maxFreq,
 					  /((float)numChannels - 1))/21.4))
 			       - 1.0) /0.00437);
 	}
-	return 1;
 }
 
 void swap_chunk(float **a, float **b){
