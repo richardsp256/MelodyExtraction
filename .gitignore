@@ -54,6 +54,7 @@ master.zip
 # pymelex related files
 pymelex/pymelex.egg-info/*
 pymelex/pymelex/__pycache__/*
+*.pyc
 
 # CMake related files
 CMakeFiles/*
@@ -70,3 +71,4 @@ Testing/*
 extract
 tests/check_gammatone
 tests/check_detFunction
+tests/check_lists

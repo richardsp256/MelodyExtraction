@@ -121,57 +121,57 @@ void orderedListPrint(struct orderedList list)
 /// Note: I got some weird errors when I tried to break the follow into smaller
 ///    pieces
 
-#define DYNAMIC_ARR_FUNCTIONS(ARR_NAME, DTYPE)                      \
-	ARR_NAME * ARR_NAME ## Create (int capacity)                    \
-	{                                                               \
+#define DYNAMIC_ARR_FUNCTIONS(ARR_NAME, DTYPE)                              \
+	ARR_NAME * ARR_NAME ## Create (int capacity)                        \
+	{                                                                   \
 		ARR_NAME *list;                                             \
 		list = malloc(sizeof(ARR_NAME));                            \
 		if (!list) {return NULL;}                                   \
 		list->array = malloc(capacity * sizeof(DTYPE));             \
 		if (!(list->array)){                                        \
-			free(list);                                             \
-			return NULL;                                            \
+			free(list);                                         \
+			return NULL;                                        \
 		}                                                           \
 		list->capacity = capacity;                                  \
 		list->length = 0;                                           \
 		return list;                                                \
-	}                                                               \
-	                                                                \
-	void ARR_NAME ## Destroy (ARR_NAME * list)                      \
-	{                                                               \
+	}                                                                   \
+	                                                                    \
+	void ARR_NAME ## Destroy (ARR_NAME * list)                          \
+	{                                                                   \
 		free(list->array);                                          \
-		free(list);                                                	\
-	}                                                               \
-	                                                                \
-	DTYPE ARR_NAME ## Get (ARR_NAME * list, int index)              \
-	{                                                               \
+		free(list);                                                 \
+	}                                                                   \
+	                                                                    \
+	DTYPE ARR_NAME ## Get (ARR_NAME * list, int index)                  \
+	{                                                                   \
 		return list->array[index];                                  \
-	}                                                               \
-	                                                                \
-	int ARR_NAME ## Shrink (ARR_NAME * list)                        \
-	{                                                               \
+	}                                                                   \
+	                                                                    \
+	int ARR_NAME ## Shrink (ARR_NAME * list)                            \
+	{                                                                   \
 		/* shrinks capacity to match length */                      \
 		DTYPE * tmp;                                                \
 		tmp = realloc(list->array, (list->length) * sizeof(DTYPE)); \
 		if (tmp == NULL){                                           \
-			return 0;                                               \
+			return 0;                                           \
 		}                                                           \
 		list->array = tmp;                                          \
 		list->capacity = list->length;                              \
 		return 1;                                                   \
-	}                                                               \
-	                                                                \
-	int ARR_NAME ## Append (ARR_NAME * list, DTYPE val)             \
-	{                                                               \
+	}                                                                   \
+	                                                                    \
+	int ARR_NAME ## Append (ARR_NAME * list, DTYPE val)                 \
+	{                                                                   \
 		if (list->length == list->capacity){                        \
-			DTYPE * tmp;                                            \
-			list->capacity *= DYNAMIC_ARR_GROWTH_FACTOR;            \
-			tmp = realloc(list->array,                              \
-				     list->capacity * sizeof(DTYPE));               \
-			if (!tmp){                                              \
-				return 0;                                           \
-			}                                               	    \
-			list->array = tmp;                                      \
+			DTYPE * tmp;                                        \
+			list->capacity *= DYNAMIC_ARR_GROWTH_FACTOR;        \
+			tmp = realloc(list->array,                          \
+				     list->capacity * sizeof(DTYPE));       \
+			if (!tmp){                                          \
+				return 0;                                   \
+			}                                                   \
+			list->array = tmp;                                  \
 		}                                                           \
 		(list->array)[list->length] = val;                          \
 		(list->length)++;                                           \
@@ -254,78 +254,8 @@ void distinctListPrintIndexLowestCost(distinctList list)
 
 DYNAMIC_ARR_FUNCTIONS(intList, int);
 // implements:
-//    intList* intListCreate(int capacity, int max_capacity)
+//    intList* intListCreate(int capacity)
 //    void intListDestroy(intList *list)
 //    int intListGet(intList *list, int index)
 //    int intListShrink(intList *list)
 //    int intListAppend(intList *list, int val)
-
-/*
-int main(int argc, char*argv[])
-{
-	// only including this for testing purposes
-	struct orderedList l = orderedListCreate(18);
-	orderedListPrint(l);
-	orderedListInsert(&l, 63.4);
-	orderedListPrint(l);
-	orderedListInsert(&l, 1244.);
-	orderedListPrint(l);
-	orderedListInsert(&l, 542.3);
-	orderedListPrint(l);
-	orderedListInsert(&l, 17.8);
-	orderedListPrint(l);
-	orderedListDeleteEntries(&l, 1, 3);
-	orderedListPrint(l);
-	orderedListInsert(&l, 89.43);
-	orderedListPrint(l);
-	orderedListInsert(&l, 17.8);
-	orderedListInsert(&l, 89.43);
-	orderedListPrint(l);
-	orderedListDeleteEntries(&l, 0, 2);
-	orderedListPrint(l);
-	orderedListDeleteEntries(&l, 0, 3);
-	orderedListPrint(l);
-	orderedListDestroy(l);
-
-	distinctList* lptr = distinctListCreate(18);
-	distinctList l = *lptr;
-	distinctListAppend(&l, 190.0,7);
-	distinctListAppend(&l, 96.,2);
-	distinctListAppend(&l, 121,1);
-	distinctListAppend(&l, 242,1);
-	distinctListAppend(&l, 391,1);
-
-	distinctListPrintFreq(l);
-	distinctListPrintConfidence(l);
-	printf("%d\n",(l.capacity));
-	distinctListResize(&l);
-	distinctListPrintFreq(l);
-	distinctListPrintConfidence(l);
-	printf("%d\n",(l.capacity));
-
-	printf("cost = %lf  indexLowestCost = %d\n", l.array[2].cost,
-	       l.array[2].indexLowestCost);
-
-	distinctListAdjustCost(&l, 2, 56.4, 1);
-	printf("cost = %lf  indexLowestCost = %d\n", l.array[2].cost,
-	       l.array[2].indexLowestCost);
-
-
-	distinctList *l2ptr = distinctListCreate(18);
-	distinctList l2 = *l2ptr;
-	distinctListAppend(&l2, 532.24,2);
-	distinctListAppend(&l2, 68.1,1);
-	distinctListResize(&l2);
-
-	distinctList **windowLists = malloc(sizeof(distinctList*)*2);
-	windowLists[0] = &l;
-	windowLists[1] = &l2;
-
-	distinctListPrintFreq(*windowLists[1]);
-	distinctListPrintFreq(*windowLists[0]);
-	free(windowLists);
-	distinctListDestroy(lptr);
-	distinctListDestroy(l2ptr);
-
-}
-*/

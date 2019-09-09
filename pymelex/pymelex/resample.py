@@ -3,21 +3,7 @@ import ctypes
 import numpy as np
 
 from .shared_lib import libmelex
-
-def _check_audio(input_audio):
-    """
-    Checks the properties of a numpy array meant to hold input audio
-    """
-    if not input_audio.flags['C_CONTIGUOUS']:
-        raise ValueError("input_audio must be C contiguous")
-    if input_audio.dtype != np.single:
-        raise ValueError("input_audio must have the np.single dtype")
-    if input_audio.ndim != 1:
-        raise ValueError("input_audio must be 1 dimensional")
-    if np.abs(input_audio).max() > 1:
-        # this will also pick up nans and infs
-        raise ValueError("input_audio contains an entry with a magnitude "
-                         "exceeding 1.")
+from .misc import _check_audio
 
 _ResampledLength = libmelex.ResampledLength
 _ResampledLength.argtypes = [ctypes.c_int, ctypes.c_float]

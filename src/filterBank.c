@@ -46,17 +46,19 @@ struct filterBank* filterBankNew(int numChannels, int lenChannels, int overlap,
 		return fB;
 	}
 	(fB->cDArray) = malloc(sizeof(struct channelData)*numChannels);
-
 	if ((fB->cDArray) == NULL){
 		free(fB);
 		return fB;
 	}
+
 	//printf("Constructing the channel Data array\n");
-	fcArray = centralFreqMapper(numChannels, minFreq, maxFreq);
+	fcArray = malloc(sizeof(float)*numChannels);
 	if (fcArray == NULL){
 		filterBankDestroy(fB);
 		return NULL;
 	}
+	centralFreqMapper(numChannels, minFreq, maxFreq, fcArray);
+
 	/*
 	for (i=0; i<numChannels; i++){
 		// fill in the channel data
@@ -79,64 +81,14 @@ void filterBankDestroy(struct filterBank* fB){
 }
 
 
-float* centralFreqMapper(int numChannels, float minFreq, float maxFreq){
-	/* The paper states that the frequencies are mapped according to the 
-	 * according to the Equivalent Rectangular Bandwifth (ERB) scale.
-	 * According to wikipedia, 
-	 * https://en.wikipedia.org/wiki/Equivalent_rectangular_bandwidth,
-	 * a linear approximation of ERB between 100 and 10000 Hz, is given by
-	 * ERB = 24.7 * (4.37 * f + 1), where ERB is in units of Hz, and f is 
-	 * in units in kHz. We can rewrite this equation where f is in Hz as:
-	 * ERB = 24.7 * (0.00437 * f + 1).
-	 * We will use this linear approximation since it is the same as the 
-	 * one used by our gammatone filter.
-	 *
-	 * According to the same page, the ERB scale (ERBS) for this linear 
-	 * approximation is given by:
-	 * ERBS = 21.3 * log10(1+0.00437*f) where f has units of Hz.
-	 * We calculate the inverse to be:
-	 * f = (10^(ERBS/21.4) - 1)/0.00437
-	 *
-	 * Onto the problem at hand. we will return an array of central 
-	 * frequencies, fcArray, of length = numChannels.
-	 *
-	 * If numChannels == 1, then the only entry will be minFreq
-	 *
-	 * In general, the minimum and maximum 
-	 * frequencies (fmin and fmax) included in a bandwidth B, centred on 
-	 * fc are given by: fmin = fc - B/2 and fmax = fc + B/2
-	 * In function calls problems where there are at least 2 channels, 
-	 * we will choose the very first and the very last central frequencies 
-	 * such that the minFreq and maxFreq are included in the edge of the 
-	 * bandwidths. In other words: 
-	 * minFreq = min(fcArray) - B/2 and maxFreq = max(fcArray) + B/2
-	 * plugging in ERB = 24.7 * (0.00437 * fc + 1) for B in each equation 
-	 * we can solve for min(fcArray) and max(fcArray):
-	 * min(fcArray) = (minFreq + 12.35)/0.9460305
-	 * max(fcArray) = (maxFreq - 12.35)/1.0539695
-	 *
-	 * then I will space out the remaining central frequencies with 
-	 * evenly with respect to ERBS
-	 * Let minERBS = ERBS(min(fcArray)) and maxERBS = ERBS(max(fcArray))
-	 * The ith entry of fcArray will have ERBS given by
-	 * ERBS(fcArray[i]) = minERBS + i * (maxERBS-minERBS)/(numChannels - 1)
-	 *
-	 * We can calculate the ith entry of fcArray by taking the inverse of 
-	 * the ERBS of the ith entry
-	 * fcArray[i] =(10.^((minERBS + i * (maxERBS-minERBS)/(numChannels - 1))
-	 *                   /21.4) - 1)/0.00437
-	 */
-	float *fcArray, minERBS,maxERBS;
+void centralFreqMapper(int numChannels, float minFreq, float maxFreq,
+		       float* fcArray){
+	float minERBS,maxERBS;
 	int i;
-	
-	fcArray = malloc(sizeof(float)*numChannels);
-	if (fcArray ==NULL){
-		return NULL;
-	}
 
 	if (numChannels == 1){
 		fcArray[0] = minFreq;
-		return fcArray;
+		return;
 	}
 	
 	/* calculate the minimum central frequency */
@@ -155,7 +107,6 @@ float* centralFreqMapper(int numChannels, float minFreq, float maxFreq){
 					  /((float)numChannels - 1))/21.4))
 			       - 1.0) /0.00437);
 	}
-	return fcArray;
 }
 
 void swap_chunk(float **a, float **b){
