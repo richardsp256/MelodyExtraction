@@ -8,7 +8,7 @@ fvad.h is installed in /usr/local/include
 #include <math.h>
 #include <stdio.h>
 #include "fvad.h"
-#include "samplerate.h"
+#include "resample.h"
 #include "fVADsd.h"
 #include "winSampleConv.h"
 
@@ -37,54 +37,24 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 		// we will resample. Since higher rates are resampled down to
 		// 8000 within the program, we will just resample down to 8000
 
-		// should probably check that sample rate is higher than 8000
-
-		// I will probably use Secret Rabbit Code (aka libsamplerate)
-		SRC_DATA *resampleData = malloc(sizeof(SRC_DATA));
-		resampleData -> data_in = (*AudioData);
-		// should try to calculate the max number of frames
-		resampleData -> data_out = malloc(sizeof(float) * length);
-		// the following 2 values are set under the assumption that we
-		// only have 1 channel
-		resampleData -> input_frames = (long)length;
-		resampleData -> output_frames = (long)length;
-		resampleData -> src_ratio = 8000./((double)sample_rate);
-
-		// I do not need need to set up input_frames_used,
-		// output_frames_used, end_of_input
-
-		// the second argument in src_simple corresponds to the
-		// converter_type. By default I have set it to the best
-		// quality
-		int success_code;
-		success_code = src_simple(resampleData, 0, 1);
-
-		if (success_code != 0){
-			printf("libsamplerate Error:\n %s\n",
-			       src_strerror(success_code));
-			activityRangesLength = -1;
-		} else {
-			//printf("\nOriginal Sample Rate: %d Hz\n", sample_rate);
-			//printf("Original Length: %d (# of samples)\n",
-			//       length);
-			//printf("New Sample Rate: %d Hz\n", 8000);
-			//printf("New Length: %li (# of samples)\n\n",
-			//      resampleData->output_frames_gen);
-			
-			activityRangesLength=vadHelper(resampleData -> data_out,
-						    8000, mode, frameLength,
-						    spacing,
-						    resampleData->output_frames_gen,
-						    activityRanges);
+		float* output = NULL;
+		float sampleRatio = 8000.f/sample_rate;
+		int output_length = ResampleAndAlloc(AudioData, length, sampleRatio, &output);
+		if(output_length == -1){
+			return -1;
 		}
-		free(resampleData -> data_out);
-		free(resampleData);
+		
+		activityRangesLength = vadHelper(output,
+					    8000, mode, frameLength,
+					    spacing,
+					    output_length,
+					    activityRanges);
 
-		if (activityRangesLength!=-1){
-			// this scenario occurs if resizing *activityRanges
-			// succeeded here we convert from the indices of the
-			// samples at 8000 Hz to the indices of the samples at
-			// the original rate.
+		free(output);
+
+		if (activityRangesLength != -1){
+			// We convert from the indices of the samples at
+			// 8000 Hz to the indices of the samples at the original rate.
 			WindowsToSamples(*activityRanges, activityRangesLength,
 					 sample_rate);
 		}
@@ -93,7 +63,6 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 					      frameLength, spacing, length,
 					      activityRanges);
 	}
-	
 
 	return activityRangesLength;
 }
