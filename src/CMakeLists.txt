@@ -4,6 +4,7 @@ project (Testing)
 set(SOURCES
   tuningAdjustment.c
   midi.c
+  stft.c
   comparison.c
   pitchStrat.c
   onsetStrat.c

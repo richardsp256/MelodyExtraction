@@ -1,9 +1,7 @@
-#include "fftw3.h"
 #include "melodyextraction.h"
 #include "lists.h"
 
 
-float* WindowFunction(int size);
 struct Midi* ExtractMelody(float** input, audioInfo info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int o_unpaddedSize, int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
@@ -78,10 +76,6 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 		   int* activityRanges, int aR_size, audioInfo info,
 		   int p_unpaddedSize, int p_winInt);
 int FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi, int tuning);
-int NumSTFTBlocks(audioInfo info, int unpaddedSize, int interval);
-int STFT_r2c(float** input, audioInfo info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data);
-int STFTinverse_c2r(fftwf_complex** input, audioInfo info, int winSize, int interval, float** output);
-float* Magnitude(fftwf_complex* arr, int size);
 void SaveWeightsTxt(char* fileName, float** AudioData, int size, int dftBlocksize, int samplerate, int unpaddedSize, int winSize);
 void SaveNotesTxt(char* fileName, int* noteRanges, int* notePitches,
 		  int nP_size, int samplerate);
