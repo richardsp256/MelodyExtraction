@@ -6,10 +6,9 @@
 
 int ResampledLength(int len, float sampleRatio)
 {
-	// guesses a length for the resampled audio
-	// we can probably do better than a guess
-	float result = ceilf(len*sampleRatio);
-	if (result > (float)INT_MAX){
+	//use double to maintain percision closer to INT_MAX
+	double result = ceil(len*(double)sampleRatio - 1);
+	if (result <= 0 || result >= (double)INT_MAX){
 		return -1;
 	}
 	return (int)result;
@@ -38,12 +37,19 @@ int Resample(float* input, int len, float sampleRatio, float *output)
 	success_code = src_simple(sampler, 0, 1);
 
 	if (success_code != 0){
-		printf("libsamplerate Error:\n %s\n",
+		printf("libsamplerate Error: %s\n",
 		       src_strerror(success_code));
+		result_length = -1;
+	} else if (len != sampler->input_frames_used){
+		printf("resample Error: input not all used\n");
+		result_length = -1;
+	} else if (output_frames != sampler->output_frames_gen){
+		printf("resample Error: output sized incorrectly\n");
 		result_length = -1;
 	} else {
 		result_length = (int)(sampler->output_frames_gen);
 	}
+
 	free(sampler);
 	return result_length;
 }
@@ -55,10 +61,13 @@ int ResampleAndAlloc(float** input, int len, float sampleRatio, float **output)
 {
 	int guessed_resample_length = ResampledLength(len, sampleRatio);
 	if (guessed_resample_length <= 0){
-		return guessed_resample_length;
+		return -1;
 	}
 
 	(*output) = malloc(sizeof(float) * guessed_resample_length);
+	if((*output) == NULL){
+		return -1;
+	}
 	int result_length = Resample(*input, len, sampleRatio, *output);
 	if (result_length < 0){
 		free(*output);
