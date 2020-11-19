@@ -1,4 +1,4 @@
-#include "lists.h"
+#include "../lists.h"
 // returns 1 on success
 int BaNa(float **AudioData, int size, int dftBlocksize, int p,
 	 float f0Min, float f0Max, float xi, int fftSize, int samplerate,

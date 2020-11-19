@@ -5,27 +5,27 @@ set(SOURCES
   tuningAdjustment.c
   midi.c
   stft.c
-  comparison.c
-  pitchStrat.c
-  onsetStrat.c
-  onsetsds.c
+  extractMelodyProcedure.c
   silenceStrat.c
   fVADsd.c
-  HPSDetection.c
-  BaNaDetection.c
-  findpeaks.c
-  findCandidates.c
-  candidateSelection.c
   lists.c
   winSampleConv.c
   noteCompilation.c
   melodyextraction.c
-  simpleDetFunc.c
-  gammatoneFilter.c
-  filterBank.c
-  testOnset.c
   resample.c
   io_wav.c
+  pitch/pitchStrat.c
+  pitch/BaNaDetection.c
+  pitch/candidateSelection.c
+  pitch/findCandidates.c
+  pitch/findpeaks.c
+  pitch/HPSDetection.c
+  onset/onsetStrat.c
+  onset/onsetsds.c
+  onset/simpleDetFunc.c
+  onset/gammatoneFilter.c
+  onset/filterBank.c
+  onset/pairTransientDetection.c
 )
 
 

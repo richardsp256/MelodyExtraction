@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
-#include "lists.h"
+#include "../lists.h"
 #include "candidateSelection.h"
 
 
