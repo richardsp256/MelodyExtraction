@@ -34,7 +34,7 @@
 /// @param[out] detFunction An array that will be modified to have values of
 ///             the detection function
 ///
-/// @return Returns 1 for success and -1 for failure.
+/// @return Returns 0 for success and -1 for failure.
 ///
 /// @par Implementation Notes:
 /// We made some assumptions about parameters mentioned in the paper:

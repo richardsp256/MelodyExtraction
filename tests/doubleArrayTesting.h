@@ -13,8 +13,6 @@ struct dblArrayTestEntry{
 };
 #endif /*DBLARRAYTEST_H*/
 
-int isLittleEndian();
-
 int readDoubleArray(char *fileName, int system_little_endian, double **array);
 
 void compareArrayEntries(double *ref, double* other, int length,

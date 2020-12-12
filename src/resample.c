@@ -14,7 +14,7 @@ int ResampledLength(int len, float sampleRatio)
 	return (int)result;
 }
 
-int Resample(float* input, int len, float sampleRatio, float *output)
+int Resample(const float* input, int len, float sampleRatio, float *output)
 {
 	/* Helper function for libsamplerate. 
 	It resamples the input by the sampleRatio
@@ -57,7 +57,8 @@ int Resample(float* input, int len, float sampleRatio, float *output)
 
 // ResampleAndAlloc resamples the input audio and allocates the memory for the
 // output audio
-int ResampleAndAlloc(float** input, int len, float sampleRatio, float **output)
+int ResampleAndAlloc(const float* input, int len, float sampleRatio,
+		     float **output)
 {
 	int guessed_resample_length = ResampledLength(len, sampleRatio);
 	if (guessed_resample_length <= 0){
@@ -68,7 +69,7 @@ int ResampleAndAlloc(float** input, int len, float sampleRatio, float **output)
 	if((*output) == NULL){
 		return -1;
 	}
-	int result_length = Resample(*input, len, sampleRatio, *output);
+	int result_length = Resample(input, len, sampleRatio, *output);
 	if (result_length < 0){
 		free(*output);
 	}

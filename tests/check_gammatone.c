@@ -4,6 +4,7 @@
 #include <check.h>
 #include "../src/onset/gammatoneFilter.h"
 #include "doubleArrayTesting.h"
+#include "../src/utils.h" // IsLittleEndian
 
 
 void stepFunction(double **array,int length, double start, double increment,
@@ -102,7 +103,7 @@ START_TEST(test_sos_performance_1)
 	double *ref1;
 	length = readDoubleArray(("tests/test_files/gammatone/"
 				  "sos_gammatone_response1"),
-				 isLittleEndian(), &ref1);
+				 IsLittleEndian(), &ref1);
 
 	int rel = 1;
 	double tol = 1.e-5;
@@ -124,7 +125,7 @@ START_TEST(test_sos_performance_2)
 	double *ref2;
 	length = readDoubleArray(("tests/test_files/gammatone/"
 				  "sos_gammatone_response2"),
-				 isLittleEndian(), &ref2);
+				 IsLittleEndian(), &ref2);
 
 	int rel = 1;
 	double tol = 1.e-5;
@@ -175,7 +176,7 @@ int buildInputArray(int *intInput, int intInputLen, int intInputStart,
 		// we assume that the string is the name of a file
 		ck_assert_int_eq(intInputLen-intInputStart,0);
 		ck_assert_int_eq(dblInputLen-dblInputStart,0);
-		int littleEndian = isLittleEndian();
+		int littleEndian = IsLittleEndian();
 		length = readDoubleArray(strInput, littleEndian, inputArray);
 	}
 	return length;
@@ -378,7 +379,7 @@ Suite *gammatone_suite()
 	tcase_add_test(tc_performance,test_sos_performance_1);
 	tcase_add_test(tc_performance,test_sos_performance_2);
 
-	if (isLittleEndian() == 1){
+	if (IsLittleEndian() == 1){
 		tcase_add_loop_test(tc_biquad,check_biquad_filter_table,0,
 				    biquad_table_length);
 		tcase_add_loop_test(tc_cascadeBiquad,
