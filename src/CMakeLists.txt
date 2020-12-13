@@ -14,6 +14,7 @@ set(SOURCES
   melodyextraction.c
   resample.c
   io_wav.c
+  errors.c
   pitch/pitchStrat.c
   pitch/BaNaDetection.c
   pitch/candidateSelection.c

@@ -184,16 +184,30 @@ int main(int argc, char ** argv)
 		//printf("%d  %d  %d\n", inst->onset_window, inst->onset_padded, inst->onset_spacing);
 		//printf("%d  %d  %d\n", inst->silence_window, inst->silence_mode, inst->silence_spacing);
 		//printf("%d  %d  %d\n", inst->hps, inst->tuning, inst->verbose);
-
-		struct Midi* midi  = me_process(&input, info, inst);
+		int exit_code;
+		struct Midi* midi = me_process(input, info, inst, &exit_code);
 
 		me_settings_free(settings);
 		me_data_free(inst);
-
 		free(input);
 
-		if(midi == NULL){ //extractMelody error, or no notes found.
-			return 0;
+		if ((midi == NULL) || (exit_code != 0)){
+			if (exit_code == 0){
+				printf("Unexpected behavior: exit_code indicates success and output is NULL\n");
+				exit(EXIT_FAILURE);
+			}
+
+			const char * msg = me_strerror(exit_code);
+			if (msg == NULL){
+				printf("Unexpected exit code: %d\n", exit_code);
+			} else {
+				printf("Error Msg: %s\n",msg);
+			}
+
+			if (midi != NULL){
+				printf("Unexpected Behavior: midi data is not NULL\n");
+			}
+			exit(EXIT_FAILURE);
 		}
 
 		if (SaveMIDI(midi, outFile, 1)){

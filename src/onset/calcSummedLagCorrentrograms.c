@@ -6,6 +6,7 @@
 #include <stddef.h>   // size_t
 
 #include "../utils.h" // IsLittleEndian
+#include "../errors.h" // me_errors
 
 #ifdef USE_SSE_INTRINSICS
 #include "sse_vector.h"
@@ -107,14 +108,14 @@ static inline f32x4 kernel(f32x4 u)
 int CheckCorrentrogramsProp(size_t winsize, size_t max_lag, size_t hopsize)
 {
 	if ((max_lag < 4) || (max_lag %4 != 0)){
-		return -4;
+		return ME_BAD_MAX_LAG;
 	} else if ((winsize < 4) || (winsize %4 != 0)){
-		return -5;
+		return ME_BAD_CORRENTROPY_WINSIZE;
 	} else if ((hopsize < 4) || (hopsize %4 != 0)){
-		return -6;
+		return ME_BAD_HOPSIZE;
 	}
 
-	return 0;
+	return ME_SUCCESS;
 }
 
 int CalcSummedLagCorrentrograms(const float * restrict x,
@@ -126,9 +127,9 @@ int CalcSummedLagCorrentrograms(const float * restrict x,
 
 	if (!IsLittleEndian()){
 		// TODO: Write an implementation for big endian machines
-		return -1;
+		abort();
 	} else if ((size_t)x % 16 != 0) {
-		return -2;
+		return ME_BAD_ARRAY_ALIGNMENT;
 	}
 
 	int arg_check = CheckCorrentrogramsProp(winsize, max_lag, hopsize);

@@ -6,7 +6,8 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int o_unpaddedSize, int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
 		int s_winSize, int s_winInt, int s_mode, SilenceStrategyFunc silenceStrategy,
-		int hpsOvr, int tuning, int verbose, char* prefix);
+		int hpsOvr, int tuning, int verbose, char* prefix,
+		int *exit_code);
 
 /// Extracts the pitches from audio
 ///

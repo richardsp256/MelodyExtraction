@@ -11,6 +11,7 @@
 
 #include "pairTransientDetection.h"
 #include "simpleDetFunc.h"
+#include "../errors.h"
 
 //wmin set to 4 (20ms)
 //wmax set to 500 (2.5s)
@@ -155,7 +156,7 @@ int detectTransients(float* detection_func, int len, intList* transients){
 		if(intListAppend(transients, detect_index) != 1){
 			printf("Resizing transients failed. Exitting.\n");
 			freeKernels(Kernels, numKernels);
-			return -1;
+			return ME_REALLOC_FAILURE;
 		}
 
 		bestFitness = FLT_MAX;
@@ -174,7 +175,7 @@ int detectTransients(float* detection_func, int len, intList* transients){
 		if(intListAppend(transients, detect_index) != 1){
 			printf("Resizing transients failed. Exitting.\n");
 			freeKernels(Kernels, numKernels);
-			return -1;
+			return ME_REALLOC_FAILURE;
 		}
 		// if at end of activity range, jump detect_index forward to
 		// start of next range
@@ -190,13 +191,13 @@ int detectTransients(float* detection_func, int len, intList* transients){
 		transients->length = 0;
 		// no transients found, do not attempt to shrink here. Unable
 		// to realloc array to size 0
-		return 0;
+		return ME_SUCCESS;
 	}
 
 	if (intListShrink(transients)!=1){
 		printf("Resizing onsets failed. Exitting.\n");
 		// intList was preallocated, we intentionally won't free it
-		return -1;
+		return ME_REALLOC_FAILURE;
 	}
 
 	return transients->length;
@@ -247,9 +248,9 @@ int pairwiseTransientDetection(float *audioData, int size, int samplerate,
 						samplerate, size, audioData,
 						detectionFunctionLength,
 						detectionFunction);
-	if (0 != rslt){
+	if (ME_SUCCESS != rslt){
 		free(detectionFunction);
-		return -1;
+		return rslt;
 	}
 
 	printf("detect func computed\n");

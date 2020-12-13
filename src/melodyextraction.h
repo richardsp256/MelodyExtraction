@@ -76,6 +76,23 @@ char* me_data_init(struct me_data** inst, struct me_settings* settings, audioInf
 // destroy me_data
 void me_data_free(struct me_data *inst);
 
-struct Midi* me_process(float **input, audioInfo info, struct me_data *inst);
+/// process the input
+/// @param[in]  input pointer to audio data that should be processed
+/// @param[in]  info Information about the input audio data
+/// @param[in]  me_data Holds settings information
+/// @param[out] Optional pointer to an int where the exit code will be
+///    recorded. A value of 0 indicates success. Pass the value to me_strerror
+///    to retrieve the error message. This function will properly handle this
+///    argument if it's NULL.
+///
+/// @returns Returns a heap allocated Midi struct instance
+struct Midi* me_process(float *input, audioInfo info, struct me_data *inst,
+			int * exit_code);
+
+/// Convert an exit code to an string
+///
+/// @param error_code An error code returned from the
+/// @returns This returns a string literal if the error code is recognzed
+const char* me_strerror(int err_code);
 
 #endif	/* MELODYEXTRACTION_H */

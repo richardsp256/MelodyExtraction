@@ -249,12 +249,13 @@ int simpleComputePSM(int numChannels, const float * restrict data,
 
 		clock_t precorrentrogram_c = clock();
 		/* compute the pooledSummaryMatrixValues */
-		CalcSummedLagCorrentrograms(buffer, sigmas,
-					    (size_t) correntropyWinSize,
-					    (size_t) correntropyWinSize,
-					    (size_t) interval,
-					    (size_t) numWindows,
-					    pooledSummaryMatrix);
+		int rslt = CalcSummedLagCorrentrograms(
+			buffer, sigmas, (size_t) correntropyWinSize,
+			(size_t) correntropyWinSize, (size_t) interval,
+			(size_t) numWindows, pooledSummaryMatrix);
+		if (rslt){
+			return rslt;
+		}
 
 		clock_t exit_c = clock();
 		loop_time += ((float)(exit_c-entry_c))/CLOCKS_PER_SEC;
