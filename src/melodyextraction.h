@@ -18,16 +18,21 @@ struct Track{
 };
 
 struct Midi{
-  struct Track** tracks;
+  struct Track* tracks;
   int format; //0 = single track, 1 = multitrack, 2 = multisong.
   int numTracks; //number of tracks
   int division; //delts time. if positive, represents units per beat. if negative, in SMPTE compatible units. 
 };
 
-struct Track* GenerateTrack(int* noteArr, int size, int verbose);
-struct Midi* GenerateMIDI(int* noteArr, int size, int verbose);
 void freeMidi(struct Midi* midi);
-void SaveMIDI(struct Midi* midi, char* path, int verbose);
+
+/// Writes midi data to a file
+/// @param[in] midi pointer to the data that is to be saved
+/// @param[in] path Null-terminated string denoting the file path
+/// @param[in] verbose Whether to run in verbose mode
+///
+/// @returns 0 upon success.
+int SaveMIDI(struct Midi* midi, const char* path, int verbose);
 
 typedef struct {
 	int64_t frames;
@@ -38,7 +43,6 @@ typedef struct {
 // use to actually execute the library
 // we may want to make this opaque
 
-//struct me_settings;
 struct me_settings{
 	char * prefix;
 	char * pitch_window;

@@ -165,18 +165,19 @@ int main(int argc, char ** argv)
 
 		float* input;
 		if (!ReadAudioFile(inFile, &input, &info, settings->verbose)){
-			return 0;
+			printf("Error while reading audio from %s\n",
+			       inFile);
+			exit(EXIT_FAILURE);
 		}
 
 		struct me_data *inst;
 		char* err = me_data_init(&inst, settings, info);
-		//printf("is ther error?: %s\n", err);
 		//printf("val of inst: %d  %d  %d\n", inst, &inst, *inst);
 		if(inst == NULL){
 			printf("error initializing me_data: %s\n", err);
 			me_settings_free(settings);
 			free(input);
-			return 0;
+			exit(EXIT_FAILURE);
 		}
 
 		//printf("%d  %d  %d\n", inst->pitch_window, inst->pitch_padded, inst->pitch_spacing);
@@ -195,7 +196,10 @@ int main(int argc, char ** argv)
 			return 0;
 		}
 
-		SaveMIDI(midi, outFile, 1);
+		if (SaveMIDI(midi, outFile, 1)){
+			printf("Error writing midi to %s\n", outFile);
+			exit(EXIT_FAILURE);
+		}
 		freeMidi(midi);
 	}
 	
