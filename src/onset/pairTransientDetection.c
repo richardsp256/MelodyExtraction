@@ -153,10 +153,11 @@ int detectTransients(float* detection_func, int len, intList* transients){
 		}
 
 		//printf("    ONSET   FITNESS:  %f  AT INDEX:  %d   AT TIME:  %f\n", bestFitness, bestInd, detect_index/200.0f);
-		if(intListAppend(transients, detect_index) != 1){
+		int tmp_rslt = intListAppend(transients, detect_index);
+		if(tmp_rslt != ME_SUCCESS){
 			printf("Resizing transients failed. Exitting.\n");
 			freeKernels(Kernels, numKernels);
-			return ME_REALLOC_FAILURE;
+			return tmp_rslt;
 		}
 
 		bestFitness = FLT_MAX;
@@ -172,10 +173,11 @@ int detectTransients(float* detection_func, int len, intList* transients){
 		detect_index += bestInd;
 
 		//printf("    OFFSET   FITNESS:  %f  AT INDEX:  %d   AT TIME:  %f\n", bestFitness, bestInd, detect_index/200.0f);
-		if(intListAppend(transients, detect_index) != 1){
+		tmp_rslt = intListAppend(transients, detect_index);
+		if(tmp_rslt != ME_SUCCESS){
 			printf("Resizing transients failed. Exitting.\n");
 			freeKernels(Kernels, numKernels);
-			return ME_REALLOC_FAILURE;
+			return tmp_rslt;
 		}
 		// if at end of activity range, jump detect_index forward to
 		// start of next range
@@ -193,11 +195,11 @@ int detectTransients(float* detection_func, int len, intList* transients){
 		// to realloc array to size 0
 		return ME_SUCCESS;
 	}
-
-	if (intListShrink(transients)!=1){
+	int tmp_rslt = intListShrink(transients);
+	if (tmp_rslt != ME_SUCCESS){
 		printf("Resizing onsets failed. Exitting.\n");
 		// intList was preallocated, we intentionally won't free it
-		return ME_REALLOC_FAILURE;
+		return tmp_rslt;
 	}
 
 	return transients->length;
