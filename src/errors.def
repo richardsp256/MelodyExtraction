@@ -23,6 +23,7 @@
 ///     -201 through -300: onset/ transient detection
 ///     -301 through -400: MIDI file errors
 ///     -401 through -450: resample errors
+///     -451 through -500: io related errors
 
 ERROR_ENTRY(ME_SUCCESS, 0, "Success")
 
@@ -69,3 +70,10 @@ ERROR_ENTRY(ME_UNUSED_RESAMPLE_INPUT, -403,
 
 ERROR_ENTRY(ME_RESAMPLE_OUTPUT_SIZE_ERROR, -404,
   "An unexpected amount of output was produced while resampling.")
+
+
+// IO Errors:
+ERROR_ENTRY(ME_INVALID_FILE, -451,
+  "Audio file could not be opened for processing.")
+ERROR_ENTRY(ME_FILE_NOT_MONO, -452,
+  "Input file must be Mono. Multi-channel audio currently not supported.")

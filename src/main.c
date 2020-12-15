@@ -164,9 +164,12 @@ int main(int argc, char ** argv)
 		audioInfo info;
 
 		float* input;
-		if (!ReadAudioFile(inFile, &input, &info, settings->verbose)){
+		int exit_code = ReadAudioFile(inFile, &input, &info,
+					      settings->verbose);
+		if (exit_code != 0){
 			printf("Error while reading audio from %s\n",
 			       inFile);
+			printf("Error msg: %s\n", me_strerror(exit_code));
 			exit(EXIT_FAILURE);
 		}
 
@@ -184,7 +187,7 @@ int main(int argc, char ** argv)
 		//printf("%d  %d  %d\n", inst->onset_window, inst->onset_padded, inst->onset_spacing);
 		//printf("%d  %d  %d\n", inst->silence_window, inst->silence_mode, inst->silence_spacing);
 		//printf("%d  %d  %d\n", inst->hps, inst->tuning, inst->verbose);
-		int exit_code;
+
 		struct Midi* midi = me_process(input, info, inst, &exit_code);
 
 		me_settings_free(settings);
