@@ -102,8 +102,8 @@ int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize,
 	float* ResampledAudio = NULL;
 	float sampleRatio = samplerate/((float)samplerateOld);
 	int RALength = ResampleAndAlloc(*AudioData, size, sampleRatio, &ResampledAudio);
-	if(RALength == -1){
-		return -1;
+	if(RALength < 0){ // negative values encode errors
+		return RALength;
 	}
 
 	printf("resample complete\n");

@@ -15,6 +15,7 @@ void cascadeBiquad(int num_stages, double *coef, const double *x, double *y,
 /// @param[in] centralFreq The frequency of the gammatone Filter
 /// @param[in] samplerate The sampling rate of the input
 /// @param[in] datalen The number of entries in input
+/// @returns 0 upon success
 ///
 /// Although it is not currently implemented, I believe it is possible to set 
 /// the coefficients of the cascaded biquad filter such that the response is 
@@ -57,8 +58,8 @@ void cascadeBiquad(int num_stages, double *coef, const double *x, double *y,
 /// Lyon (1996) also discuses how the One-Zero Gammatone Filter (OZGF) which is
 /// slightly modified from the APGF and is supposed to be a slightly better
 /// approximation for a gammatone.
-void sosGammatone(const float* data, float* output, float centralFreq,
-		  int samplerate, int datalen);
+int sosGammatone(const float* data, float* output, float centralFreq,
+		 int samplerate, int datalen);
 void sosGammatoneHelper(const double* data, double* output, float centralFreq,
 			int samplerate, int datalen);
 
@@ -68,5 +69,5 @@ void sosCoef(float centralFreq, int samplerate, double *coef);
 /// A faster implementation of sosGammatone that performs all operations with
 /// floats and does not resample. See the documentation for sosGammatone for
 /// additional information.
-void sosGammatoneFast(const float* data, float* output, float centralFreq,
-		      int samplerate, int datalen);
+int sosGammatoneFast(const float* data, float* output, float centralFreq,
+		     int samplerate, int datalen);

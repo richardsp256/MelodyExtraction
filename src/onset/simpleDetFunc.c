@@ -238,10 +238,15 @@ int simpleComputePSM(int numChannels, const float * restrict data,
 	for (int i = 0;i<numChannels;i++){
 		clock_t entry_c = clock();
 
-		//sosGammatone(data, buffer, centralFreq[i], sampleRate,
-		//	       dataLength);
-		sosGammatoneFast(data, buffer, centralFreq[i], sampleRate,
-			         dataLength);
+		int tmp_rslt;
+
+		//tmp_rslt = sosGammatone(data, buffer, centralFreq[i],
+		//			sampleRate, dataLength);
+		tmp_rslt = sosGammatoneFast(data, buffer, centralFreq[i],
+					    sampleRate, dataLength);
+		if (tmp_rslt){
+			return tmp_rslt;
+		}
 
 		/* compute the sigma values */
 		rollSigma(startIndex, interval, scaleFactor, sigWindowSize,
@@ -249,12 +254,12 @@ int simpleComputePSM(int numChannels, const float * restrict data,
 
 		clock_t precorrentrogram_c = clock();
 		/* compute the pooledSummaryMatrixValues */
-		int rslt = CalcSummedLagCorrentrograms(
+		tmp_rslt = CalcSummedLagCorrentrograms(
 			buffer, sigmas, (size_t) correntropyWinSize,
 			(size_t) correntropyWinSize, (size_t) interval,
 			(size_t) numWindows, pooledSummaryMatrix);
-		if (rslt){
-			return rslt;
+		if (tmp_rslt){
+			return tmp_rslt;
 		}
 
 		clock_t exit_c = clock();

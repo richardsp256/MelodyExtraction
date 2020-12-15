@@ -4,6 +4,7 @@
 #include <time.h>
 #include <assert.h>
 #include "../resample.h"
+#include "../errors.h"
 
 
 
@@ -190,8 +191,8 @@ void sosGammatoneHelper(const double* data, double* output, float centralFreq,
 }
 
 
-void sosGammatone(const float* data, float* output, float centralFreq,
-		  int samplerate, int datalen)
+int sosGammatone(const float* data, float* output, float centralFreq,
+		 int samplerate, int datalen)
 {
 	double *ddoubled, *dresult;
 	float *fdoubled, *fresult;
@@ -199,14 +200,20 @@ void sosGammatone(const float* data, float* output, float centralFreq,
 	// first we do data doubling - to avoid aliasing
 	fdoubled = NULL;
 	doubled_length = ResampleAndAlloc(data, datalen, 2, &fdoubled);
-	if (doubled_length == (2*datalen-1)){
+	if (doubled_length <0){ // negative values encode errors
+		return doubled_length;
+	} else if (doubled_length != (2*datalen)){
+		assert(doubled_length == (2*datalen-1));
 		fdoubled[doubled_length] = 0;
 		doubled_length++;
 	}
-	assert((doubled_length == (2*datalen)));
 
 	// next we allocate memory
 	ddoubled = malloc(sizeof(double)*doubled_length);
+	if (ddoubled == NULL){
+		free(fdoubled);
+		return ME_MALLOC_FAILURE;
+	}
 
 	// convert from array of floats to array of doubles
 	for (i = 0; i < doubled_length; i++){
@@ -217,6 +224,10 @@ void sosGammatone(const float* data, float* output, float centralFreq,
 
 	// allocate memory for dresult
 	dresult = malloc(sizeof(double)*doubled_length);
+	if (dresult == NULL){
+		free(ddoubled);
+		return ME_MALLOC_FAILURE;
+	}
 
 	// perform filtering
 	sosGammatoneHelper(ddoubled, dresult, centralFreq,
@@ -226,24 +237,28 @@ void sosGammatone(const float* data, float* output, float centralFreq,
 
 	// allocate memory for fresult
 	fresult = malloc(sizeof(float)*doubled_length);
+	if (fresult == NULL){
+		free(dresult);
+		return ME_MALLOC_FAILURE;
+	}
 
 	// convert the array of results from doubles to floats
 	for (i = 0; i < doubled_length; i++){
 		fresult[i] = (float)dresult[i];
 	}
-
-	// no longer need dresult
 	free(dresult);
 
-	/* finally we downsample back down to the starting frequency */
-	result_length = ResampleAndAlloc(fresult, doubled_length, 0.5,
-					 &output);
-	if (result_length == (datalen-1)){
+	// finally we downsample back down to the starting frequency
+	result_length = Resample(fresult, doubled_length, 0.5, output);
+	free(fresult);
+	if (result_length <0){ // negative values encode errors
+		return result_length;
+	} else if (result_length != datalen){
+		assert((result_length == datalen - 1));
 		output[result_length]=0;
 		result_length++;
 	}
-	assert((result_length == datalen));
-	free(fresult);
+	return ME_SUCCESS;
 }
 
 
@@ -367,12 +382,13 @@ void sosCoeff(float centralFreq, int samplerate, float* coef)
 	}
 }
 
-void sosGammatoneFast(const float* data, float* output, float centralFreq,
-		      int samplerate, int datalen)
+int sosGammatoneFast(const float* data, float* output, float centralFreq,
+		     int samplerate, int datalen)
 {
 	//modified sosGammatone that does not double the samplerate and uses floats instead of doubles.
 	//If the loss in accuracy is negligible, we should switch to this as it is significantly faster
 	float coef[24];
 	sosCoeff(centralFreq, samplerate, coef);
 	cascadeBiquadf(4, coef, data, output, datalen);
+	return ME_SUCCESS;
 }

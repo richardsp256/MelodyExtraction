@@ -40,8 +40,8 @@ int fVADSilenceDetection(float** AudioData,int sample_rate, int mode,
 		float* output = NULL;
 		float sampleRatio = 8000.f/sample_rate;
 		int output_length = ResampleAndAlloc(*AudioData, length, sampleRatio, &output);
-		if(output_length == -1){
-			return -1;
+		if(output_length < 0){ // negative values encode errors
+			return output_length;
 		}
 		
 		activityRangesLength = vadHelper(output,

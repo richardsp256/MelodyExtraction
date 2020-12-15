@@ -22,7 +22,7 @@
 ///     -101 through -200: pitch detection
 ///     -201 through -300: onset/ transient detection
 ///     -301 through -400: MIDI file errors
-///
+///     -401 through -450: resample errors
 
 ERROR_ENTRY(ME_SUCCESS, 0, "Success")
 
@@ -55,3 +55,17 @@ ERROR_ENTRY(ME_BAD_HOPSIZE, -204,
   "the hopsize between succesive correntropy calculations isn't a positive "
   "integral multiple of 4")
 
+
+// Resample Errors:
+
+ERROR_ENTRY(ME_BAD_SAMPLERATIO, -401,
+  "A bad resample ratio was specified.")
+
+ERROR_ENTRY(ME_LIBSAMPLERATE_ERROR, -402,
+  "libsamplerate encountered an internal error.")
+
+ERROR_ENTRY(ME_UNUSED_RESAMPLE_INPUT, -403,
+  "Not all input was used during resampling.")
+
+ERROR_ENTRY(ME_RESAMPLE_OUTPUT_SIZE_ERROR, -404,
+  "An unexpected amount of output was produced while resampling.")
