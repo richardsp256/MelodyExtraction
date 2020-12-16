@@ -1,7 +1,63 @@
-void biquadFilter(double *coef, const double *x, double *y, int length);
+/// Convenience function provided for filtering data with a second order biquad
+/// filter.
+/// @param[in]  num_stages the number of biquad filters to apply. Must be at
+///     least 1
+/// @param[in]  coef: a num_stages * 6 entry array with the feedforward and
+///     feedback coefficients for every stage of filtering.
+/// @param[in]  x: the input passed through the filter.
+/// @param[out] y: the output, it must already be allocated and have the same
+///     length as x.
+/// @param[in] length: the length of both x and y
+/// @returns 0 on success
+///
+/// @note
+/// This function simply wraps sosFilter
+int biquadFilter(const double *coef, const double *x, double *y, int length);
 
-void cascadeBiquad(int num_stages, double *coef, const double *x, double *y,
-		   int length);
+/// Performs IIR filtering using a cascade of second-order sections of biquad
+/// filters
+/// @param[in]  num_stages the number of biquad filters to apply. Must be at
+///     least 1
+/// @param[in]  coef: a num_stages * 6 entry array with the feedforward and
+///     feedback coefficients for every stage of filtering.
+/// @param[in]  x: the input passed through the filter.
+/// @param[out] y: the output, it must already be allocated and have the same
+///     length as x.
+/// @param[in] length: the length of both x and y
+/// @returns 0 on success
+///
+/// @note
+/// The coefficients of the ith stage should be at:
+///     - `coef[(i*6)+0]= b0`, `coef[(i*6)+1] = b1`, `coef[(i*6)+2] = b2`
+///     - `coef[(i*6)+3]= a0`, `coef[(i*6)+4] = a1`, `coef[(i*6)+5] = a2`
+///
+/// @par ToDo
+/// To do list:
+///    - Need to add an additional argument where state can be specified. To
+///      make it ergonomic, we need to allow it to accept NULL
+///    - Probably need to be checking for overflows and underflows - since this
+///      is recursive it could screw up a lot.
+///
+/// @par Implementation Note
+/// This implements the biquad filters using a Direct Form II Transposed
+/// Structure (this structure seems to be fairly standard). The difference
+/// equations are:
+///     - `y[n] = (b0 * x[n] + d1[n-1])/a0`
+///     - d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
+///     - d2[n] = b2 * x[n] - a2 * y[n]
+int sosFilter(int num_stages, const double *coef, const double *x, double *y,
+	      int length);
+
+/// Computes the sos coefficients to implement a Gammatone filter
+/// The algorithm is taken from Slaney 1993
+/// https://engineering.purdue.edu/~malcolm/apple/tr35/PattersonsEar.pdf
+///
+/// @param[in]  centralFreq The central frequency (in Hz) of the Gammatone
+///     filter
+/// @param[in]  samplerate The sampling rate of the input that the filter will
+///     be applied on
+/// @param[out] coef Pre-allocated buffer used to store the 24 entries
+void sosGammatoneCoef(float centralFreq, int samplerate, double *coef);
 
 /// The sosGammatone is an IIR approximation for the gammatone filter.
 ///
@@ -10,11 +66,11 @@ void cascadeBiquad(int num_stages, double *coef, const double *x, double *y,
 /// Our entire implementation is based on his description (It is implemented 
 /// using a cascade of 4 biquad filters or using 4 second order sections - sos).
 ///
-/// @param[in] input the input data to be filtered
+/// @param[in]  input the input data to be filtered
 /// @param[out] output an array to be filled with the output data
-/// @param[in] centralFreq The frequency of the gammatone Filter
-/// @param[in] samplerate The sampling rate of the input
-/// @param[in] datalen The number of entries in input
+/// @param[in]  centralFreq The frequency of the gammatone Filter
+/// @param[in]  samplerate The sampling rate of the input
+/// @param[in]  datalen The number of entries in input
 /// @returns 0 upon success
 ///
 /// Although it is not currently implemented, I believe it is possible to set 
@@ -22,27 +78,15 @@ void cascadeBiquad(int num_stages, double *coef, const double *x, double *y,
 /// normalized (the central frequency in the frequency response has fixed gain).
 ///
 /// Implementation Notes:
-/// - presently it recasts the input data as doubles for improved accuracy. We
-///   need to be a little careful about precision and stability, but we could
-///   probably switch to using just doubles.
-/// - This implementation also doubles and halves the sampling rate. Depending
-///   on the input, we could actually run into aliasing problems due to the
-///   Nyquist Frequency being close to the highest central frequency. For now,
-///   we just upsample and downsample in a kind of sloppy way (not exactly
-///   right, but  close). If this turns out to be important, than we would
-///   probably just be better off simply using input with a higher samplerate.
+/// - presently it recasts the input data as doubles for improved accuracy.
 /// - The implementation should be adjusted to detect and actively avoid, 
 ///   overflows, underflows and NaNs (due to the recursive nature, the
 ///   appearance will spread throughout the output
 ///
 /// @par Optimization Notes:
-/// This function can certainly be optimized. Currently the cascadeBiquad
-/// calls biquadFilter 4 separate times (meaning that we iterate over the array
-/// 4 times). By refactoring, we only need to make one pass through the array. 
-/// We could also optimize biquadFilter to always expect a0 = 1 (which is
-/// standard) which would remove `4*datalen` multiplications. If we tailored
-/// the implementation to this function in particular, we could also take
-/// advantage of the fact that b2 is always 0.
+/// The current implementation has a long dependency chain. To get this to
+/// vectorize we probably need to refactor this. But that doesn't seem
+/// particularly necessary
 ///
 /// @par Alternative Implementations
 /// There may be some benefits to using a FIR filter instead.  
@@ -58,16 +102,12 @@ void cascadeBiquad(int num_stages, double *coef, const double *x, double *y,
 /// Lyon (1996) also discuses how the One-Zero Gammatone Filter (OZGF) which is
 /// slightly modified from the APGF and is supposed to be a slightly better
 /// approximation for a gammatone.
-int sosGammatone(const float* data, float* output, float centralFreq,
+int sosGammatonef(const float* data, float* output, float centralFreq,
+		  int samplerate, int datalen);
+// we ultimately want to drop this second version (after we adjust the test
+// suite)
+int sosGammatone(const double* data, double* output, float centralFreq,
 		 int samplerate, int datalen);
-void sosGammatoneHelper(const double* data, double* output, float centralFreq,
-			int samplerate, int datalen);
-
-void sosCoef(float centralFreq, int samplerate, double *coef);
 
 
-/// A faster implementation of sosGammatone that performs all operations with
-/// floats and does not resample. See the documentation for sosGammatone for
-/// additional information.
-int sosGammatoneFast(const float* data, float* output, float centralFreq,
-		     int samplerate, int datalen);
+

@@ -56,7 +56,7 @@ endif()
 SET(CMAKE_C_FLAGS, "${CMAKE_C_FLAGS} -Wall -Wextra -fno-trapping-math -fno-math-errno -fno-signed-zeros")
 # this is included to facillitate any level of vectorization
 # May want to further restrict this in the future
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -march=native")
 
 
 ###############################################################################

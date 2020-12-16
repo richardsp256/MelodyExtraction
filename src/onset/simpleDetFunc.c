@@ -4,6 +4,7 @@
 #include <time.h>
 #include "filterBank.h"
 #include "calcSummedLagCorrentrograms.h"
+#include "../errors.h"
 #include "../utils.h" // AlignedAlloc
 
 #define MAX_CHANNELS 128
@@ -240,11 +241,9 @@ int simpleComputePSM(int numChannels, const float * restrict data,
 
 		int tmp_rslt;
 
-		//tmp_rslt = sosGammatone(data, buffer, centralFreq[i],
-		//			sampleRate, dataLength);
-		tmp_rslt = sosGammatoneFast(data, buffer, centralFreq[i],
-					    sampleRate, dataLength);
-		if (tmp_rslt){
+		tmp_rslt = sosGammatonef(data, buffer, centralFreq[i],
+					 sampleRate, dataLength);
+		if (tmp_rslt != ME_SUCCESS){
 			return tmp_rslt;
 		}
 

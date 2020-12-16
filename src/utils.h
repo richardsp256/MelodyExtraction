@@ -26,3 +26,20 @@ inline void* AlignedAlloc(size_t alignment, size_t size){
 	assert( ((size % alignment) == 0) && (size > 0)); // sanity check
 	return aligned_alloc(alignment, size);
 }
+
+/// Checks whether a pair of pointers overlap in memory
+inline int HasOverlap(const void * const a, size_t a_length,
+                      const void * const b, size_t b_length,
+                      size_t elem_size){
+
+	size_t a_start = (size_t) a;
+	size_t b_start = (size_t) b;
+
+	if (a_start == b_start){
+		return 1;
+	} else if (a_start > b_start){
+		return (b_start + elem_size * b_length) > a_start;
+	} else {
+		return (a_start + elem_size * a_length) > b_start;
+	}
+}

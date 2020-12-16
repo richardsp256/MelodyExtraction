@@ -27,7 +27,7 @@ void stepFunction(double **array,int length, double start, double increment,
 void testSOSCoefFramework(float centralFreq, int samplerate, double *ref,
 			      double tol, int rel, double abs_zero_tol){
 	double *coef = malloc(sizeof(double)*24);
-	sosCoef(centralFreq, samplerate, coef);
+	sosGammatoneCoef(centralFreq, samplerate, coef);
 	compareArrayEntries(ref, coef, 24, tol, rel, abs_zero_tol);
 	free(coef);
 }
@@ -37,7 +37,7 @@ void testSOSGammatoneFramework(float centralFreq, int samplerate,
 				   double tol, int rel, double abs_zero_tol){
 
 	double *result = malloc(sizeof(double)*length);
-	sosGammatoneHelper(input, result, centralFreq, samplerate, length);
+	sosGammatone(input, result, centralFreq, samplerate, length);
 	compareArrayEntries(ref, result, length, tol, rel, abs_zero_tol);
 	free(result);
 }
@@ -185,7 +185,7 @@ int buildInputArray(int *intInput, int intInputLen, int intInputStart,
 int biquadFilterTestTemplate(int *intInput, int intInputLen, double *dblInput,
 			     int dblInputLen, char *strInput, double **array)
 {
-	/* This is a template for testing the biquadFilter or cascadeBiquad. 
+	/* This is a template for testing the biquadFilter or sosFilter.
 	 * 
 	 * We always expect the first 6 doubles in dblInput to be the 
 	 * coefficients.
@@ -224,7 +224,7 @@ int biquadFilterTestTemplate(int *intInput, int intInputLen, double *dblInput,
 	if (num_stages == 0){
 		biquadFilter(dblInput, inputArray, *array, length);
 	} else {
-		cascadeBiquad(num_stages, dblInput, inputArray, *array, length);
+		sosFilter(num_stages, dblInput, inputArray, *array, length);
 	}
 	free(inputArray);
 	return length;
@@ -345,7 +345,7 @@ struct dblArrayTestEntry* construct_cascade_biquad_test_table()
 					     * cascade_biquad_table_length);
 
 	/* The first tests is a simple rehash of a biquadFilter test 
-	 * test. It tests that cascadeBiquad properly handles 1 order.
+	 * test. It tests that sosFilter properly handles 1 order.
 	 */
 	double dblInput[] = {13.,-4.,7.,1.,6.,-5.,
 			      3.,18.};
@@ -370,7 +370,7 @@ Suite *gammatone_suite()
 	TCase *tc_coef = tcase_create("Coef");
 	TCase *tc_performance = tcase_create("Performance");
 	TCase *tc_biquad = tcase_create("Biquad Filter");
-	TCase *tc_cascadeBiquad = tcase_create("cascadeBiquad");
+	TCase *tc_sosFilter = tcase_create("sosFilter");
 
 	tcase_add_test(tc_coef,test_sos_coefficients_1);
 	tcase_add_test(tc_coef,test_sos_coefficients_2);
@@ -382,16 +382,16 @@ Suite *gammatone_suite()
 	if (IsLittleEndian() == 1){
 		tcase_add_loop_test(tc_biquad,check_biquad_filter_table,0,
 				    biquad_table_length);
-		tcase_add_loop_test(tc_cascadeBiquad,
+		tcase_add_loop_test(tc_sosFilter,
 				    check_cascade_biquad_filter_table, 0,
 				    cascade_biquad_table_length);
 	} else {
-		printf("Cannot add biquad filter tests or cascadeBiquad \n"
+		printf("Cannot add biquad filter tests or sosFilter \n"
 		       "tests because the tests are not presently equipped \n"
 		       "to run on Big Endian machines.\n");
 	}
 	suite_add_tcase(s, tc_biquad);
-	suite_add_tcase(s, tc_cascadeBiquad); 
+	suite_add_tcase(s, tc_sosFilter);
 	
 	suite_add_tcase(s, tc_coef);
 	suite_add_tcase(s, tc_performance);
