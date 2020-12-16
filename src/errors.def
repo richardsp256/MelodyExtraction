@@ -57,6 +57,14 @@ ERROR_ENTRY(ME_BAD_HOPSIZE, -204,
   "integral multiple of 4")
 
 
+ERROR_ENTRY(ME_BAD_KERNEL_FIT, -240,
+  "There was an issue while trying to identify the best-fit kernel.")
+ERROR_ENTRY(ME_NO_TRANSIENTS, -241,
+  "No tranisents could be identified.")
+ERROR_ENTRY(ME_ALL_NULL_DETFUNC, -242,
+  "All entries in the detection function were zero.")
+
+
 // Resample Errors:
 
 ERROR_ENTRY(ME_BAD_SAMPLERATIO, -401,

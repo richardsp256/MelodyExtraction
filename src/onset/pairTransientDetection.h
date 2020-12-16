@@ -3,10 +3,11 @@
 //might make sense to rename the file
 
 /// Internal helper function that identifies transients from the provided
-/// detection function
+/// Identifies onsets and offsets from a detection function
 ///
-/// @param[in] detection_func Array of detection function values.
-/// @param[in] len Number of values in detection_func
+/// @param[in]  detection_func Array of detection function values. This will be
+///             modified, in-place.
+/// @param[in]  len Number of values in detection_func
 /// @param[out] transients A pointer to an initially empty intList that will be
 ///             filled with integers that indicate the interval in the 
 ///             detection function in which a transient has been identified.
