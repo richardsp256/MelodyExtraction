@@ -2,8 +2,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <stdbool.h>
+#include <float.h> // FLT_MIN, FLT_MAX
 #include <check.h>
 #include <math.h>
+
 
 #include "doubleArrayTesting.h"
 #include "../src/utils.h" // isLittleEndian
@@ -78,78 +81,127 @@ int getArrayLength(FILE *fp, int object_size){
 	return length;
 }
 
-int readDoubleArray(char *fileName, int system_little_endian, double **array){
-	/* Reads in a little-endian double array from a binary file. Returns 
-	 * the size of the array. Sets array to point to the loaded values.
-	 *
-	 * system_little_endian indicates whether or not the system is big 
-	 * endian (0) or little endian (1).
-	 */
+int readDoubleArray(const char *fileName, bool system_little_endian,
+		    enum PrecisionEnum output_prec, void **array){
+	if (!system_little_endian){
+		printf("Doesn't currently support big-endian machines\n");
+		abort();
+	}
 
-	FILE *fp;
-
-	fp = openTestFile(fileName, "rb");
+	FILE * fp = openTestFile(fileName, "rb");
 
 	int length = getArrayLength(fp, sizeof(double));
 	if (length < 0){
 		return length;
 	}
 
-	(*array) = malloc(sizeof(double)*length);
-	if ((*array) == NULL){
-		return -4;
-	}
-	fread((*array), sizeof(double), length, fp);
+	bool range_problem = false;
+	bool file_problem = false;
+
+	switch(output_prec){
+	case float_precision: {
+		(*array) = malloc(sizeof(float)*length);
+		float * buffer = (float *) (*array);
+		if (buffer){
+			for (int i = 0; i < length; i++){
+				double val;
+				if (1 != fread(&val, sizeof(double), 1, fp)){
+					file_problem = true;
+					break;
+				}
+
+				if (fabs(val) == 0.0f ||
+				    ( (fabs(val) >= FLT_MIN) &&
+				      (fabs(val) <= FLT_MAX))) {
+					buffer[i] = (float) val;
+				} else{
+					printf("%e can't be represented as a "
+					       "single precision float\n",
+					       val);
+					range_problem = true;
+					break;
+				}
+			}
+		}
+		break;
+	} // end of float_precision case
+	case double_precision: {
+		(*array) = malloc(sizeof(double)*length);
+		if (*array){
+			if ((size_t)length != fread((*array), sizeof(double),
+						    length, fp)){
+				file_problem = true;
+			}
+		}
+		break;
+	} // end of double_precision case
+	} // end of switch statement
 	fclose(fp);
+
+	// Now to do some error handling
+	if ((*array) == NULL){
+		printf("There was an issue with malloc\n");
+		return -4;
+	} else if (range_problem){
+		free(*array);
+		printf("There was an issue with converting to the desired "
+		       "precision.\n");
+		return -5;
+	} else if (file_problem){
+		free(*array);
+		printf("There was an issue reading from the file\n");
+		return -6;
+	}
 	return length;
 }
 
 
-void compareArrayEntries(double *ref, double* other, int length,
-			 double tol, int rel,double abs_zero_tol)
-{
-	// if relative < 1, then we compare absolute value of the absolute
-	// difference between values
-	// if relative > 1, we need to specially handle when the reference
-	// value is zero. In that case, we look at the absolute differce and
-	// compare it to abs_zero_tol
-	
-	int i;
-	double diff;
-
-	for (i = 0; i< length; i++){
-		diff = fabs(ref[i]-other[i]);
-		if (rel >=1){
-			if (ref[i] == 0){
-				// we will just compute abs difference
-				ck_assert_msg(diff <= abs_zero_tol,
-					      ("ref[%d] = 0, comp[%d] = %e"
-					       " has abs diff > %e\n"),
-					      i, i, other[i],
-					      abs_zero_tol);
-				continue;
-			}
-			diff = diff/fabs(ref[i]);
-		}
-		if (diff>tol){
-			if (rel>=1){
-				ck_abort_msg(("ref[%d] = %e, comp[%d] = %e"
-					      " has rel dif > %e"),
-					     i,ref[i],i,other[i], tol);
-			} else {
-				ck_abort_msg(("ref[%d] = %e, comp[%d] = %e"
-					      " has abs dif > %e"),
-					     i,ref[i],i,other[i], tol);
-			}
-		}		
-	}
+// if relative < 1, then we compare absolute value of the absolute
+// difference between values
+// if relative > 1, we need to specially handle when the reference
+// value is zero. In that case, we look at the absolute differce and
+// compare it to abs_zero_tol
+#define create_compareArrayEntriesFunc(ftype)                                \
+void compareArrayEntries_ ## ftype (const ftype *ref, const ftype* other,    \
+				    int length,	ftype tol, int rel,          \
+				    ftype abs_zero_tol)                      \
+{                                                                            \
+	for (int i = 0; i< length; i++){                                     \
+		double diff = fabs(ref[i]-other[i]);                         \
+		if (rel >=1){                                                \
+			if (ref[i] == 0){                                    \
+				/* we will just compute abs difference */    \
+				ck_assert_msg(diff <= abs_zero_tol,          \
+					      ("ref[%d] = 0, comp[%d] = %e"  \
+					       " has abs diff > %e\n"),      \
+					      i, i, other[i],                \
+					      abs_zero_tol);                 \
+				continue;                                    \
+			}                                                    \
+			diff = diff/fabs(ref[i]);                            \
+		}                                                            \
+		if (diff>tol){                                               \
+			if (rel>=1){                                         \
+				ck_abort_msg(("ref[%d] = %e, comp[%d] = %e"  \
+					      " has rel dif > %e"),          \
+					     i,ref[i],i,other[i], tol);      \
+			} else {                                             \
+				ck_abort_msg(("ref[%d] = %e, comp[%d] = %e"  \
+					      " has abs dif > %e"),          \
+					     i,ref[i],i,other[i], tol);      \
+			}                                                    \
+		}		                                             \
+	}								     \
 }
 
+create_compareArrayEntriesFunc(double)
+create_compareArrayEntriesFunc(float)
+
 void setup_dblArrayTestEntry(struct dblArrayTestEntry *test_entry,
-			     int intInput[], int intInputLen,
-			     double dblInput[], int dblInputLen,
-			     char *strInput, char *resultFname,
-			     dblArrayTest func){
+	 	 	     int intInput[], int intInputLen,
+	 	 	     double dblInput[], int dblInputLen,
+	 	 	     char *strInput, char *resultFname,
+	 	 	     dblArrayTest func){
 	test_entry->intInput = malloc(sizeof(int) * intInputLen);
 	for (int i=0; i< intInputLen; i++){
 		test_entry->intInput[i] = intInput[i];
@@ -171,7 +223,7 @@ void clean_up_dblArrayTestEntry(struct dblArrayTestEntry *test_entry){
 }
 
 int process_double_array_test(struct dblArrayTestEntry entry, double tol,
-			       int rel, double abs_zero_tol){
+		 	      int rel, double abs_zero_tol){
 	/* run the double array test. */
 	double *calc = NULL;
 	int calc_len;
@@ -184,7 +236,8 @@ int process_double_array_test(struct dblArrayTestEntry entry, double tol,
 	}
 
 	// Load in the reference array
-	ref_len = readDoubleArray(entry.resultFname, 1, &ref);
+	ref_len = readDoubleArray(entry.resultFname, 1, double_precision,
+				  (void**)&ref);
 	if (ref_len<=0){
 		ck_abort_msg(("Encountered an issue while determining "
 			      "reference array.\n"));
@@ -196,8 +249,46 @@ int process_double_array_test(struct dblArrayTestEntry entry, double tol,
 
 	ck_assert_int_eq(calc_len,ref_len);
 
-	compareArrayEntries(ref, calc, ref_len, tol, rel, abs_zero_tol);
+	compareArrayEntries_double(ref, calc, ref_len, tol, rel, abs_zero_tol);
 	free(calc);
 	free(ref);
 	return 1;
+}
+
+void compareAgainstSavedArray(const char* fname, const void* test, int test_len,
+			      enum PrecisionEnum prec, double tol, bool rel,
+			      double abs_zero_tol)
+{
+	/* run the double array test. */
+	void *ref = NULL;
+	int ref_len;
+
+	if (!IsLittleEndian()){
+		ck_abort_msg(("Currently unable to run test on Big Endian "
+			      "machine.\n"));
+	}
+
+	// Load in the reference array
+	ref_len = readDoubleArray(fname, true, prec, &ref);
+	if (ref_len<=0){
+		printf("%d\n",ref_len);
+		ck_abort_msg(("Encountered an issue while determining "
+			      "reference array.\n"));
+	}
+
+	ck_assert_int_eq(test_len,ref_len);
+
+	switch(prec){
+	case float_precision:
+		compareArrayEntries_float(
+			(const float*)ref, (const float*)test, ref_len,
+			(float)tol, rel, (float)abs_zero_tol);
+		break;
+	case double_precision:
+		compareArrayEntries_double(
+			(const double*)ref, (const double*)test, ref_len,
+			tol, rel, abs_zero_tol);
+		break;
+	}
+	free(ref);
 }

@@ -1,3 +1,9 @@
+/// @file     gammatoneFilter.c
+/// @brief    Implementation of the gammatone filter.
+///
+/// It may make more sense to place the sosFilter in a separate file in a
+/// common module in the root file, so that we can recycle it
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -8,12 +14,6 @@
 #include "../resample.h"
 #include "../errors.h"
 #include "gammatoneFilter.h"
-
-#if defined (__GNUC__) || defined (__clang__)
-#define forceinline __attribute__((always_inline))
-#else
-#define forceinline /* ... */
-#endif
 
 /// numerically normalize the response to have 0 dB gain at the central
 /// frequency.
@@ -84,65 +84,57 @@ void sosGammatoneCoef(float centralFreq, int samplerate, double *coef)
 	}
 }
 
-
-static forceinline double sosFilterElem_(
-	double x, const double * restrict coef,
-	uint8_t n_stages, double * restrict state)
-{
-	// implementation commonly require that a0 = 1 (to avoid the division)
-	double new_val = (double)x;
-	for (uint8_t stage = 0; stage < n_stages; stage++){
-		double cur_x = new_val;
-
-		// load feedforward coefficients (coefficients in numerator of
-		// the transfer function)
-		double b0, b1, b2;
-		b0 = coef[stage * 6 + 0];
-		b1 = coef[stage * 6 + 1];
-		b2 = coef[stage * 6 + 2];
-
-		// load feedback coefficients (coefficients in denominator of
-		// the transfer function)
-		double a0, a1, a2;
-		a0 = coef[stage * 6 + 3];
-		a1 = coef[stage * 6 + 4];
-		a2 = coef[stage * 6 + 5];
-
-		// d1 and d2 are state variables
-		int d1_ind = 2*stage;
-		int d2_ind = 2*stage + 1;
-
-		// 1st eqn: y[n] = (b0 * x[n] + d1[n-1])/a0
-		new_val = (b0 * cur_x + state[d1_ind])/a0;
-		// 2nd eqn: d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
-		state[d1_ind] =
-			b1 * cur_x - a1 * new_val + state[d2_ind];
-		// 3rd eqn: d2[n] = b2 * x[n] - a2 * y[n]
-		state[d2_ind] = b2 * cur_x - a2 * new_val;
-	}
-	return new_val;
-}
-
-static void sosFilter_(const double * restrict x, size_t length,
+static void sosFilter_(const float * restrict x, size_t length,
 		       const double * restrict coef, uint8_t n_stages,
-		       double * restrict y, double * restrict state)
+		       float * restrict y, double * restrict state)
 {
 	for (size_t n = 0; n < length; n++){
-		y[n] = (double) sosFilterElem_( (double)x[n], coef,
-						n_stages, state);
+		// implementations commonly require that a0 = 1 (to avoid the
+		// single division)
+		double new_val = (double)x[n];
+		for (uint8_t stage = 0; stage < n_stages; stage++){
+			double cur_x = new_val;
+
+			// load feedforward coefficients (coefficients in
+			// numerator of the transfer function)
+			double b0, b1, b2;
+			b0 = coef[stage * 6 + 0];
+			b1 = coef[stage * 6 + 1];
+			b2 = coef[stage * 6 + 2];
+
+			// load feedback coefficients (coefficients in
+			// denominator of the transfer function)
+			double a0, a1, a2;
+			a0 = coef[stage * 6 + 3];
+			a1 = coef[stage * 6 + 4];
+			a2 = coef[stage * 6 + 5];
+
+			// d1 and d2 are state variables
+			int d1_ind = 2*stage;
+			int d2_ind = 2*stage + 1;
+
+			// 1st eqn: y[n] = (b0 * x[n] + d1[n-1])/a0
+			new_val = (b0 * cur_x + state[d1_ind])/a0;
+			// 2nd eqn: d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
+			state[d1_ind] =
+				b1 * cur_x - a1 * new_val + state[d2_ind];
+			// 3rd eqn: d2[n] = b2 * x[n] - a2 * y[n]
+			state[d2_ind] = b2 * cur_x - a2 * new_val;
+		}
+		y[n] = (float) new_val;
 	}
 }
 
-int sosFilter(int num_stages, const double *coef, const double *x, double *y,
-	      int length)
+int sosFilter(int num_stages, const double *coef, const float *x, float *y,
+	       int length)
 {
 	if (num_stages > 8){
 		abort();
 	} else if (num_stages <= 0){
 		return ME_ERROR;
-	} else if (HasOverlap(x, length, y, length, sizeof(double)) ||
-		   HasOverlap(x, length, coef, num_stages*6, sizeof(double)) ||
-		   HasOverlap(y, length, coef, num_stages*6, sizeof(double))){
+	} else if (HasOverlap(x, length, y, length, sizeof(float)) ||
+		   HasOverlap(x, length, coef, num_stages*6, sizeof(float)) ||
+		   HasOverlap(y, length, coef, num_stages*6, sizeof(float))){
 		return ME_ERROR;
 	}
 	double state[16] = {0.}; // automatically initialized to 0s
@@ -150,34 +142,8 @@ int sosFilter(int num_stages, const double *coef, const double *x, double *y,
 	return ME_SUCCESS;
 }
 
-int biquadFilter(const double *coef, const double *x, double *y, int length){
-	double state[2] = {0.,0.};
-	return sosFilter(1, coef, x, y, length);
-}
-
-static void sosFilterf_(const float * restrict x, size_t length,
-			const double * restrict coef, uint8_t n_stages,
-			float * restrict y, double * restrict state)
-{
-	for (size_t n = 0; n < length; n++){
-		y[n] = (float) sosFilterElem_( (double)x[n], coef,
-					       n_stages, state);
-	}
-}
-
-int sosGammatone(const double* data, double* output, float centralFreq,
+int sosGammatone(const float* data, float* output, float centralFreq,
 		 int samplerate, int datalen)
-{
-	double coef[24];
-	sosGammatoneCoef(centralFreq, samplerate, coef);
-
-	// for now, we asssume that state variables start at 0, because before
-	// a recording there is silence.
-	return sosFilter(4, coef, data, output, datalen);
-}
-
-int sosGammatonef(const float* data, float* output, float centralFreq,
-		  int samplerate, int datalen)
 {
 	if ( HasOverlap(data, datalen, output, datalen, sizeof(float)) ){
 		return ME_ERROR;
@@ -189,6 +155,5 @@ int sosGammatonef(const float* data, float* output, float centralFreq,
 	// a recording there is silence. If we are chunking the recording we
 	// will need to track state between chunks.
 	double state[8] = {0.}; // automatically initialized to 0s
-	sosFilterf_(data, datalen, coef, 4, output, state);
-	return ME_SUCCESS;
+	return sosFilter(4, coef, data, output, datalen);
 }

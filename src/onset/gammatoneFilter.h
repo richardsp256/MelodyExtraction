@@ -1,18 +1,5 @@
-/// Convenience function provided for filtering data with a second order biquad
-/// filter.
-/// @param[in]  num_stages the number of biquad filters to apply. Must be at
-///     least 1
-/// @param[in]  coef: a num_stages * 6 entry array with the feedforward and
-///     feedback coefficients for every stage of filtering.
-/// @param[in]  x: the input passed through the filter.
-/// @param[out] y: the output, it must already be allocated and have the same
-///     length as x.
-/// @param[in] length: the length of both x and y
-/// @returns 0 on success
-///
-/// @note
-/// This function simply wraps sosFilter
-int biquadFilter(const double *coef, const double *x, double *y, int length);
+/// @file     gammatoneFilter.h
+/// @brief    Declaration of the gammatone filter.
 
 /// Performs IIR filtering using a cascade of second-order sections of biquad
 /// filters
@@ -45,7 +32,7 @@ int biquadFilter(const double *coef, const double *x, double *y, int length);
 ///     - `y[n] = (b0 * x[n] + d1[n-1])/a0`
 ///     - d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
 ///     - d2[n] = b2 * x[n] - a2 * y[n]
-int sosFilter(int num_stages, const double *coef, const double *x, double *y,
+int sosFilter(int num_stages, const double *coef, const float *x, float *y,
 	      int length);
 
 /// Computes the sos coefficients to implement a Gammatone filter
@@ -102,11 +89,7 @@ void sosGammatoneCoef(float centralFreq, int samplerate, double *coef);
 /// Lyon (1996) also discuses how the One-Zero Gammatone Filter (OZGF) which is
 /// slightly modified from the APGF and is supposed to be a slightly better
 /// approximation for a gammatone.
-int sosGammatonef(const float* data, float* output, float centralFreq,
-		  int samplerate, int datalen);
-// we ultimately want to drop this second version (after we adjust the test
-// suite)
-int sosGammatone(const double* data, double* output, float centralFreq,
+int sosGammatone(const float* data, float* output, float centralFreq,
 		 int samplerate, int datalen);
 
 

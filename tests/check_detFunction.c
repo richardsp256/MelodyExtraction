@@ -42,7 +42,8 @@ int rollSigmaTestTemplate(int *intInput, int intInputLen, double *dblInput,
 	int little_endian = IsLittleEndian();
 
 	input_length = readDoubleArray(strInput, little_endian,
-				       &original_input);
+				       double_precision,
+				       (void **)&original_input);
 
 	/* convert the input array to an array of floats */
 	float *buffer;
@@ -85,15 +86,12 @@ struct dblArrayTestEntry* construct_rollSigma_test_table()
 
 	int intInput[] = {0,5,13,10};
 	double dblInput[] = {2.0};
-	
-	//By listing path names from tests folder, the path will be correct
-	//when we run make test from th emain folder, but incorrect when we 
-	//run ./check_detFunction from the tests folder. If we list path 
-	//names from test_files folder, same problem but reversed...
+
 	setup_dblArrayTestEntry((sigma_table+0),intInput, 4, dblInput, 1,
 				"tests/test_files/roll_sigma/roll_sigma_sample_input",
 				"tests/test_files/roll_sigma/roll_sigma_sample_test",
 				&rollSigmaTestTemplate);
+	return sigma_table;
 }
 
 void destroy_roll_Sigma_test_table(){
