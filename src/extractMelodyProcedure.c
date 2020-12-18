@@ -21,7 +21,6 @@ static int dummy_exit_code = 0; // no code should depend on this value
 
 struct Midi* ExtractMelody(float** input, audioInfo info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
-		int o_unpaddedSize, int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
 		int s_winSize, int s_winInt, int s_mode, SilenceStrategyFunc silenceStrategy,
 		int hpsOvr, int tuning, int verbose, char* prefix,
 		int *exit_code)
@@ -38,7 +37,6 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	if(verbose){
 		printf("ARGS:\n");
 		printf("p_unpad %d,  p_win %d,  p_int %d\n", p_unpaddedSize, p_winSize, p_winInt);
-		printf("o_unpad %d,  o_win %d,  o_int %d\n", o_unpaddedSize, o_winSize, o_winInt);
 		printf("s_win %d,  s_int %d,  s_mode %d\n", s_winSize, s_winInt, s_mode);
 		printf("hps %d,  tuning %d,  verbose %d,  prefix %s\n", hpsOvr, tuning, verbose, prefix);
 	}
@@ -79,17 +77,6 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	// Make onsets an intList
 	//    - initial size is 20 (might want something different
 	intList* onsets = intListCreate(20);
-
-
-	// Commenting the following out was part of a quick and dirty solution
-	// to call the TransientDetectionStrategy. To call this strategy, more
-	// correctly (via ExtractOnset), will require some refactoring of the
-	// ExtractOnset function. We need to make the onsetStrategy take it's
-	// own Short Time Fourier Transform, if necessary. Also the
-	// onsetStrategy should probably indicate whether or not offsets are in
-	// the output
-	//int o_size = ExtractOnset(input, &onsets, info, o_unpaddedSize, o_winSize, o_winInt, 
-	//             onsetStrategy, verbose);
 
 	int o_size = TransientDetectionStrategy(input, info.frames, 0,
 						info.samplerate, onsets);
@@ -280,50 +267,6 @@ int ExtractSilence(float** input, int** activityRanges, audioInfo info,
 	}
 
 	return a_size;
-}
-
-int ExtractOnset(float** input, intList* onsets, audioInfo info,
-		 int o_unpaddedSize, int o_winSize, int o_winInt,
-		 OnsetStrategyFunc onsetStrategy, int verbose)
-{
-	fftwf_complex* o_fftData = NULL;
-	int o_fftData_size = STFT_r2c(input, info, o_unpaddedSize, o_winSize,
-				      o_winInt, &o_fftData);
-	if(o_fftData_size == -1){
-		return -1;
-	}
-	int o_numBlocks = o_fftData_size/(o_winSize/2);
-	if(verbose){
-		printf("numblcks of onset FFT: %d\n", o_numBlocks);
-		fflush(NULL);
-	}
-	float* o_fftData_float = (float*)o_fftData;
-	// because we convert from complex* to float*, o_fftData has twice as
-	// many elements
-	o_fftData_size *= 2; 
-
-	int o_size = onsetStrategy(&o_fftData_float, o_fftData_size,
-				   o_winSize, info.samplerate, onsets);
-	//printf("o_strat return size: %d\n", o_size);
-	free(o_fftData);
-
-	if(o_size == -1){
-		return -1;
-	}
-
-	// convert onsets so that the value is not which block of o_fftData it
-	// occurred, but which sample of the original audio it occurred
-	int* o_arr = onsets->array;
-	for (int i = 0; i < onsets->length; i++){
-		o_arr[i] = winStartRepSampleIndex(o_winInt, o_unpaddedSize,
-						  info.frames, o_arr[i]);
-		printf("onset at sample: %d, time: %d, and block: %d\n",
-		       o_arr[i], (int)(o_arr[i] * (1000.0/info.samplerate)),
-		       repWinIndex(o_winInt, o_unpaddedSize, info.frames,
-				   o_arr[i]));
-	}
-
-	return o_size;
 }
 
 int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,

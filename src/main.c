@@ -22,13 +22,6 @@
  *   --pitch_spacing: stft window spacing for pitch detection, def = 2048
  *   --pitch_strategy: strategy for pitch detection, either HPS, BaNa, and BaNaMusic, def = HPS
  *
- *   --onset_window: number of frames of audiodata taken for each stft window for onset detection. def = 512
- *   --onset_padded: final size of stft window for onset detection after zero padding. 
- *                    if not set, the window size will be --onset_window.
- *                    cannot be set to less than --onset_window. def = -1
- *   --onset_spacing: stft window spacing for onset detection, def = 256
- *   --onset_strategy: strategy for onset detection, only OnsetsDS, def = OnsetsDS
- *
  *   --silence_window: number of milliseconds of audio data in a frame 
  *                      considered for silence detection. The only allowed 
  *                      values are 10ms, 20ms, and 30ms, def=10ms
@@ -63,11 +56,6 @@ int main(int argc, char ** argv)
 			{"pitch_padded", required_argument, 0, 'x'},
 			{"pitch_spacing", required_argument, 0, 'b'},
 			{"pitch_strategy", required_argument, 0, 'c'},
-
-			{"onset_window", required_argument, 0, 'd'},
-			{"onset_padded", required_argument, 0, 'y'},
-			{"onset_spacing", required_argument, 0, 'e'},
-			{"onset_strategy", required_argument, 0, 'f'},
 
 			{"silence_window", required_argument, 0, 'g'},
 			{"silence_spacing", required_argument, 0, 'j'},
@@ -109,18 +97,6 @@ int main(int argc, char ** argv)
 			break;
 		case 'c':
 			settings->pitch_strategy = strdup(optarg);
-			break;
-		case 'd':
-			settings->onset_window = strdup(optarg);
-			break;
-		case 'y':
-			settings->onset_padded = strdup(optarg);
-			break;
-		case 'e':
-			settings->onset_spacing = strdup(optarg);
-			break;
-		case 'f':
-			settings->onset_strategy = strdup(optarg);
 			break;
 		case 'g':		
 			settings->silence_window = strdup(optarg);

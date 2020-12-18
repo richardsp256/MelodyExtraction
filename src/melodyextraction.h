@@ -49,10 +49,6 @@ struct me_settings{
 	char * pitch_padded;
 	char * pitch_spacing;
 	char * pitch_strategy;
-	char * onset_window;
-	char * onset_padded;
-	char * onset_spacing;
-	char * onset_strategy;
 	char * silence_window;
 	char * silence_spacing;
 	char * silence_strategy;

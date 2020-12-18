@@ -5,91 +5,12 @@
 #include <ctype.h>
 #include <math.h>
 #include <float.h>
-#include "onsetsds.h"
+
 #include "../resample.h"
 #include "../errors.h"
 #include "onsetStrat.h"
 #include "pairTransientDetection.h"
 #include "simpleDetFunc.h"
-
-OnsetStrategyFunc chooseOnsetStrategy(char* name){
-	// this function returns the fundamental detection strategy named name
-	// all names are case insensitive
-	// this function returns NULL if the name is invalid
-
-	OnsetStrategyFunc detectionStrategy;
-
-	// Lets make name lowercased
-	// https://stackoverflow.com/questions/2661766/c-convert-a-mixed-case-
-	//string-to-all-lower-case
-
-	for(int i = 0; name[i]; i++){
-		name[i] = tolower(name[i]);
-	}
-	
-	if (strcmp(name,"onsetsds")==0) {
-		detectionStrategy = &OnsetsDSDetectionStrategy;
-	} else if (strcmp(name, "TransientAlg")==0){
-		detectionStrategy = &TransientDetectionStrategy;
-	}
-	else{
-		detectionStrategy = NULL;
-	}
-	return detectionStrategy;
-}
-
-int OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, int samplerate, intList* onsets){
-	int medspan = 15;
-	int numBlocks = size / dftBlocksize;
-
-	OnsetsDS ods; // An instance of the OnsetsDS struct
-	float* block = malloc(sizeof(float) * dftBlocksize); //hold a block of data from AudioData to process
-
-	enum onsetsds_odf_types odftype = ODS_ODF_RCOMPLEX; //various onset detectors available, ODS_ODF_RCOMPLEX should be the best
-	float* odsdata = (float*) malloc(onsetsds_memneeded(odftype, dftBlocksize, medspan)); // Allocate contiguous memory ods needs for processing onset
-	if(odsdata == NULL){
-		printf("malloc error\n");
-		fflush(NULL);
-		free(block);
-		return -1;
-	}
-	onsetsds_init(&ods, odsdata, ODS_FFT_FFTW3_R2C, odftype, dftBlocksize, medspan, samplerate);//initialise the OnsetsDS struct and its associated memory
-
-	for(int i = 0; i < numBlocks; ++i){
-		// Grab your 512-point, 50%-overlap, nicely-windowed FFT data, into block
-		for (int j = 0; j < dftBlocksize; ++j){
-			block[j] = (*AudioData)[ (i * dftBlocksize) + j ];
-		}
-		
-		if(onsetsds_process(&ods, block)){
-			//printf("new onset\n");
-			int tmp_rslt = intListAppend(onsets,i);
-			if(tmp_rslt != ME_SUCCESS){ //resize failed
-				printf("Resizing onsets failed. Exitting.\n");
-				free(block);
-				free(ods.data);
-				return tmp_rslt;
-			}
-		}
-	}
-
-	free(block);
-	free(ods.data); // Or free(odsdata), they point to the same thing in this case
-
-	if(onsets->length == 0){ //if no onsets found, do not realloc here. Unable to realloc array to size 0
-		return 0;
-	}
-	printf("shrink capacity to size %ld\n", onsets->length*sizeof(int));
-	int tmp_rslt = intListShrink(onsets);
-	if (tmp_rslt != ME_SUCCESS){
-		printf("Resizing onsets failed. Exitting.\n");
-		// intList was preallocated, we intentionally won't free it
-		return tmp_rslt;
-	}
-
-	return onsets->length;
-}
-
 
 // Note: This function signature is a little hacky. DftBlocksize is never used
 // and onsets contains all transients (including onsets and offsets)

@@ -22,7 +22,6 @@ set(SOURCES
   pitch/findpeaks.c
   pitch/HPSDetection.c
   onset/onsetStrat.c
-  onset/onsetsds.c
   onset/simpleDetFunc.c
   onset/calcSummedLagCorrentrograms.c
   onset/gammatoneFilter.c

@@ -7,18 +7,14 @@
 
 #include "extractMelodyProcedure.h"
 #include "pitch/pitchStrat.h"
-#include "onset/onsetStrat.h"
 #include "silenceStrat.h"
 
 
 //default arg settings:
-//for pitch and onset, default padding = windowsize, default spacing = windowsize/2
+//for pitch and default padding = windowsize, default spacing = windowsize/2
 //for silence, default spacing = windowsize
 int PITCH_WINDOW_DEF = 4096;
 PitchStrategyFunc PITCH_STRATEGY_DEF = &BaNaMusicDetectionStrategy;
-
-int ONSET_WINDOW_DEF = 512;
-OnsetStrategyFunc ONSET_STRATEGY_DEF = &OnsetsDSDetectionStrategy;
 
 int SILENCE_WINDOW_DEF = 10; //silence window is in ms, not num samples
 int SILENCE_MODE_DEF = 0;
@@ -67,10 +63,6 @@ struct me_data{
 	int pitch_padded;
 	int pitch_spacing;
 	PitchStrategyFunc pitch_strategy;
-	int onset_window;
-	int onset_padded;
-	int onset_spacing;
-	OnsetStrategyFunc onset_strategy;
 	int silence_window;
 	int silence_spacing;
 	SilenceStrategyFunc silence_strategy;
@@ -130,50 +122,6 @@ char* me_data_init(struct me_data** inst, struct me_settings* settings, audioInf
 			me_data_free((*inst));
 			(*inst) = NULL;
 			return "pitch_strategy must be \"HPS\", \"BaNa\", or \"BaNaMusic\"";
-		}
-	}
-
-	if(settings->onset_window == NULL){
-		(*inst)->onset_window = ONSET_WINDOW_DEF;
-	}else{
-		(*inst)->onset_window = ConvertToFrames(settings->onset_window, info.samplerate);
-		if((*inst)->onset_window < 1){
-			me_data_free((*inst));
-			(*inst) = NULL;
-			return "onset_window must be a positive int";
-		}
-	}
-
-	if(settings->onset_padded == NULL){
-		(*inst)->onset_padded = (*inst)->onset_window;
-	}else{
-		(*inst)->onset_padded = ConvertToFrames(settings->onset_padded, info.samplerate);
-		if((*inst)->onset_padded < (*inst)->onset_window ){
-			me_data_free((*inst));
-			(*inst) = NULL;
-			return "onset_padded cannot be less than onset_window";
-		}
-	}
-
-	if(settings->onset_spacing == NULL){
-		(*inst)->onset_spacing = (int) ceil((*inst)->onset_window / 2.0f); //ceil to be sure onset_spacing isnt 0
-	}else{
-		(*inst)->onset_spacing = ConvertToFrames(settings->onset_spacing, info.samplerate);
-		if((*inst)->onset_spacing < 1){
-			me_data_free((*inst));
-			(*inst) = NULL;
-			return "onset_spacing must be a positive int";
-		}
-	}
-
-	if(settings->onset_strategy == NULL){
-		(*inst)->onset_strategy = ONSET_STRATEGY_DEF;
-	}else{
-		(*inst)->onset_strategy = chooseOnsetStrategy(settings->onset_strategy);
-		if((*inst)->onset_strategy == NULL){
-			me_data_free((*inst));
-			(*inst) = NULL;
-			return "onset_strategy must be \"OnsetsDS\"";
 		}
 	}
 
@@ -282,18 +230,6 @@ void me_settings_free(struct me_settings* inst)
 	if(inst->pitch_strategy != NULL){
 		free(inst->pitch_strategy);
 	}
-	if(inst->onset_window != NULL){
-		free(inst->onset_window);
-	}
-	if(inst->onset_padded != NULL){
-		free(inst->onset_padded);
-	}
-	if(inst->onset_spacing != NULL){
-		free(inst->onset_spacing);
-	}
-	if(inst->onset_strategy != NULL){
-		free(inst->onset_strategy);
-	}
 	if(inst->silence_window != NULL){
 		free(inst->silence_window);
 	}
@@ -313,8 +249,6 @@ struct Midi* me_process(float *input, audioInfo info, struct me_data *inst,
 		&input, info,
 		inst->pitch_window, inst->pitch_padded,
 		inst->pitch_spacing, inst->pitch_strategy,
-		inst->onset_window, inst->onset_padded,
-		inst->onset_spacing, inst->onset_strategy,
 		inst->silence_window, inst->silence_spacing,
 		inst->silence_mode, inst->silence_strategy,
 		inst->hps, inst->tuning, inst->verbose, inst->prefix,
