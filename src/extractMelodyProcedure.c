@@ -8,7 +8,7 @@
 
 #include "extractMelodyProcedure.h"
 #include "pitch/pitchStrat.h"
-#include "transient/onsetStrat.h"
+#include "transient/transient.h"
 #include "stft.h"
 #include "midi.h"
 #include "silenceStrat.h"
@@ -76,17 +76,17 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 
 	// Make onsets an intList
 	//    - initial size is 20 (might want something different
-	intList* onsets = intListCreate(20);
+	intList* transients = intListCreate(20);
 
-	int o_size = TransientDetectionStrategy(input, info.frames, 0,
-						info.samplerate, onsets);
-	if(o_size <= 0){
-		*exit_code = (o_size < 0) ? o_size : ME_ERROR;
+	int t_size = DetectTransientsFromResampled(*input, info.frames,
+						   info.samplerate, transients);
+	if(t_size <= 0){
+		*exit_code = (t_size < 0) ? t_size : ME_ERROR;
 		printf("Onset detection failed\n");
 		fflush(NULL);
 		free(activityRanges);
 		free(freq);
-		intListDestroy(onsets);
+		intListDestroy(transients);
 		return NULL;
 	} else if(verbose){
 		printf("Onset detection complete\n");
@@ -97,12 +97,12 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	int *noteRanges = NULL;
 	float *noteFreq = NULL;
 	int num_notes = ConstructNotes(&noteRanges, &noteFreq, freq,
-				     freqSize, onsets, o_size, activityRanges,
+				     freqSize, transients, t_size, activityRanges,
 				     a_size, info, p_unpaddedSize, p_winInt);
 
 	free(activityRanges);
 	free(freq);
-	intListDestroy(onsets);
+	intListDestroy(transients);
 
 	if(num_notes <= 0){
 		if (num_notes == 0){

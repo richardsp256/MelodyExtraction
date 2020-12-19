@@ -35,11 +35,30 @@
 // - change the name from simpleDetFunc to CalcDetFuncSimple
 // - deal with the filterBank file (either update it or remove it!)
 
+/// Identifies pairs of onsets and offsets from audio data using the algorithm
+/// published by Chang & Lee (2016)
+///
+/// @param[in] audioData The audio data for which the transients should be
+///            identified
+/// @param[in] size Length of audioData
+/// @param[in] samplerate The sample rate of the audio data (in Hz)
+/// @param[out] transients A pointer to an initially empty intList. This list
+///             will be filled with integers corresponding to the audio frame
+///             where transients occured. The transients alternate between
+///             onsets and offsets. The first value is always an onset while
+///             the last value is always an offset.
+///
+/// @par Note:
+/// This uses the default settings mentioned in the method paper
+int DetectTransients(float *audioData, int size, int samplerate,
+		     intList* transients);
 
-/// Our transient detection algorithm is inspired
-
-
-
-int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize,
-			int samplerate, intList* onsets);
-
+/// This is nearly the same as DetectTransients, except the audio is resampled
+/// to 11025 Hz. This directly calls DetectTransients
+///
+/// @par Note:
+/// The output transients list is adjusted internally by this function such
+/// that it holds the indices of samples (at the original sampling rate) when
+/// the transients occur
+int DetectTransientsFromResampled(const float* AudioData, int size,
+				  int samplerate, intList* transients);

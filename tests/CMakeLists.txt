@@ -37,8 +37,8 @@ set(GAMMATONE_TEST_SOURCES
   check_gammatone.c
 )
 
-set(DETFUNCTION_TEST_SOURCES
-  check_detFunction.c
+set(ROLLSIGMA_TEST_SOURCES
+  check_rollSigma.c
 )
 
 set(LISTS_TEST_SOURCES
@@ -50,12 +50,12 @@ set(VECTOR_TEST_SOURCES
 )
 
 add_executable(check_gammatone ${GAMMATONE_TEST_SOURCES} ${ARRAY_TEST_SOURCES})
-add_executable(check_detFunction ${DETFUNCTION_TEST_SOURCES}
+add_executable(check_rollSigma ${ROLLSIGMA_TEST_SOURCES}
   ${ARRAY_TEST_SOURCES})
 add_executable(check_lists ${LISTS_TEST_SOURCES})
 add_executable(check_vector ${VECTOR_TEST_SOURCES})
 
 target_link_libraries(check_gammatone m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
-target_link_libraries(check_detFunction m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
+target_link_libraries(check_rollSigma m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
 target_link_libraries(check_lists m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
 target_link_libraries(check_vector m ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})

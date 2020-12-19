@@ -1,16 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <ctype.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <string.h>
-#include <limits.h> // FLT_MAX
-#include <math.h> // fabs
 #include <stdbool.h>
-#include <float.h>
+#include <math.h> // fabs
+#include <float.h> // FLT_MAX
 
-#include "pairTransientDetection.h"
-#include "simpleDetFunc.h"
+#include "selectTransients.h"
 #include "../errors.h"
 
 /// Frees the memory holding the preallocated kernels
@@ -140,7 +134,7 @@ static int normalizeDetFunction(float * detFunction, int length)
 }
 
 
-int detectTransients(float* detection_func, int len, intList* transients){
+int SelectTransients(float* detection_func, int len, intList* transients){
 
 	// renormalize the detection function.
 	int tmp_rslt = normalizeDetFunction(detection_func, len);
@@ -205,79 +199,4 @@ int detectTransients(float* detection_func, int len, intList* transients){
 		return tmp_rslt;
 	}
 	return transients->length;
-}
-
-static int coercePosMultipleOf4_(int arg, bool round_up){
-	if ((arg <=0) || (arg % 4) == 0){
-		return arg;
-	} else if (arg < 4) {
-		return 4;
-	} else if (round_up) {
-		return 4*((arg/4) + 1);
-	} else {
-		return 4*(arg/4);
-	}
-}
-
-int pairwiseTransientDetection(float *audioData, int size, int samplerate,
-			       intList* transients){
-
-	// use parameters suggested by paper
-	int numChannels = 64;
-	float minFreq = 80.f; // 80 Hz
-	float maxFreq = 4000.f; // 4000 Hz
-	int correntropyWinSize = samplerate/80; // assumes minFreq=80
-	if ((samplerate % 80) == 0) {
-		correntropyWinSize++;
-	}
-	int interval = samplerate/200; // 5ms
-	float scaleFactor = powf(4./3.,0.2); // magic, grants three wishes
-	                                     // (Silverman's rule of thumb)
-	int sigWindowSize = (samplerate*7); // 7s
-
-	// implementation requirement for correntropyWinSize & interval:
-	correntropyWinSize = coercePosMultipleOf4_(correntropyWinSize, true);
-	interval = coercePosMultipleOf4_(interval, false);
-
-	// allocate the detectionFunction
-	int detectionFunctionLength =
-		computeDetFunctionLength(size, correntropyWinSize, interval);
-	float* detectionFunction = malloc(sizeof(float) *
-					  detectionFunctionLength);
-
-	// compute the detectionFunction
-	int rslt = simpleDetFunctionCalculation(correntropyWinSize, interval,
-						scaleFactor, sigWindowSize,
-						numChannels, minFreq, maxFreq,
-						samplerate, size, audioData,
-						detectionFunctionLength,
-						detectionFunction);
-	if (ME_SUCCESS != rslt){
-		free(detectionFunction);
-		return rslt;
-	}
-
-	printf("detect func computed\n");
-
-	// idendify the transients
-	int transientsLength = detectTransients(detectionFunction,
-						detectionFunctionLength,
-						transients);
-
-	if(transientsLength == -1){
-		printf("detectTransients failed\n");
-		free(detectionFunction);
-		return -1;
-	}
-
-	printf("transients created\n");
-
-	// convert transients so that the values are not the indices of
-	// detectionFunction, but corresponds to the frame of audioData
-	int* t_arr = transients->array;
-	for(int i = 0; i < transientsLength; ++i){
-		t_arr[i] = t_arr[i] * interval;
-	}
-
-	return transientsLength;
 }

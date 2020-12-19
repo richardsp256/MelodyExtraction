@@ -290,6 +290,6 @@ add_subdirectory(tests)
 # Unit tests
 enable_testing()
 add_test(NAME check_gammatone COMMAND check_gammatone)
-add_test(NAME check_detFunction COMMAND check_detFunction)
+add_test(NAME check_rollSigma COMMAND check_rollSigma)
 add_test(NAME check_lists COMMAND check_lists)
 add_test(NAME check_vector COMMAND check_vector)

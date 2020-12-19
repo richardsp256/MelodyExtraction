@@ -21,12 +21,13 @@ set(SOURCES
   pitch/findCandidates.c
   pitch/findpeaks.c
   pitch/HPSDetection.c
-  transient/onsetStrat.c
-  transient/simpleDetFunc.c
+  transient/transient.c
+  transient/calcDetFunc.c
   transient/calcSummedLagCorrentrograms.c
   transient/gammatoneFilter.c
   transient/filterBank.c
-  transient/pairTransientDetection.c
+  transient/rollSigma.c
+  transient/selectTransients.c
 )
 
 
