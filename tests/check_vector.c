@@ -1,7 +1,7 @@
 #ifdef USE_SSE_INTRINSICS
-#include "../src/onset/sse_vector.h"
+#include "../src/transient/sse_vector.h"
 #else
-#include "../src/onset/scalar_vector.h"
+#include "../src/transient/scalar_vector.h"
 #endif
 
 #include "../src/utils.h" // AlignedAlloc

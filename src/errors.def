@@ -20,7 +20,7 @@
 /// 
 ///       -1 through -100: common codes
 ///     -101 through -200: pitch detection
-///     -201 through -300: onset/ transient detection
+///     -201 through -300: transient detection
 ///     -301 through -400: MIDI file errors
 ///     -401 through -450: resample errors
 ///     -451 through -500: io related errors

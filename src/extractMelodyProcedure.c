@@ -8,7 +8,7 @@
 
 #include "extractMelodyProcedure.h"
 #include "pitch/pitchStrat.h"
-#include "onset/onsetStrat.h"
+#include "transient/onsetStrat.h"
 #include "stft.h"
 #include "midi.h"
 #include "silenceStrat.h"

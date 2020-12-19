@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <check.h>
-#include "../src/onset/simpleDetFunc.h"
+#include "../src/transient/simpleDetFunc.h"
 #include "doubleArrayTesting.h"
 #include "../src/utils.h" // IsLittleEndian
 

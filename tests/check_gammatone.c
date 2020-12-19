@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <check.h>
-#include "../src/onset/gammatoneFilter.h"
+#include "../src/transient/gammatoneFilter.h"
 #include "doubleArrayTesting.h"
 #include "../src/utils.h" // IsLittleEndian
 
