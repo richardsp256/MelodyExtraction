@@ -129,13 +129,11 @@ int sosFilter(int num_stages, const double *coef, const float *x, float *y,
 	       int length)
 {
 	if (num_stages > 8){
-		abort();
+		return ME_SOSFILTER_TOO_MANY_STAGES;
 	} else if (num_stages <= 0){
-		return ME_ERROR;
-	} else if (HasOverlap(x, length, y, length, sizeof(float)) ||
-		   HasOverlap(x, length, coef, num_stages*6, sizeof(float)) ||
-		   HasOverlap(y, length, coef, num_stages*6, sizeof(float))){
-		return ME_ERROR;
+		return ME_SOSFILTER_ZERO_STAGES;
+	} else if (HasOverlap(x, length, y, length, sizeof(float))){
+		return ME_SOSFILTER_OVERLAPPING_ARRAYS;
 	}
 	double state[16] = {0.}; // automatically initialized to 0s
 	sosFilter_(x, length, coef, (uint8_t) num_stages,  y, state);
@@ -145,9 +143,6 @@ int sosFilter(int num_stages, const double *coef, const float *x, float *y,
 int sosGammatone(const float* data, float* output, float centralFreq,
 		 int samplerate, int datalen)
 {
-	if ( HasOverlap(data, datalen, output, datalen, sizeof(float)) ){
-		return ME_ERROR;
-	}
 	double coef[24];
 	sosGammatoneCoef(centralFreq, samplerate, coef);
 

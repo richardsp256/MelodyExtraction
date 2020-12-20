@@ -56,6 +56,8 @@ ERROR_ENTRY(ME_BAD_HOPSIZE, -204,
   "the hopsize between succesive correntropy calculations isn't a positive "
   "integral multiple of 4")
 
+ERROR_ENTRY(ME_SUMMED_CORRENTROPY_OVERLAPPING_ARRAYS, -205,
+  "the arrays passed to the correntropy calculation can't have overlap")
 
 
 ERROR_ENTRY(ME_BAD_NUM_FILTER_CHANNELS, -211,
@@ -65,13 +67,25 @@ ERROR_ENTRY(ME_BAD_DETECTION_FUNCTION_LEN, -212,
   "The length of the detection function buffer is incorrect")
 
 
-
 ERROR_ENTRY(ME_BAD_KERNEL_FIT, -241,
   "There was an issue while trying to identify the best-fit kernel.")
+
 ERROR_ENTRY(ME_NO_TRANSIENTS, -242,
   "No tranisents could be identified.")
+
 ERROR_ENTRY(ME_ALL_NULL_DETFUNC, -243,
   "All entries in the detection function were zero.")
+
+
+ERROR_ENTRY(ME_SOSFILTER_TOO_MANY_STAGES, -261,
+  "sosFilter is not equipped to handle the specified number of stages")
+
+ERROR_ENTRY(ME_SOSFILTER_ZERO_STAGES, -262,
+  "sosFilter is not equipped to handle a filter with zero stages")
+
+ERROR_ENTRY(ME_SOSFILTER_OVERLAPPING_ARRAYS, -263,
+  "the arrays passed to sosFilter can't overlap")
+
 
 
 // Resample Errors:

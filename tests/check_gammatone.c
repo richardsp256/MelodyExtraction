@@ -5,6 +5,7 @@
 #include "../src/transient/gammatoneFilter.h"
 #include "doubleArrayTesting.h"
 #include "../src/utils.h" // IsLittleEndian
+#include "../src/errors.h"
 
 
 void genImpulse(void *array, enum PrecisionEnum precision, int length,
@@ -161,6 +162,53 @@ START_TEST(test_sosGammatone_Staircase)
 }
 END_TEST
 
+// test the sosFilter's error handling
+//============================================================================
+// I'm not actually going to rigorously test the precise return code (since
+// those may change
+
+START_TEST (check_sosFilter_ArrayOverlap)
+{
+	double coef[6] = {13.,0.,0.,1.,0.,0.};
+	float input[20] = {0.};
+	genImpulse((void *)(&input[0]), float_precision, 20, 1.);
+
+	// check that when the input and output array overlap, that the
+	// appropriate return value is provided
+	int rv;
+	rv = sosFilter(1, coef, input, input, 10);
+	ck_assert_int_ne(rv, ME_SUCCESS);
+
+	rv = sosFilter(1, coef, input, &(input[0])+5, 10);
+	ck_assert_int_ne(rv, ME_SUCCESS);
+
+	rv = sosFilter(1, coef, &(input[0])+5, input, 10);
+	ck_assert_int_ne(rv, ME_SUCCESS);
+
+	// this one should be succesful
+	rv = sosFilter(1, coef, input, &(input[0])+10, 10);
+	ck_assert_int_eq(rv, ME_SUCCESS);
+}
+
+START_TEST (check_sosFilter_zero_stage)
+{
+	double coef[6] = {13.,0.,0.,1.,0.,0.};
+	float input[10];
+	genImpulse((void *)(&input[0]), float_precision, 10, 1.);
+	float output[10];
+
+	// check that when the input and output array overlap, that the
+	// appropriate return value is provided
+	int rv;
+	rv = sosFilter(0, coef, input, output, 10);
+	ck_assert_int_ne(rv, ME_SUCCESS);
+
+	// this one should be succesful
+	rv = sosFilter(1, coef, input, output, 10);
+	ck_assert_int_eq(rv, ME_SUCCESS);
+}
+
+
 // define biquad filter tests
 //============================================================================
 
@@ -259,6 +307,7 @@ Suite *gammatone_suite()
 	Suite *s = suite_create("Gammatone");
 	TCase *tc_coef = tcase_create("GammatoneCoef");
 	TCase *tc_performance = tcase_create("Performance");
+	TCase *tc_sosFilter_errs = tcase_create("sosFilter Error Handling");
 	TCase *tc_biquad = tcase_create("Biquad Filter");
 	// TODO: add tests that involve multiple second order sections
 
@@ -268,6 +317,9 @@ Suite *gammatone_suite()
 
 	tcase_add_test(tc_performance,test_sosGammatone_Impulse);
 	tcase_add_test(tc_performance,test_sosGammatone_Staircase);
+
+	tcase_add_test(tc_sosFilter_errs, check_sosFilter_ArrayOverlap);
+	tcase_add_test(tc_sosFilter_errs, check_sosFilter_zero_stage);
 
 	if (IsLittleEndian() == 1){
 		tcase_add_test(tc_biquad, check_biquad_simple_impulse);
@@ -279,10 +331,12 @@ Suite *gammatone_suite()
 		       "tests because the tests are not presently equipped \n"
 		       "to run on Big Endian machines.\n");
 	}
-	suite_add_tcase(s, tc_biquad);
 
 	suite_add_tcase(s, tc_coef);
 	suite_add_tcase(s, tc_performance);
+	suite_add_tcase(s, tc_biquad);
+	suite_add_tcase(s, tc_sosFilter_errs);
+	
 	return s;
 }
 

@@ -54,8 +54,11 @@ add_executable(check_rollSigma ${ROLLSIGMA_TEST_SOURCES}
   ${ARRAY_TEST_SOURCES})
 add_executable(check_lists ${LISTS_TEST_SOURCES})
 add_executable(check_vector ${VECTOR_TEST_SOURCES})
+add_executable(check_calcSummedLagCorrentrograms
+  check_calcSummedLagCorrentrograms.c)
 
 target_link_libraries(check_gammatone m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
 target_link_libraries(check_rollSigma m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
 target_link_libraries(check_lists m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
 target_link_libraries(check_vector m ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(check_calcSummedLagCorrentrograms m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)

@@ -5,13 +5,13 @@
 #include <stdint.h>   // int32_t
 #include <stddef.h>   // size_t
 
-#include "../utils.h" // IsLittleEndian
+#include "../utils.h" // IsLittleEndian, HasOverlap
 #include "../errors.h" // me_errors
 
 #ifdef USE_SSE_INTRINSICS
-#include "sse_vector.h"
+#include "vector_sse.h"
 #else
-#include "scalar_vector.h"
+#include "vector_scalar.h"
 #endif
 
 
@@ -118,11 +118,11 @@ int CheckCorrentrogramsProp(size_t winsize, size_t max_lag, size_t hopsize)
 	return ME_SUCCESS;
 }
 
-int CalcSummedLagCorrentrograms(const float * restrict x,
-				const float * restrict bandwidths,
-				size_t winsize, size_t max_lag,
-				size_t hopsize, size_t n_win,
-				float * restrict summed_acgrams)
+static int CalcSummedLagCorrentrograms_(const float * restrict x,
+					const float * restrict bandwidths,
+					size_t winsize, size_t max_lag,
+					size_t hopsize, size_t n_win,
+					float * restrict summed_acgrams)
 {
 
 	if (!IsLittleEndian()){
@@ -137,8 +137,6 @@ int CalcSummedLagCorrentrograms(const float * restrict x,
 		return arg_check;
 	}
 
-	const float norm_coef = 0.3989423f;  // = 1/sqrt(2*pi)
-	const float arg_coef =  0.70710677f; // = 1/sqrt(2)
 	for (size_t win_ind = 0; win_ind < n_win; win_ind++){
 		size_t win_start = win_ind*hopsize;
 
@@ -209,4 +207,30 @@ int CalcSummedLagCorrentrograms(const float * restrict x,
 					 (accum_arr[2] + accum_arr[3]));
 	}
 	return 0;
+}
+
+size_t ExpectedPaddedAudioLength(size_t n_win, size_t winsize,  size_t max_lag,
+				 size_t hopsize)
+{
+	if (n_win == 0){
+		return 0;
+	}
+	return (n_win-1)*hopsize + winsize + max_lag;
+}
+
+int CalcSummedLagCorrentrograms(const float * x, const float * bandwidths,
+				size_t winsize, size_t max_lag,
+				size_t hopsize, size_t n_win,
+				float * summed_acgrams)
+{
+	size_t x_length = ExpectedPaddedAudioLength(n_win, winsize, max_lag,
+						    hopsize);
+	if( HasOverlap(x, x_length, bandwidths, n_win, sizeof(float)) ||
+	    HasOverlap(x, x_length, summed_acgrams, n_win, sizeof(float)) ||
+	    HasOverlap(summed_acgrams, n_win, bandwidths, n_win,
+		       sizeof(float)) ){
+		return ME_SUMMED_CORRENTROPY_OVERLAPPING_ARRAYS;
+	}
+	return CalcSummedLagCorrentrograms_(x, bandwidths, winsize, max_lag,
+					    hopsize, n_win, summed_acgrams);
 }

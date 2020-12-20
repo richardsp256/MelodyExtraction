@@ -4,9 +4,17 @@
 /// Helper function that checks that the argument properties meet the
 /// requirements for the algorithm
 ///
-/// see the documentation for CalcSummedLagCorrentrograms for a description of
-/// the arguments
+/// see the documentation for `CalcSummedLagCorrentrograms` for a description
+/// of the arguments
 int CheckCorrentrogramsProp(size_t winsize, size_t max_lag, size_t hopsize);
+
+/// Helper function that gives the expected length of the input audio that is
+/// passed to `CalcSummedLagCorrentrograms`
+///
+/// see the documentation for `CalcSummedLagCorrentrograms` for a description
+/// of the arguments
+size_t ExpectedPaddedAudioLength(size_t n_win, size_t winsize, size_t max_lag,
+				 size_t hopsize);
 
 /// Computes a series of "autocorrentrograms" and then reports the sums over
 /// all of the lags in each autocorrentrogram. This implementation uses a fast
@@ -21,7 +29,7 @@ int CheckCorrentrogramsProp(size_t winsize, size_t max_lag, size_t hopsize);
 ///
 /// @param[in]  x              Signal from which the autocorrentrograms are
 ///    computed. It must contain `(n_win-1)*hopsize + winsize + max_lag`
-///    entries.
+///    entries. This value is given by `ExpectedPaddedAudioLength`.
 /// @param[in]  bandwidths     Holds the kernel bandwidth used for each
 ///    hopsize. It must contain `n_win` entries.
 /// @param[in]  winsize        The number of entries per window. This must be
@@ -41,9 +49,9 @@ int CheckCorrentrogramsProp(size_t winsize, size_t max_lag, size_t hopsize);
 ///
 /// @note
 /// For optimization-related purposes, `x`, and `summed_acgrams` must both have
-/// have 16-byte memory alignment. None of the arrays can overlap.
-/// Additionally, `winsize`, `max_lag`, and `hopsize` must all be integral
-/// multiples of 4.
+/// have 16-byte memory alignment. In addition, none of the arrays can overlap.
+/// Finally, `winsize`, `max_lag`, and `hopsize` must all be integral multiples
+/// of 4.
 ///
 /// @par Mathematical description
 /// In mathematical notation, the calculation can be cast as:
@@ -56,8 +64,8 @@ int CheckCorrentrogramsProp(size_t winsize, size_t max_lag, size_t hopsize);
 ///     - K(u,b) is a kernel function with bandwidth b. For this calculation,
 ///       we define it as a normalized Gaussian curve, with mean = zero and
 ///       standard deviation = b, that is evaluated for some value u.
-int CalcSummedLagCorrentrograms(const float * restrict x,
-				const float * restrict bandwidths,
+int CalcSummedLagCorrentrograms(const float * x,
+				const float * bandwidths,
 				size_t winsize, size_t max_lag,
 				size_t hopsize, size_t n_win,
-				float * restrict summed_acgrams);
+				float * summed_acgrams);
