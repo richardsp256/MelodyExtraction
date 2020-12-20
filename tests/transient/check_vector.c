@@ -9,9 +9,9 @@
 #include <check.h>
 
 // For each test problem, we setup the following set of global variables
-float * arr_in0; // initialized to an array holding {0, 1, 2, 3}
-float * arr_in1; // initialized to an array holding {4, 5, 6, 7}
-float * arr_out; // initialized to an array holding {-1, -1, -1, -1}
+static float * arr_in0; // initialized to an array holding {0, 1, 2, 3}
+static float * arr_in1; // initialized to an array holding {4, 5, 6, 7}
+static float * arr_out; // initialized to an array holding {-1, -1, -1, -1}
 
 void setup(void)
 {
@@ -129,6 +129,8 @@ END_TEST
 
 Suite * f32x4_suite(void)
 {
+	printf("Testing the \"%s\" vector implementation\n",
+	       vector_backend_name());
 	Suite *s = suite_create("f32x4");
 	// create general test case (should be split into smaller tests)
 	TCase *tc_general = tcase_create("General");
@@ -143,22 +145,4 @@ Suite * f32x4_suite(void)
 
 	suite_add_tcase(s, tc_general);
 	return s;
-}
-
-int main(void){
-
-	printf("Testing the \"%s\" vector implementation\n",
-	       vector_backend_name());
-
-	SRunner *sr = srunner_create(f32x4_suite());
-
-	srunner_run_all(sr, CK_NORMAL);
-	int number_failed = srunner_ntests_failed(sr);
-	srunner_free(sr);
-
-	if (number_failed == 0){
-		return 0;
-	} else {
-		return 1;
-	}
 }

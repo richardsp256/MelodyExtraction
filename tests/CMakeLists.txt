@@ -29,36 +29,24 @@ link_directories(
   ${CHECK_LIBRARY_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
-set(ARRAY_TEST_SOURCES
-  doubleArrayTesting.c
+# build a static library with some useful testing utilities
+set(TESTTOOLS_SOURCES
+  testtools/doubleArrayTesting.c
+  testtools/genSignal.c
 )
+add_library(testtools STATIC ${TESTTOOLS_SOURCES})
+target_link_libraries(testtools m ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
-set(GAMMATONE_TEST_SOURCES
-  check_gammatone.c
+set(TRANSIENT_TEST_SOURCES
+  transient/check_transient_main.c
+  transient/check_vector.c
+  transient/check_calcSummedLagCorrentrograms.c
+  transient/check_gammatone.c
+  transient/check_rollSigma.c
 )
+add_executable(check_transient ${TRANSIENT_TEST_SOURCES})
+target_link_libraries(check_transient m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad testtools)
 
-set(ROLLSIGMA_TEST_SOURCES
-  check_rollSigma.c
-)
 
-set(LISTS_TEST_SOURCES
-  check_lists.c
-)
-
-set(VECTOR_TEST_SOURCES
-  check_vector.c
-)
-
-add_executable(check_gammatone ${GAMMATONE_TEST_SOURCES} ${ARRAY_TEST_SOURCES})
-add_executable(check_rollSigma ${ROLLSIGMA_TEST_SOURCES}
-  ${ARRAY_TEST_SOURCES})
-add_executable(check_lists ${LISTS_TEST_SOURCES})
-add_executable(check_vector ${VECTOR_TEST_SOURCES})
-add_executable(check_calcSummedLagCorrentrograms
-  check_calcSummedLagCorrentrograms.c)
-
-target_link_libraries(check_gammatone m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
-target_link_libraries(check_rollSigma m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
+add_executable(check_lists check_lists.c)
 target_link_libraries(check_lists m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
-target_link_libraries(check_vector m ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
-target_link_libraries(check_calcSummedLagCorrentrograms m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)

@@ -52,11 +52,8 @@ else()
   MESSAGE(WARNING "MELEX_VECTOR_BACKEND environment variable not detected. Defaulting to scalar backend")
 endif()
 
-
-SET(CMAKE_C_FLAGS, "${CMAKE_C_FLAGS} -Wall -Wextra -fno-trapping-math -fno-math-errno -fno-signed-zeros")
-# this is included to facillitate any level of vectorization
 # May want to further restrict this in the future
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -march=native")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -march=native -fno-trapping-math -fno-math-errno -fno-signed-zeros")
 
 
 ###############################################################################
@@ -289,8 +286,6 @@ add_subdirectory(tests)
 ###############################################################################
 # Unit tests
 enable_testing()
-add_test(NAME check_gammatone COMMAND check_gammatone)
-add_test(NAME check_rollSigma COMMAND check_rollSigma)
 add_test(NAME check_lists COMMAND check_lists)
-add_test(NAME check_vector COMMAND check_vector)
-add_test(NAME check_calcSummedLagCorrentrograms COMMAND check_vector)
+add_test(NAME check_transient COMMAND check_transient)
+

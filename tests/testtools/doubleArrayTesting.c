@@ -197,64 +197,6 @@ void compareArrayEntries_ ## ftype (const ftype *ref, const ftype* other,    \
 create_compareArrayEntriesFunc(double)
 create_compareArrayEntriesFunc(float)
 
-void setup_dblArrayTestEntry(struct dblArrayTestEntry *test_entry,
-	 	 	     int intInput[], int intInputLen,
-	 	 	     double dblInput[], int dblInputLen,
-	 	 	     char *strInput, char *resultFname,
-	 	 	     dblArrayTest func){
-	test_entry->intInput = malloc(sizeof(int) * intInputLen);
-	for (int i=0; i< intInputLen; i++){
-		test_entry->intInput[i] = intInput[i];
-	}
-	test_entry->intInputLen = intInputLen;
-	test_entry->dblInput = malloc(sizeof(double)*dblInputLen);
-	for (int i=0; i< dblInputLen; i++){
-		test_entry->dblInput[i] = dblInput[i];
-	}
-	test_entry->dblInputLen = dblInputLen;
-	test_entry->strInput = strInput;
-	test_entry->resultFname = resultFname;
-	test_entry->func = func;
-}
-
-void clean_up_dblArrayTestEntry(struct dblArrayTestEntry *test_entry){
-	free(test_entry->intInput);
-	free(test_entry->dblInput);
-}
-
-int process_double_array_test(struct dblArrayTestEntry entry, double tol,
-		 	      int rel, double abs_zero_tol){
-	/* run the double array test. */
-	double *calc = NULL;
-	int calc_len;
-	double *ref = NULL;
-	int ref_len;
-
-	if (IsLittleEndian() != 1){
-		ck_abort_msg(("Currently unable to run test on Big Endian "
-			      "machine.\n"));
-	}
-
-	// Load in the reference array
-	ref_len = readDoubleArray(entry.resultFname, 1, double_precision,
-				  (void**)&ref);
-	if (ref_len<=0){
-		ck_abort_msg(("Encountered an issue while determining "
-			      "reference array.\n"));
-	}
-	
-	// run the function to compute to determine the calculated array
-	calc_len = entry.func(entry.intInput, entry.intInputLen, entry.dblInput,
-			      entry.dblInputLen, entry.strInput, &calc);
-
-	ck_assert_int_eq(calc_len,ref_len);
-
-	compareArrayEntries_double(ref, calc, ref_len, tol, rel, abs_zero_tol);
-	free(calc);
-	free(ref);
-	return 1;
-}
-
 void compareAgainstSavedArray(const char* fname, const void* test, int test_len,
 			      enum PrecisionEnum prec, double tol, bool rel,
 			      double abs_zero_tol)

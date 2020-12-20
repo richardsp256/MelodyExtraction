@@ -2,54 +2,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <check.h>
-#include "../src/transient/gammatoneFilter.h"
-#include "doubleArrayTesting.h"
-#include "../src/utils.h" // IsLittleEndian
-#include "../src/errors.h"
+#include <float.h> // FLT_MAX
 
+// include function declarations for unit testing helpers
+#include "../testtools/testtools.h"
 
-void genImpulse(void *array, enum PrecisionEnum precision, int length,
-		double amplitude)
-{
-	switch(precision){
-	case float_precision:
-		((float*)array)[0] = amplitude;
-		for (int i = 1; i < length; i++){
-			((float*)array)[i] = 0;
-		}
-		break;
-	case double_precision:
-		((double*)array)[0] = amplitude;
-		for (int i = 1; i < length; i++){
-			((double*)array)[i] = 0;
-		}
-		break;
-	}
-}
-
-// this makes a staircase function
-// - this function was defined as part of a misunderstanding of input function
-//   is required to compute a step response
-void genStaircaseFunction(void *array, enum PrecisionEnum precision,
-			  int length, double start, double increment,
-			  int steplength){
-	double cur = start;
-	int j=0;
-	for (int i = 0; i <length; i++){
-		if (i >= j*steplength){
-			j++;
-			cur = increment*((double)j)+start;
-		}
-		switch(precision){
-		case float_precision:
-			((float  *)array)[i] = (float) cur;
-			break;
-		case double_precision:
-			((double *)array)[i] = (double)cur;
-			break;
-		}
-	}
-}
+// includes from melodyextraction library
+#include "../../src/transient/gammatoneFilter.h"
+#include "../../src/utils.h" // IsLittleEndian
+#include "../../src/errors.h"
 
 // define tests of the sosGammatone coefficient generation function
 //============================================================================
@@ -159,6 +120,38 @@ START_TEST(test_sosGammatone_Staircase)
 		115, 8000, staircase_input, 100,
 		"tests/test_files/gammatone/sos_gammatone_staircase_response",
 		tol, rel, abs_zero_tol);
+}
+END_TEST
+
+// the gain at the central frequency should be zero
+// in other words, the amplitude should be unchanged
+START_TEST(test_sosGammatone_centralFreq_gain)
+{
+	float input[1000] = {0.}; // initialize to zeros
+
+	double period = 1./100; // units of seconds
+	size_t sample_rate = 1000; // units of Hz
+	double amplitude = 1.;
+	double phase = 0.;
+	genSineWave((void *)input, float_precision, 1000, period, sample_rate,
+		    amplitude, phase);
+
+	float output[1000];
+	sosGammatone(input, output, 1./period, (int)sample_rate, 1000);
+
+	// There may be a more robust way to measure the gain
+	float cur_max = -FLT_MAX;
+	float cur_min = FLT_MAX;
+	// start a little off from the start since the first couple of samples
+	// might be wrong
+	for (int i = 20; i < 1000; i++){
+		cur_max = fmaxf(cur_max, output[i]);
+		cur_min = fminf(cur_min, output[i]);
+	}
+	//printf("%e\n%e\n", cur_max - 1., cur_min+1);
+	// this may be unacceptable
+	ck_assert(fabsf(cur_max - 1.f)<0.1); // this was calibrated
+	ck_assert(fabsf(cur_min + 1.f)<0.1); // this was calibrated
 }
 END_TEST
 
@@ -317,6 +310,7 @@ Suite *gammatone_suite()
 
 	tcase_add_test(tc_performance,test_sosGammatone_Impulse);
 	tcase_add_test(tc_performance,test_sosGammatone_Staircase);
+	tcase_add_test(tc_performance,test_sosGammatone_centralFreq_gain);
 
 	tcase_add_test(tc_sosFilter_errs, check_sosFilter_ArrayOverlap);
 	tcase_add_test(tc_sosFilter_errs, check_sosFilter_zero_stage);
@@ -336,20 +330,6 @@ Suite *gammatone_suite()
 	suite_add_tcase(s, tc_performance);
 	suite_add_tcase(s, tc_biquad);
 	suite_add_tcase(s, tc_sosFilter_errs);
-	
+
 	return s;
-}
-
-int main(void){
-	Suite *s = gammatone_suite();
-	SRunner *sr = srunner_create(s);
-
-	srunner_run_all(sr, CK_NORMAL);
-	int number_failed = srunner_ntests_failed(sr);
-	srunner_free(sr);
-	if (number_failed == 0){
-		return EXIT_SUCCESS;
-	} else {
-		return EXIT_FAILURE;
-	}
 }

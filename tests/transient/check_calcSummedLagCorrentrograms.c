@@ -3,8 +3,8 @@
 #include <stdalign.h>
 #include <check.h>
 
-#include "../src/transient/calcSummedLagCorrentrograms.h"
-#include "../src/errors.h"
+#include "../../src/transient/calcSummedLagCorrentrograms.h"
+#include "../../src/errors.h"
 
 // TODO: Add tests of functionallity. We could check answers if we perform
 // calculations on the following input signals:
@@ -137,18 +137,4 @@ Suite * calcSummedLagCorrentrograms_suite(void)
 
 	suite_add_tcase(s, tc_error_handling);
 	return s;
-}
-
-
-int main(void){
-	SRunner *sr = srunner_create(calcSummedLagCorrentrograms_suite());
-
-	srunner_run_all(sr, CK_NORMAL);
-	int number_failed = srunner_ntests_failed(sr);
-	srunner_free(sr);
-	if (number_failed == 0){
-		return 0;
-	} else {
-		return 1;
-	}
 }
