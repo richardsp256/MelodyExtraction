@@ -1,7 +1,10 @@
-// Include this file in calc_correntrograms.c when SSE intrinsics used
-// This requires ssse3 (not a typo) instruction support
+/// @file     vector_sse.h
+/// @brief    [\ref transient] Implementation of SIMD Vector type with SSE
+///     intrinsics
+///
+/// This requires support for ssse3 (not a typo) instructions.
 
-#include <immintrin.h>
+#include <immintrin.h> // defines all versions of INTEL SSE Intrinsics
 #include <assert.h>
 
 #ifndef SSE_VECTOR_H

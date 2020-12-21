@@ -1,6 +1,7 @@
 /// @file     gammatoneFilter.h
-/// @brief    Declaration of the gammatone filter.
+/// @brief    [\ref transient] Declaration of the gammatone filter.
 
+/// @ingroup transient
 /// Performs IIR filtering using a cascade of second-order sections of biquad
 /// filters
 /// @param[in]  num_stages the number of biquad filters to apply. Must be at
@@ -35,6 +36,7 @@
 int sosFilter(int num_stages, const double *coef, const float *x, float *y,
 	      int length);
 
+/// @ingroup transient
 /// Computes the sos coefficients to implement a Gammatone filter
 /// The algorithm is taken from Slaney 1993
 /// https://engineering.purdue.edu/~malcolm/apple/tr35/PattersonsEar.pdf
@@ -46,6 +48,7 @@ int sosFilter(int num_stages, const double *coef, const float *x, float *y,
 /// @param[out] coef Pre-allocated buffer used to store the 24 entries
 void sosGammatoneCoef(float centralFreq, int samplerate, double *coef);
 
+/// @ingroup transient
 /// The sosGammatone is an IIR approximation for the gammatone filter.
 ///
 /// The sos Gammatone Filter is described by Slaney (1993):

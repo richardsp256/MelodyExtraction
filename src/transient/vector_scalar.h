@@ -1,5 +1,14 @@
-// Include this file in calc_correntrograms.c when explicit SIMD intrinsics are
-// not being used
+/// @file     vector_scalar.h
+/// @brief    [\ref transient] Fallback implementation of SIMD Vector type
+///     without intrinsics
+///
+/// This file should be used when there is no viable alternative backend
+/// including SIMD intrinsics. This backend does facillitate autovectorization
+///
+/// This header file should only be included in source files. To avoid bloating
+/// the library/binary, it should NOT be included in header files (the static
+/// functions will be separately implemented in every translation where this
+/// was included)
 
 #include <stdalign.h>
 #include <assert.h>

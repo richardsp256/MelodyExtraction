@@ -1,7 +1,11 @@
+/// @file     rollSigma.h
+/// @brief    [\ref transient] Declaration of the rollSigma function
+
+/// @ingroup transient
 /// Computes the rolling optimized sigma to be used by the kernel functions 
 ///
 /// This function is implemented with a rolling window and the implementation
-/// is adapted/inspired by the implementation of the Rolling.std function of
+/// is adapted/inspired by the implementation of the `Rolling.std` function of
 /// the pandas Python package
 ///
 /// @param[in] startIndex The index in buffer where the first window used to

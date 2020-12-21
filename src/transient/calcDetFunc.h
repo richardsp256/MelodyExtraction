@@ -1,3 +1,7 @@
+/// @file     calcDetFunc.h
+/// @brief    [\ref transient] Declarataion of calcDetFunc
+
+/// @ingroup transient
 /// A quick and dirty implementation of detection function calculation
 ///
 /// The implementation is not memory efficient and sigma optimization can
@@ -57,6 +61,7 @@ int CalcDetFunc(int correntropyWinSize, int interval, float scaleFactor,
 		float maxFreq, int sampleRate, int audioLength,
 		const float* audio, int detFunctionLength, float* detFunction);
 
+/// @ingroup transient
 /// Computes the length of the resulting detection function
 int computeDetFunctionLength(int dataLength, int correntropyWinSize,
 			     int interval);

@@ -1,6 +1,7 @@
 /// @file     calcSummedLagCorrentrograms.h
-/// @brief    Declaration of calcSummedLagCorrentrograms
+/// @brief    [\ref transient] Declaration of calcSummedLagCorrentrograms
 
+/// @ingroup transient
 /// Helper function that checks that the argument properties meet the
 /// requirements for the algorithm
 ///
@@ -8,6 +9,7 @@
 /// of the arguments
 int CheckCorrentrogramsProp(size_t winsize, size_t max_lag, size_t hopsize);
 
+/// @ingroup transient
 /// Helper function that gives the expected length of the input audio that is
 /// passed to `CalcSummedLagCorrentrograms`
 ///
@@ -16,6 +18,7 @@ int CheckCorrentrogramsProp(size_t winsize, size_t max_lag, size_t hopsize);
 size_t ExpectedPaddedAudioLength(size_t n_win, size_t winsize, size_t max_lag,
 				 size_t hopsize);
 
+/// @ingroup transient
 /// Computes a series of "autocorrentrograms" and then reports the sums over
 /// all of the lags in each autocorrentrogram. This implementation uses a fast
 /// approximation for a Gaussian kernel.
@@ -55,9 +58,9 @@ size_t ExpectedPaddedAudioLength(size_t n_win, size_t winsize, size_t max_lag,
 ///
 /// @par Mathematical description
 /// In mathematical notation, the calculation can be cast as:
-/// summed_acgrams[i] +=
-///    OuterSum( InnerSum( K(x[i*hopsize + n] - x[i*hopsize + n + (j+1)],
-///                          bandwidths[i] ) ) ) / winsize.
+/// summed_acgrams[t] +=
+///    OuterSum( InnerSum( K(x[t*hopsize + n] - x[t*hopsize + n + (j+1)],
+///                          bandwidths[t] ) ) ) / winsize.
 /// We note that
 ///     - OuterSum increments n = 0 through n = winsize - 1
 ///     - InnerSum j = 1 through j = max_lag

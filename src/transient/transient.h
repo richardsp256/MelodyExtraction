@@ -1,5 +1,10 @@
 /// @file     transient.h
-/// @brief    Declaration the of the transient detection function
+/// @brief    [\ref transient] Declaration of the transient detection function
+///
+/// This is the main header file for the [\ref transient] module.
+
+/// @defgroup transient Transient Detection Module
+/// Defines transient detection functions
 ///
 /// In the transient module, functionallity is implemented to detect transients
 /// (note onsets and note offsets) from a recording of monophonic singing.
@@ -35,6 +40,7 @@
 // - change the name from simpleDetFunc to CalcDetFuncSimple
 // - deal with the filterBank file (either update it or remove it!)
 
+/// @ingroup transient
 /// Identifies pairs of onsets and offsets from audio data using the algorithm
 /// published by Chang & Lee (2016)
 ///
@@ -53,6 +59,7 @@
 int DetectTransients(float *audioData, int size, int samplerate,
 		     intList* transients);
 
+/// @ingroup transient
 /// This is nearly the same as DetectTransients, except the audio is resampled
 /// to 11025 Hz. This directly calls DetectTransients
 ///

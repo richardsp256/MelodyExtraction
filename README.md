@@ -77,12 +77,26 @@ This implementation requires that the target cpu supports the `ssse3` (not a typ
 This feature can be enabled via the `MELEX_VECTOR_BACKEND` environment variable; cpecify `MELEX_VECTOR_BACKEND=sse` before executing the `cmake..` command.
 **NOTE:** This specialized implementation is *not* guaranteed to be faster than the implementation provided by auto-vectorization (especially when more recent vector instruction sets are available).
 
+Documentation
+-------------
+Our documentation is currently a work-in-progress and is fairly incomplete.
+It is also not yet supported as a build target.
+
+To build what we have, `doxygen` must be installed (we have only tested it with
+version 1.8.17). From the build directory execute
+
+	doxygen doxyfile.config
+
+To view the documentation, you need to open `doc/html/index.html` with a
+browser. As an example, if you have firefox installed, you can just call
+
+	firefox doc/html/index.html
 
 Unit Testing
 ------------
 
 Run tests on the built project with
-	
+
 	make test
 
 in the project directory. If any of the tests fail, specifics can be found by

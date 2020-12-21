@@ -1,5 +1,9 @@
+/// @file     selectTransients.h
+/// @brief    [\ref transient] Declaration of the selectTransients function
+
 #include "../lists.h"
 
+/// @ingroup transient
 /// Internal helper function that identifies transients (onsets and offsets)
 /// from the provided detection function
 ///

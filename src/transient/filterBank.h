@@ -1,5 +1,9 @@
+/// @file     filterBank.h
+/// @brief    [\ref transient] Declaration of the filterBank datatype
+
 #include "gammatoneFilter.h"
 
+/// @ingroup transient
 /// Computes the central frequency used by the gammatone filter for each
 /// channel. The frequencies are mapped according to the Equivalent Rectangular
 /// Bandwidth (ERB) scale.
@@ -49,11 +53,6 @@ void centralFreqMapper(int numChannels, float minFreq, float maxFreq,
 // The remainder of this header file was written with the intention of being
 // used to process chunks. This functionallity does not currently exist (the
 // following could probably be excised from the main development branch)
-
-
-// Had not originally thought that I would need to individually allocate
-// memory for the pointer to every member of channelData (it's obvious now).
-// Need to modify implementation
 
 struct filterBank{
 	
