@@ -1,22 +1,48 @@
-# - Try to find the CHECK libraries
-#  Once done this will define
+#  This configuration file for finding libcheck was taken from the libcheck
+#  example. It has been HEAVILY modified
 #
-#  CHECK_FOUND - system has check
-#  CHECK_INCLUDE_DIR - the check include directory
-#  CHECK_LIBRARIES - check library
-#
-#  This configuration file for finding libcheck is originally from
-#  the opensync project. The originally was downloaded from here:
+#  Apparently, it originated in the the opensync project; it came taken from
 #  opensync.org/browser/branches/3rd-party-cmake-modules/modules/FindCheck.cmake
 #
 #  Copyright (c) 2007 Daniel Gollub <dgollub@suse.de>
 #  Copyright (c) 2007 Bjoern Ricks  <b.ricks@fh-osnabrueck.de>
 #
 #  Redistribution and use is allowed according to the terms of the New
-#  BSD license.
-#  For details see the accompanying COPYING-CMAKE-SCRIPTS file.
+#  BSD license. For details see below
 #
-#  Matthew W Abruzzo later refactored this script. It now additionally defines:
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+# 3. The name of the author may not be used to endorse or promote products
+#    derived from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+# IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+# OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+# IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+# NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+# THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+#  Matthew W Abruzzo <matthewabruzzo@gmail.com> later refactored this script.
+#  I haven't decided yet on updated license (I'm probably okay with continuing
+#  to redistribute this under the same license)
+
+# - Try to find the CHECK libraries
+#  Once done this will define
+#
+#  CHECK_FOUND - system has check
+#  CHECK_INCLUDE_DIR - the check include directory
+#  CHECK_LIBRARIES - check library
 #  Check::Check - A target representing check as an imported library
 
 

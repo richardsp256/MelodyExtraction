@@ -26,10 +26,15 @@ set(SOURCES
   transient/selectTransients.c
 )
 
+find_package(FFTW3 REQUIRED)
+find_package(SndFile REQUIRED)
+find_package(Samplerate REQUIRED)
+find_package(FVAD REQUIRED)
+
 add_library(melodyextraction SHARED ${SOURCES})
 target_link_libraries(melodyextraction
-  PUBLIC m fftw3f
-  PRIVATE sndfile fvad samplerate
+  PUBLIC m FFTW3::Float
+  PRIVATE SndFile::SndFile Samplerate::Samplerate FVAD::FVAD
   )
 
 add_executable(extract main.c)
