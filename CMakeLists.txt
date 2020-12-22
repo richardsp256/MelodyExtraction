@@ -23,7 +23,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required (VERSION 3.0) # this has not been rigorously tested
+cmake_minimum_required (VERSION 3.16) # this has not been rigorously tested
 project (MelodyExtraction)
 
 ###############################################################################
@@ -255,11 +255,6 @@ IDENTIFY_PATH( FVAD_INC
   "${CMAKE_CURRENT_SOURCE_DIR}/libfvad-master/include" )
 IDENTIFY_PATH( FVAD_LIB
   "${CMAKE_CURRENT_SOURCE_DIR}/libfvad-master/src/.libs" )
-
-
-SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
-SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-SET(CMAKE_INSTALL_RPATH ${FVAD_LIB})
 
 
 INCLUDE_DIRECTORIES(

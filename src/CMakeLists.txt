@@ -1,6 +1,3 @@
-cmake_minimum_required (VERSION 2.6)
-project (Testing)
-
 set(SOURCES
   tuningAdjustment.c
   midi.c
@@ -29,22 +26,22 @@ set(SOURCES
   transient/selectTransients.c
 )
 
-
-
-add_executable(extract main.c ${SOURCES})
 add_library(melodyextraction SHARED ${SOURCES})
-add_library(melodyextraction_static STATIC ${SOURCES})
-TARGET_LINK_LIBRARIES(extract m fftw3f sndfile fvad samplerate)
-TARGET_LINK_LIBRARIES(melodyextraction m fftw3f sndfile fvad samplerate)
-TARGET_LINK_LIBRARIES(melodyextraction_static m fftw3f sndfile fvad samplerate)
+target_link_libraries(melodyextraction
+  PUBLIC m fftw3f
+  PRIVATE sndfile fvad samplerate
+  )
 
-# place the constructed binary and libraries into a places
-# - moving the libraries is necessary for supporting the python bindings for
+add_executable(extract main.c)
+target_link_libraries(extract melodyextraction)
+
+# specifying the locations where the constructed binary and libraries are to be
+# placed
+# - moving the library is necessary for supporting the python bindings for
 #   out-of-source builds.
 # - in the future, this should be modified located so that the libraries are
 #   installed to appropriate locations
-install(TARGETS extract melodyextraction melodyextraction_static
+install(TARGETS extract melodyextraction
   RUNTIME DESTINATION ${CMAKE_SOURCE_DIR}/bin
   LIBRARY DESTINATION ${CMAKE_SOURCE_DIR}/.libs
-  ARCHIVE DESTINATION ${CMAKE_SOURCE_DIR}/.libs
 )
