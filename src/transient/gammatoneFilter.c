@@ -152,3 +152,31 @@ int sosGammatone(const float* data, float* output, float centralFreq,
 	double state[8] = {0.}; // automatically initialized to 0s
 	return sosFilter(4, coef, data, output, datalen);
 }
+
+void centralFreqMapper(size_t numChannels, float minFreq, float maxFreq,
+		       float* fcArray){
+
+	if (numChannels == 0){
+		return;
+	} else if (numChannels == 1){
+		fcArray[0] = minFreq;
+		return;
+	}
+
+	// calculate the minimum central frequency
+	fcArray[0] = (minFreq + 12.35)/0.9460305;
+
+	// calculate the maximum central frequency
+	fcArray[numChannels-1] = (maxFreq - 12.35)/1.0539695;
+
+	// calculate minERBS and maxERBS
+	float minERBS = 21.3 * log10f(1+0.00437*fcArray[0]);
+	float maxERBS = 21.3 * log10f(1+0.00437*fcArray[numChannels-1]);
+
+	// calculate all other entries of fcArray
+	for (size_t i = 1; i < numChannels - 1; i++){
+		fcArray[i] = ((powf(10.,((minERBS + (float)i * (maxERBS-minERBS)
+					  /((float)numChannels - 1))/21.4))
+			       - 1.0) /0.00437);
+	}
+}

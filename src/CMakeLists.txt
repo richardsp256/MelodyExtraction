@@ -25,7 +25,6 @@ set(SOURCES
   transient/calcDetFunc.c
   transient/calcSummedLagCorrentrograms.c
   transient/gammatoneFilter.c
-  transient/filterBank.c
   transient/rollSigma.c
   transient/selectTransients.c
 )

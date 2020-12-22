@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
-#include "filterBank.h"
 #include "calcSummedLagCorrentrograms.h"
 #include "rollSigma.h"
+#include "gammatoneFilter.h"
 #include "../errors.h"
 #include "../utils.h" // AlignedAlloc
 
