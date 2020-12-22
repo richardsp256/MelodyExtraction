@@ -17,7 +17,7 @@
 #ifndef SCALAR_VECTOR_H
 #define SCALAR_VECTOR_H
 
-inline const char* vector_backend_name() { return "scalar"; }
+static inline const char* vector_backend_name() { return "scalar"; }
 
 typedef struct f32x4 {
 	alignas(16) float arr[4];

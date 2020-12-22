@@ -1,10 +1,10 @@
 #ifdef USE_SSE_INTRINSICS
-#include "../src/transient/vector_sse.h"
+#include "../../src/transient/vector_sse.h"
 #else
-#include "../src/transient/vector_scalar.h"
+#include "../../src/transient/vector_scalar.h"
 #endif
 
-#include "../src/utils.h" // AlignedAlloc
+#include "../../src/utils.h" // AlignedAlloc
 #include <stdio.h> // printf
 #include <check.h>
 

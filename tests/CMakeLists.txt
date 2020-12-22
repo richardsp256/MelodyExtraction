@@ -26,8 +26,12 @@ set(TRANSIENT_TEST_SOURCES
   )
 add_executable(check_transient ${TRANSIENT_TEST_SOURCES})
 target_link_libraries(check_transient
-  melodyextraction Check::Check m testtools)
+  melodyextraction simd_vector Check::Check m testtools)
+add_test(NAME check_transient
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/check_transient)
 
 # second, define tests that checks the growable lists
 add_executable(check_lists check_lists.c)
 target_link_libraries(check_lists melodyextraction Check::Check)
+add_test(NAME check_lists
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/check_lists)

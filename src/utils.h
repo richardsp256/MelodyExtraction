@@ -8,7 +8,7 @@
 #include <stdlib.h> // aligned_alloc
 
 /// Detects whether the machine is little endian
-inline int IsLittleEndian(){
+static inline int IsLittleEndian(){
 	// see https://stackoverflow.com/a/12792301/4538758 and	
 	// https://en.wikipedia.org/wiki/Endianness#Optimization
 	volatile union{
@@ -22,13 +22,13 @@ inline int IsLittleEndian(){
 /// Allocates aligned memory.
 ///
 /// This explicitly checks whether the size is an integer multiple of size
-inline void* AlignedAlloc(size_t alignment, size_t size){
+static inline void* AlignedAlloc(size_t alignment, size_t size){
 	assert( ((size % alignment) == 0) && (size > 0)); // sanity check
 	return aligned_alloc(alignment, size);
 }
 
 /// Checks whether a pair of pointers overlap in memory
-inline int HasOverlap(const void * const a, size_t a_length,
+static inline int HasOverlap(const void * const a, size_t a_length,
                       const void * const b, size_t b_length,
                       size_t elem_size){
 

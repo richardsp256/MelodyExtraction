@@ -9,7 +9,7 @@
 
 
 #include "doubleArrayTesting.h"
-#include "../src/utils.h" // isLittleEndian
+#include "../../src/utils.h" // isLittleEndian
 
 
 // ROOT_DIR_PATH should be specified to the compiler and should indicate the

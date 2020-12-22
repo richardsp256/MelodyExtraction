@@ -10,7 +10,7 @@
 #ifndef SSE_VECTOR_H
 #define SSE_VECTOR_H
 
-inline const char* vector_backend_name() { return "SSE Intrinsics"; }
+static inline const char* vector_backend_name() { return "SSE Intrinsics"; }
 
 typedef __m128 f32x4;
 

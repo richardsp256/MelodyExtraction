@@ -1,3 +1,34 @@
+
+# create a simd_vector interface library
+# - basically, it is an abstraction for our switchable vector dtype backend
+# - it essentially just defines the relevant compiler definitions and options
+#   so that whenever any build target is linked to this target, that build
+#   target will always be built with these flags
+add_library(simd_vector INTERFACE)
+
+if(DEFINED ENV{MELEX_VECTOR_BACKEND})
+  if($ENV{MELEX_VECTOR_BACKEND} MATCHES "sse")
+    message(STATUS "detected MELEX_VECTOR_BACKEND=sse")
+    target_compile_definitions(simd_vector INTERFACE -DUSE_SSE_INTRINSICS)
+    target_compile_options(simd_vector INTERFACE "-mssse3")
+  elseif($ENV{MELEX_VECTOR_BACKEND} MATCHES "scalar")
+    message(STATUS "detected MELEX_VECTOR_BACKEND=scalar")
+  else()
+    message(FATAL_ERROR "MELEX_VECTOR_BACKEND was set to an unknown value: " $ENV{MELEX_VECTOR_BACKEND})
+  endif()
+else()
+  message(WARNING "MELEX_VECTOR_BACKEND environment variable not detected. Defaulting to scalar backend")
+endif()
+
+
+# Now, we move onto the main build targets
+
+# Search for dependencies
+find_package(FFTW3 REQUIRED)
+find_package(SndFile REQUIRED)
+find_package(Samplerate REQUIRED)
+find_package(FVAD REQUIRED)
+
 set(SOURCES
   tuningAdjustment.c
   midi.c
@@ -26,19 +57,16 @@ set(SOURCES
   transient/selectTransients.c
 )
 
-find_package(FFTW3 REQUIRED)
-find_package(SndFile REQUIRED)
-find_package(Samplerate REQUIRED)
-find_package(FVAD REQUIRED)
-
 add_library(melodyextraction SHARED ${SOURCES})
 target_link_libraries(melodyextraction
   PUBLIC m FFTW3::Float
-  PRIVATE SndFile::SndFile Samplerate::Samplerate FVAD::FVAD
+  PRIVATE simd_vector SndFile::SndFile Samplerate::Samplerate FVAD::FVAD
   )
+target_compile_options(melodyextraction PRIVATE "-Wall")
 
 add_executable(extract main.c)
 target_link_libraries(extract melodyextraction)
+target_compile_options(extract PRIVATE "-Wall")
 
 # specifying the locations where the constructed binary and libraries are to be
 # placed
