@@ -4,6 +4,7 @@
 #include <stdalign.h> // alignas keyword
 #include <stdint.h>   // int32_t
 #include <stddef.h>   // size_t
+#include <string.h>   // memcpy
 
 #include "../utils.h" // IsLittleEndian, HasOverlap
 #include "../errors.h" // me_errors
@@ -104,6 +105,40 @@ static inline f32x4 kernel(f32x4 u)
 	return out;
 }
 #endif /* USE_SSE_INTRINSICS */
+
+void EvaluateKernel(const float* x, float * out, size_t length,
+		    float bandwidth)
+{
+	// this implementation is highly suboptimal, but the complexity rapidly
+	// of handling the general case is high since both x and out can be
+	// unaligned by different amounts
+
+	f32x4 arg_coef  = broadcast_scalar_f32x4( KERNEL_ARG_COEF / bandwidth);
+	f32x4 norm_coef = broadcast_scalar_f32x4(KERNEL_NORM_COEF / bandwidth);
+
+	for (size_t i = 0; i+4 <=length; i++){
+		alignas(16) float   x_temp[4];
+		alignas(16) float out_temp[4];
+
+		memcpy((void *)x_temp, (const void *)(x+i), 16);
+		f32x4 x_vec = load_f32x4(&x_temp[0]);
+		f32x4 tmp = kernel(mul_f32x4(x_vec,arg_coef));
+		store_f32x4(&out_temp[0],mul_f32x4(tmp,norm_coef));
+		memcpy((void *)(out+i), (void*) out_temp, 16);
+	}
+
+	// cleanup each of the remaining values:
+	size_t remaining = length % 4;
+	for (size_t i = (length - remaining); i < length; i++){
+		alignas(16) float out_temp[4];
+
+		f32x4 x_vec = broadcast_scalar_f32x4(x[i]);
+		f32x4 tmp = kernel(mul_f32x4(x_vec,arg_coef));
+		store_f32x4(&out_temp[0],mul_f32x4(tmp,norm_coef));
+		out[i] = out_temp[0];
+	}
+}
+
 
 int CheckCorrentrogramsProp(size_t winsize, size_t max_lag, size_t hopsize)
 {

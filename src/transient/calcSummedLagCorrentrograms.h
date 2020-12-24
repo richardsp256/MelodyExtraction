@@ -2,6 +2,25 @@
 /// @brief    [\ref transient] Declaration of calcSummedLagCorrentrograms
 
 /// @ingroup transient
+/// Evaluates the kernel used in the correntropy calculation
+///
+/// This function primarily exists to facillitate both testing of
+/// `CalcSummedLagCorrentrograms` and testing of the kernel's accuracy
+/// @param[in]  x Array holding the values to apply the kernel function on.
+/// @param[out] out Array where the results are written to
+/// @param[in]  length The number of elements in x (and the number of elements
+///    in out)
+/// @param[in]  The bandwidth parameter. This must be positive.
+///
+/// @note
+/// This function does not evaluate the kernels remotely as efficiently as
+/// `CalcSummedLagCorrentrograms`. Evaluations within the latter are faster
+/// because `CalcSummedLagCorrentrograms` places much stricter requirements on
+/// the input arguments.
+void EvaluateKernel(const float* x, float * out, size_t length,
+		    float bandwidth);
+
+/// @ingroup transient
 /// Helper function that checks that the argument properties meet the
 /// requirements for the algorithm
 ///
@@ -44,9 +63,9 @@ size_t ExpectedPaddedAudioLength(size_t n_win, size_t winsize, size_t max_lag,
 ///    section of `x` that is used to compute a autocorrentrogram.
 /// @param[in]  n_win          The number of acgrams to compute.
 /// @param[out] summed_acgrams This is the array where the calculated
-///     autocorrentrograms are stored. This should have n_win entries. The
-///     newly calculated values are in-place to the initial values already
-///     stored.
+///    autocorrentrograms are stored. This should have n_win entries. The newly
+///    calculated values are added in-place to the initial values already
+///    stored.
 ///
 /// @return zero upon success
 ///

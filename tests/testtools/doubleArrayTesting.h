@@ -9,16 +9,6 @@ enum PrecisionEnum {
 	float_precision,
 	double_precision,
 };
-
-struct dblArrayTestEntry{
-	int *intInput;
-	int intInputLen;
-	double *dblInput;
-	int dblInputLen;
-	char *strInput;
-	char *resultFname;
-	dblArrayTest func;
-};
 #endif /*DBLARRAYTEST_H*/
 
 /// Reads in a little-endian floating point array from a binary file. The
