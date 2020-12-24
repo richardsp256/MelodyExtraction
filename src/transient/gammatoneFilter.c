@@ -27,7 +27,7 @@
 /// The gain is the magnitude of the transfer function evaluated when
 /// z = exp(I* 2*PI*centralFreq/samplerate)
 static void numericalNormalize_(float centralFreq, int samplerate,
-				double * coef)
+				double* coef)
 {
 	double x1, x2, gain;
 	x1 = 2. * M_PI * centralFreq/samplerate;
@@ -42,7 +42,7 @@ static void numericalNormalize_(float centralFreq, int samplerate,
 	coef[2] = coef[2]/gain;
 }
 
-void sosGammatoneCoef(float centralFreq, int samplerate, double *coef)
+void sosGammatoneCoef(float centralFreq, int samplerate, double* coef)
 {
 	double delta_t = 1./(double)samplerate;
 	double cf = (double)centralFreq;
@@ -84,9 +84,9 @@ void sosGammatoneCoef(float centralFreq, int samplerate, double *coef)
 	}
 }
 
-static void sosFilter_(const float * restrict x, size_t length,
-		       const double * restrict coef, uint8_t n_stages,
-		       float * restrict y, double * restrict state)
+static void sosFilter_(const float* restrict x, size_t length,
+		       const double* restrict coef, uint8_t n_stages,
+		       float* restrict y, double* restrict state)
 {
 	for (size_t n = 0; n < length; n++){
 		// implementations commonly require that a0 = 1 (to avoid the
@@ -125,8 +125,8 @@ static void sosFilter_(const float * restrict x, size_t length,
 	}
 }
 
-int sosFilter(int num_stages, const double *coef, const float *x, float *y,
-	       int length)
+int sosFilter(int num_stages, const double* coef, const float* x, float* y,
+	      int length, double* state)
 {
 	if (num_stages > 8){
 		return ME_SOSFILTER_TOO_MANY_STAGES;
@@ -134,23 +134,26 @@ int sosFilter(int num_stages, const double *coef, const float *x, float *y,
 		return ME_SOSFILTER_ZERO_STAGES;
 	} else if (HasOverlap(x, length, y, length, sizeof(float))){
 		return ME_SOSFILTER_OVERLAPPING_ARRAYS;
+	} else if ((state != NULL) &&
+		   HasOverlap(state, 2*num_stages,
+			      coef, 6*num_stages, sizeof(double))){
+		return ME_SOSFILTER_OVERLAPPING_ARRAYS;
 	}
-	double state[16] = {0.}; // automatically initialized to 0s
-	sosFilter_(x, length, coef, (uint8_t) num_stages,  y, state);
+	// if state is NULL, we fall back to state variables initialized to 0.
+	// The assumption is that there is a silence before the first entries
+	// in the input signal.
+	double fallback_state[16] = {0.}; // automatically initialized to 0s
+	double* state_ptr = (state) ? state : (double*) fallback_state;
+	sosFilter_(x, length, coef, (uint8_t) num_stages,  y, state_ptr);
 	return ME_SUCCESS;
 }
 
 int sosGammatone(const float* data, float* output, float centralFreq,
-		 int samplerate, int datalen)
+		 int samplerate, int datalen, double* state)
 {
 	double coef[24];
 	sosGammatoneCoef(centralFreq, samplerate, coef);
-
-	// for now, we asssume that state variables start at 0, because before
-	// a recording there is silence. If we are chunking the recording we
-	// will need to track state between chunks.
-	double state[8] = {0.}; // automatically initialized to 0s
-	return sosFilter(4, coef, data, output, datalen);
+	return sosFilter(4, coef, data, output, datalen, state);
 }
 
 void centralFreqMapper(size_t numChannels, float minFreq, float maxFreq,

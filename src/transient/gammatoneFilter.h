@@ -4,14 +4,22 @@
 /// @ingroup transient
 /// Performs IIR filtering using a cascade of second-order sections of biquad
 /// filters
-/// @param[in]  num_stages the number of biquad filters to apply. Must be at
+/// @param[in]     num_stages the number of biquad filters to apply. Must be at
 ///     least 1
-/// @param[in]  coef: a num_stages * 6 entry array with the feedforward and
+/// @param[in]     coef a num_stages * 6 entry array with the feedforward and
 ///     feedback coefficients for every stage of filtering.
-/// @param[in]  x: the input passed through the filter.
-/// @param[out] y: the output, it must already be allocated and have the same
+/// @param[in]     x the input passed through the filter.
+/// @param[out]    y the output, it must already be allocated and have the same
 ///     length as x.
-/// @param[in]  length: the length of both x and y
+/// @param[in]     length the length of both x and y
+/// @param[in,out] state Optional array parameter used to track intermediate
+///     state. This allows for processing `x` in chunks and computing output
+///     values that are identical to the outputs that would be computed if `x`
+///     were processed in a single shot. This array is expected to have
+///     `2*num_stages`. Alternatively, if the entire signal is being passed to
+///     this function at once, `NULL` can be passed to this argument. In that
+///     case, `state` is treated as an array of zeros (which assumes silence
+///     preceeded the recording)
 /// @returns 0 on success
 ///
 /// @note
@@ -33,8 +41,8 @@
 ///     - `y[n] = (b0 * x[n] + d1[n-1])/a0`
 ///     - d1[n] = b1 * x[n] - a1 * y[n] + d2[n-1]
 ///     - d2[n] = b2 * x[n] - a2 * y[n]
-int sosFilter(int num_stages, const double *coef, const float *x, float *y,
-	      int length);
+int sosFilter(int num_stages, const double* coef, const float* x, float* y,
+	      int length, double* state);
 
 /// @ingroup transient
 /// Computes the sos coefficients to implement a Gammatone filter
@@ -46,7 +54,7 @@ int sosFilter(int num_stages, const double *coef, const float *x, float *y,
 /// @param[in]  samplerate The sampling rate of the input that the filter will
 ///     be applied on
 /// @param[out] coef Pre-allocated buffer used to store the 24 entries
-void sosGammatoneCoef(float centralFreq, int samplerate, double *coef);
+void sosGammatoneCoef(float centralFreq, int samplerate, double* coef);
 
 /// @ingroup transient
 /// The sosGammatone is an IIR approximation for the gammatone filter.
@@ -61,6 +69,12 @@ void sosGammatoneCoef(float centralFreq, int samplerate, double *coef);
 /// @param[in]  centralFreq The frequency of the gammatone Filter
 /// @param[in]  samplerate The sampling rate of the input
 /// @param[in]  datalen The number of entries in input
+/// @param[in,out] state Optional array parameter used for processing `input`
+///     in chunks. To process `input` in chunks, the same pointer must be
+///     passed to each function call without modifying the underlying data.
+///     In this case, state should be an array with 8 elements. Before
+///     processing the very first chunk, the entries should be initialized to
+///     0. If only a single chunk is processed, this can just be NULL.
 /// @returns 0 upon success
 ///
 /// Although it is not currently implemented, I believe it is possible to set 
@@ -93,7 +107,7 @@ void sosGammatoneCoef(float centralFreq, int samplerate, double *coef);
 /// slightly modified from the APGF and is supposed to be a slightly better
 /// approximation for a gammatone.
 int sosGammatone(const float* data, float* output, float centralFreq,
-		 int samplerate, int datalen);
+		 int samplerate, int datalen, double* state);
 
 /// @ingroup transient
 /// Computes the central frequency used by the gammatone filter for each

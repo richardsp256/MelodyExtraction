@@ -84,7 +84,7 @@ void testSOSGammatoneFramework(float centralFreq, int samplerate,
 			       double abs_zero_tol){
 
        float *result = malloc(sizeof(float)*length);
-       sosGammatone(input, result, centralFreq, samplerate, length);
+       sosGammatone(input, result, centralFreq, samplerate, length, NULL);
        compareAgainstSavedArray(ref_fname, result, length, float_precision,
 				tol, rel, abs_zero_tol);
        free(result);
@@ -137,7 +137,7 @@ START_TEST(test_sosGammatone_centralFreq_gain)
 		    amplitude, phase);
 
 	float output[1000];
-	sosGammatone(input, output, 1./period, (int)sample_rate, 1000);
+	sosGammatone(input, output, 1./period, (int)sample_rate, 1000, NULL);
 
 	// There may be a more robust way to measure the gain
 	float cur_max = -FLT_MAX;
@@ -169,17 +169,17 @@ START_TEST (check_sosFilter_ArrayOverlap)
 	// check that when the input and output array overlap, that the
 	// appropriate return value is provided
 	int rv;
-	rv = sosFilter(1, coef, input, input, 10);
+	rv = sosFilter(1, coef, input, input, 10, NULL);
 	ck_assert_int_ne(rv, ME_SUCCESS);
 
-	rv = sosFilter(1, coef, input, &(input[0])+5, 10);
+	rv = sosFilter(1, coef, input, &(input[0])+5, 10, NULL);
 	ck_assert_int_ne(rv, ME_SUCCESS);
 
-	rv = sosFilter(1, coef, &(input[0])+5, input, 10);
+	rv = sosFilter(1, coef, &(input[0])+5, input, 10, NULL);
 	ck_assert_int_ne(rv, ME_SUCCESS);
 
 	// this one should be succesful
-	rv = sosFilter(1, coef, input, &(input[0])+10, 10);
+	rv = sosFilter(1, coef, input, &(input[0])+10, 10, NULL);
 	ck_assert_int_eq(rv, ME_SUCCESS);
 }
 
@@ -193,11 +193,11 @@ START_TEST (check_sosFilter_zero_stage)
 	// check that when the input and output array overlap, that the
 	// appropriate return value is provided
 	int rv;
-	rv = sosFilter(0, coef, input, output, 10);
+	rv = sosFilter(0, coef, input, output, 10, NULL);
 	ck_assert_int_ne(rv, ME_SUCCESS);
 
 	// this one should be succesful
-	rv = sosFilter(1, coef, input, output, 10);
+	rv = sosFilter(1, coef, input, output, 10, NULL);
 	ck_assert_int_eq(rv, ME_SUCCESS);
 }
 
@@ -219,7 +219,7 @@ START_TEST (check_biquad_simple_impulse)
 	float input[100];
 	genImpulse((void *)(&input[0]), float_precision, 100, 1.);
 	float output[100];
-	sosFilter(1, coef, input, output, 100);
+	sosFilter(1, coef, input, output, 100, NULL);
 	compareAgainstSavedArray(
 		"tests/test_files/gammatone/simple_biquad_test_result",
 		output, 100, float_precision, 1.e-5, 1, 1.e-5
@@ -236,7 +236,7 @@ START_TEST (check_biquad_simple_numerator_impulse)
 	float input[100];
 	genImpulse((void *)(&input[0]), float_precision, 100, 1.);
 	float output[100];
-	sosFilter(1, coef, input, output, 100);
+	sosFilter(1, coef, input, output, 100, NULL);
 	compareAgainstSavedArray(
 		"tests/test_files/gammatone/simple_biquad_numerator_result",
 		output, 100, float_precision, 1.e-5, 1, 1.e-5
@@ -256,7 +256,7 @@ END_TEST
 //	double input[100];
 //	genImpulse((void *)(&input[0]), double_precision, 100, 1.);
 //	double output[100];
-//	sosFilter(1, coef, input, output, 100);
+//	sosFilter(1, coef, input, output, 100, NULL);
 //	compareAgainstSavedArray(
 //		"tests/test_files/gammatone/simple_biquad_denominator_result",
 //		output, 100, double_precision, 1.e-5, 1, 1.e-5
@@ -272,7 +272,7 @@ END_TEST
 //	double input[100];
 //	genImpulse((void *)(&input[0]), double_precision, 100, 1.);
 //	double output[100];
-//	sosFilter(1, coef, input, output, 100);
+//	sosFilter(1, coef, input, output, 100, NULL);
 //	compareAgainstSavedArray(
 //		"tests/test_files/gammatone/simple_biquad_all_coef_result",
 //		output, 100, double_precision, 1.e-5, 1, 1.e-5
@@ -287,11 +287,32 @@ START_TEST (check_biquad_all_coef_staircase)
 	genStaircaseFunction((void *)(&input[0]), float_precision, 10,
 			     3., 18, 2);
 	float output[10];
-	sosFilter(1, coef, input, output, 10);
+	sosFilter(1, coef, input, output, 10, NULL);
 	compareAgainstSavedArray(
 		"tests/test_files/gammatone/step_function_biquad_response",
 		output, 10, float_precision, 1.e-5, 1, 1.e-5
 		);
+}
+END_TEST
+
+// Testing that the state variable properly allows chunking
+START_TEST (check_biquad_all_coef_staircase_chunks)
+{
+	double coef[6] = {13.,-4.,7.,1.,6.,-5.};
+	float input[10];
+	genStaircaseFunction((void *)(&input[0]), float_precision, 10,
+			     3., 18, 2);
+	float output_ref[10];
+	sosFilter(1, coef, input, output_ref, 10, NULL);
+
+
+	double state[2] = {0.,0.};
+	float output_chunks[10];
+	sosFilter(1, coef, input, output_chunks, 4, state);
+	sosFilter(1, coef, input+4, output_chunks+4, 6, state);
+
+	compareArrayEntries_float(output_ref, output_chunks, 10,
+				  0., 0, 0.);
 }
 END_TEST
 
@@ -302,7 +323,6 @@ Suite *gammatone_suite()
 	TCase *tc_performance = tcase_create("Performance");
 	TCase *tc_sosFilter_errs = tcase_create("sosFilter Error Handling");
 	TCase *tc_biquad = tcase_create("Biquad Filter");
-	// TODO: add tests that involve multiple second order sections
 
 	tcase_add_test(tc_coef,test_sosGammatone_coef_1);
 	tcase_add_test(tc_coef,test_sosGammatone_coef_2);
@@ -325,6 +345,7 @@ Suite *gammatone_suite()
 		       "tests because the tests are not presently equipped \n"
 		       "to run on Big Endian machines.\n");
 	}
+	tcase_add_test(tc_biquad,check_biquad_all_coef_staircase_chunks);
 
 	suite_add_tcase(s, tc_coef);
 	suite_add_tcase(s, tc_performance);

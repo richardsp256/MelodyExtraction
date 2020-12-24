@@ -27,7 +27,7 @@ static int simpleComputePSM(int numChannels, const float * restrict data,
 		int tmp_rslt;
 
 		tmp_rslt = sosGammatone(data, buffer, centralFreq[i],
-					sampleRate, dataLength);
+					sampleRate, dataLength, NULL);
 		if (tmp_rslt != ME_SUCCESS){
 			return tmp_rslt;
 		}
