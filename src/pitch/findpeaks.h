@@ -15,9 +15,8 @@ struct peakQueue{
 
 int findpeaks(float* x, float* y, long length,float slopeThreshold, 
 	      float ampThreshold, float smoothwidth, int peakgroup,
-	      int smoothtype, int N, int first, float* peakX, float* peakY,
+	      int smoothtype, int N, bool first, float* peakX, float* peakY,
 	      float* firstPeakX);
-int sign(float x);
 void findpeaksHelper(float* x, float* y, long length, int peakgroup, 
 		     float* peakX, float* peakY, long j, int n);
 float* quadFit(float* x, float* y, long length, float* mean, float *std);

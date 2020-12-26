@@ -116,10 +116,3 @@ void candidateSelectionSegment(float* fundamentals, distinctList **windowList,
 		indexLowestCost = (windowList[frame]->array[indexLowestCost]).indexLowestCost;
 	}
 }
-
-/*
-int main(int argc, char*argv[])
-{
-	return 0;
-}
-*/

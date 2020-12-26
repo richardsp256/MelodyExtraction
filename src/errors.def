@@ -40,6 +40,10 @@ ERROR_ENTRY(ME_REALLOC_FAILURE, -3,
   "A call to realloc failed.")
 
 
+// Pitch Dectection errors:
+
+ERROR_ENTRY(ME_BANA_TOO_MANY_PEAKS, -101,
+  "Too many harmonic peaks were specified for use with BaNa pitch detection.")
 
 // Onset Detection errors:
 

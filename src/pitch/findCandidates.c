@@ -4,22 +4,19 @@
 #include "findCandidates.h"
 
 // https://stackoverflow.com/questions/6514651/declare-large-global-array
-static float ratioRanges[15] = {1.15, 1.29, 1.42, 1.59,  
-				1.8,  1.9,  2.1,  2.4,
-				2.6,  2.8,  3.2,  3.8,
-				4.2,  4.8,  5.2};
+static const float ratioRanges[15] = {1.15, 1.29, 1.42, 1.59,
+				      1.8,  1.9,  2.1,  2.4,
+				      2.6,  2.8,  3.2,  3.8,
+				      4.2,  4.8,  5.2};
 
-static float mRanges[15] = { 4,  3,  2,  3,  
-			    -1,  1, -1,  2,
-			    -1,  1, -1,  1,  
-			    -1,  1, -1};
+static const float mRanges[15] = { 4,  3,  2,  3,
+				  -1,  1, -1,  2,
+				  -1,  1, -1,  1,
+				  -1,  1, -1};
 
 
-struct orderedList calcCandidates(float* peaks, int numPeaks)
+struct orderedList calcCandidates(const float* peaks, int numPeaks)
 {
-	int i,j;
-	float m;
-
 	// let T_n represent the nth triangle number. T_n = n(n+1)/2
 	// the maximum number of candidates from different combinations of
 	// peaks is: T_(numPeaks-1)= (numPeaks)(numPeaks-1)/2
@@ -29,9 +26,9 @@ struct orderedList calcCandidates(float* peaks, int numPeaks)
 	struct orderedList candidates = orderedListCreate(2+((numPeaks-1) *
 							     (numPeaks)/2));
 
-	for (i=0; i<numPeaks-1;i++){
-		for (j=i+1; j<numPeaks; j++){
-			m = calcM(peaks[i],peaks[j]);
+	for (int i=0; i<numPeaks-1;i++){
+		for (int j=i+1; j<numPeaks; j++){
+			float m = calcM(peaks[i],peaks[j]);
 			if (m>0) {
 				orderedListInsert(&candidates, peaks[i]/m);
 			}				

@@ -21,13 +21,23 @@ SOFTWARE.
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "findpeaks.h"
 
-
+static inline int sign(float x)
+{
+	if (x > 0){
+		return 1;
+	} else if (x == 0) {
+		return 0;
+	} else {
+		return -1;
+	}
+}
 
 int findpeaks(float* x, float* y, long length,float slopeThreshold, 
 	      float ampThreshold, float smoothwidth, int peakgroup,
-	      int smoothtype, int N, int first, float* peakX,
+	      int smoothtype, int N, bool first, float* peakX,
 	      float* peakY, float* firstPeakX)
 {
 	// This function has been transcribed from T. C. O'Haver's findpeaks
@@ -54,9 +64,9 @@ int findpeaks(float* x, float* y, long length,float slopeThreshold,
 	// returned the information about all detected peaks. Our purposes 
 	// require that we only return a certain number of peaks. The 
 	// maximum number of returned peaks is set by "N". The actual 
-	// number of returned peaks returned by the function. If a positive 
-	// integer is passed to "first", then the first "N" peaks are returned.
-	// Otherwise, the "N": peaks with the highest amplitude are returned.
+	// number of returned peaks returned by the function. If `first` is
+	// true, then the first `N` peaks are returned. Otherwise, the `N`:
+	// peaks with the highest amplitude are returned.
 
 	// "peakX", "peakY", and will point at the peaks with the greatest 
 
@@ -90,7 +100,7 @@ int findpeaks(float* x, float* y, long length,float slopeThreshold,
 							    curPeakY);
 					*firstPeakX = curPeakX;
 
-					if ((first>=1)&(peakQ.cur_size == N) ){
+					if ((first)&(peakQ.cur_size == N) ){
 						j = length;
 					}
 					
@@ -118,7 +128,7 @@ int findpeaks(float* x, float* y, long length,float slopeThreshold,
 
 					peakQueueAddNewPeak(&peakQ, curPeakX,
 							    curPeakY);
-					if ((first>=1)&(peakQ.cur_size == N) ){
+					if ((first)&(peakQ.cur_size == N) ){
 						j = length;
 					}		
 				}
@@ -132,16 +142,7 @@ int findpeaks(float* x, float* y, long length,float slopeThreshold,
 	return out;
 }
 
-int sign(float x)
-{
-	if (x > 0){
-		return 1;
-	} else if (x == 0) {
-		return 0;
-	} else {
-		return -1;
-	}
-}
+
 
 void findpeaksHelper(float* x, float* y, long length, int peakgroup,
 		     float* peakX, float* peakY, long j, int n)

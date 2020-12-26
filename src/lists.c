@@ -17,9 +17,9 @@
 /// Due to poor record keeping, it's not exactly clear which version of CPython
 /// the bisectLeft function was derived from. Based on the commit history it
 /// could have only been derived from versions 2.7 through 3.6 (it was probably
-/// one of the extremes). In any case, the license is the same. A copy of the
+/// 2.7 or 3.6). In any case, the license is the same. A copy of the
 /// license is provided in licenses/PYTHON_LICENSE
-int bisectLeft(float* l, float value, int low, int high){
+int bisectLeft(const float* l, float value, int low, int high){
 
 	// for integers >=0 integer division is floor division
 	int mid;

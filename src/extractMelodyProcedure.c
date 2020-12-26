@@ -179,7 +179,7 @@ int ExtractPitchAndAllocate(float** input, float** pitches, audioInfo info,
 	(*pitches) = malloc(sizeof(float) * NumSTFTBlocks(info, p_unpaddedSize,
 							  p_winInt));
 	if (*pitches == NULL){
-		return -1;
+		return ME_MALLOC_FAILURE;
 	}
 	return ExtractPitch(*input, *pitches, info, p_unpaddedSize, p_winSize,
 			    p_winInt, pitchStrategy, hpsOvr, verbose, prefix);
@@ -232,7 +232,7 @@ int ExtractPitch(float* input, float* pitches, audioInfo info,
 
 	int result = pitchStrategy(spectrum, p_size, p_winSize/2, hpsOvr,
 				   p_winSize, info.samplerate, pitches);
-	if(result <= 0){
+	if(result != ME_SUCCESS){
 		return result;
 	}
 

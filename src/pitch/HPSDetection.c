@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <float.h>
 #include "HPSDetection.h"
+#include "../errors.h"
 
 int HarmonicProductSpectrum(const float* AudioData, int size, int dftBlocksize, int hpsOvr, int fftSize, int samplerate, float*loudestFreq)
 {
@@ -13,6 +14,9 @@ int HarmonicProductSpectrum(const float* AudioData, int size, int dftBlocksize, 
 	// create a copy of HPSpectrum, which should be large enough to hold
 	// one of the spectra from AudioData
 	float* HPSpectrum = malloc( sizeof(float) * dftBlocksize );
+	if (!HPSpectrum){
+		return ME_MALLOC_FAILURE;
+	}
 	printf("size: %d\n", size);
 	printf("dftblocksize: %d\n", dftBlocksize);
 
@@ -46,7 +50,7 @@ int HarmonicProductSpectrum(const float* AudioData, int size, int dftBlocksize, 
 
 	free(HPSpectrum);
 
-	return 1;
+	return ME_SUCCESS;
 }
 
 float BinToFreq(int bin, int fftSize, int samplerate){

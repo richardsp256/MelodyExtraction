@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include <stdbool.h>
 #include <ctype.h>
 #include "BaNaDetection.h"
 #include "HPSDetection.h"
@@ -48,7 +49,7 @@ int BaNaDetectionStrategy(float* spectrogram, int size, int dftBlocksize,
 			  float *pitches)
 {
 	return BaNa(&spectrogram, size, dftBlocksize, 5, 50, 600, 10.0,
-		    fftSize, samplerate, 1, pitches);
+		    fftSize, samplerate, true, pitches);
 }
 
 int BaNaMusicDetectionStrategy(float* spectrogram, int size,
@@ -56,5 +57,5 @@ int BaNaMusicDetectionStrategy(float* spectrogram, int size,
 			       int samplerate, float *pitches)
 {
 	return BaNa(&spectrogram, size, dftBlocksize, 5, 50, 3000, 3.0,
-		    fftSize, samplerate, 0, pitches);
+		    fftSize, samplerate, false, pitches);
 }
