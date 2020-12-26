@@ -87,6 +87,19 @@ ERROR_ENTRY(ME_SOSFILTER_OVERLAPPING_ARRAYS, -263,
   "the arrays passed to sosFilter can't overlap")
 
 
+ERROR_ENTRY(ME_NONPOS_ROLLING_WINDOW, -281,
+  "A non-positive window size was specified for the rolling standard "
+  "deviation.")
+
+ERROR_ENTRY(ME_NONPOS_ROLLING_INTERVAL, -282,
+  "A non-positive hopsize was specified for the rolling standard deviation.")
+
+ERROR_ENTRY(ME_NEGATIVE_ROLLING_STARTINDEX, -283,
+  "A negative startIndex was specified for the rolling standard deviation.")
+
+ERROR_ENTRY(ME_NEGATIVE_ROLLING_ARRLEN, -284,
+  "A non-positive array length was specified for the rolling standard "
+  "deviation.")
 
 // Resample Errors:
 

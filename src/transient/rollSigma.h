@@ -25,6 +25,8 @@
 ///            computed
 /// @param[out] sigmas The buffer of data that the results get written into
 ///
+/// @returns Return 0 on success.
+///
 /// @par Implementation Notes:
 /// For values of sigma near the start and of buffer, the windows are
 /// automatically adjusted not to include values beyond the edge of the array.
@@ -52,6 +54,6 @@
 /// probability distribution function resembling a Gaussian. (If the
 /// is not univariate or different kernel functions are used, it is advisable
 /// to try to optimize the bandwidth of each kernel in a different manner)
-void rollSigma(int startIndex, int interval, float scaleFactor,
-	       int sigWindowSize, int dataLength, int numWindows,
-	       float *buffer, float *sigmas);
+int rollSigma(int startIndex, int interval, float scaleFactor,
+	      int sigWindowSize, int dataLength, int numWindows,
+	      float *buffer, float *sigmas);

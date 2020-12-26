@@ -7,18 +7,19 @@
 // the user is responsible for making sure that the length of the list does
 // not exceed the maximum size
 
-// below is a function generally associated with lists. It is specifically used
-// by orderedList
-
+/// find the index of the leftmost value in `l` greater than or equal to
+/// `value`. It is specifically used by `orderedList`.
+///
+/// This algorithm was taken from cpython's biset_left function. An
+/// implementation can be found here:
+///     https://github.com/python-git/python/blob/master/Lib/bisect.py
+///
+/// Due to poor record keeping, it's not exactly clear which version of CPython
+/// the bisectLeft function was derived from. Based on the commit history it
+/// could have only been derived from versions 2.7 through 3.6 (it was probably
+/// one of the extremes). In any case, the license is the same. A copy of the
+/// license is provided in licenses/PYTHON_LICENSE
 int bisectLeft(float* l, float value, int low, int high){
-	// function to find the index of the leftmost value in l greater
-	// than or equal to value.
-
-	// We just use the algorithm used for python's bisect left function
-	// It is implemented here:
-	// https://github.com/python-git/python/blob/master/Lib/bisect.py
-
-	// This could probably be better optimized
 
 	// for integers >=0 integer division is floor division
 	int mid;

@@ -1,48 +1,55 @@
 #include <stdlib.h> // malloc, free
 #include <math.h> //sqrtf
+#include <stdbool.h>
 
-/* Concept is taken from python Pandas package*/
+#include "../errors.h"
 
-/* If the window is centred, then curLocation refers to the centre of the 
-   window. Otherwise, it refers to the left edge */
+// The following draws HEAVY inspiration of roll_var from pandas. Note, I can't
+// remember the exact version of the code that this was derived from, but a
+// version of it can be found here:
+//   https://github.com/pandas-dev/pandas/blob/bd8dbf906e4352567094637c9c824c350dae3ad2/pandas/_libs/window.pyx
+// The Pandas 3-clause BSD license is provided in licenses/PANDAS_LICENSE
 
 struct windowIndexer{
-	int variable; /* expects 1 or 0 */
-	int centered; /* expects 1 or 0 */
+	bool variable;
+	bool centered;
 	int sizeLeft;
 	int sizeRight;
 	int interval;
-	int curLocation; 
+	int curLocation;
 	int arrayLength;
 };
 
 
-struct windowIndexer* windowIndexerNew(int variable, int centered, int winSize,
-				       int interval, int startIndex,
-				       int arrayLength)
+int windowIndexerInit(bool variable, bool centered, int winSize, int interval,
+		      int startIndex, int arrayLength,
+		      struct windowIndexer* wInd)
 {
-	struct windowIndexer* out;
-	out = malloc(sizeof(struct windowIndexer));
-	out->variable = variable;
-	out->centered = centered;
+	if (winSize <= 0){
+		return ME_NONPOS_ROLLING_WINDOW;
+	} else if (interval <= 0){
+		return ME_NONPOS_ROLLING_INTERVAL;
+	} else if (startIndex < 0){
+		return ME_NEGATIVE_ROLLING_STARTINDEX;
+	} else if (arrayLength <= 0){
+		return ME_NEGATIVE_ROLLING_ARRLEN;
+	}
+	wInd->variable = variable;
+	wInd->centered = centered;
 	if (centered){
-		out->sizeLeft = winSize/2;
-		out->sizeRight = out->sizeLeft + 1;
+		wInd->sizeLeft = winSize/2;
+		wInd->sizeRight = wInd->sizeLeft + 1;
 		if (winSize % 2 == 0){
-			(out->sizeLeft)-=1;
+			(wInd->sizeLeft)-=1;
 		}
 	} else {
-		out->sizeLeft = 0;
-		out->sizeRight = winSize;
+		wInd->sizeLeft = 0;
+		wInd->sizeRight = winSize;
 	}
-	out->interval = interval;
-	out->curLocation = startIndex;
-	out->arrayLength = arrayLength;
-	return out;
-}
-
-void windowIndexerDestroy(struct windowIndexer *wInd){
-	free(wInd);
+	wInd->interval = interval;
+	wInd->curLocation = startIndex;
+	wInd->arrayLength = arrayLength;
+	return ME_SUCCESS;
 }
 
 void wIndAdvance(struct windowIndexer *wInd){
@@ -79,10 +86,8 @@ int wIndGetStop(struct windowIndexer *wInd){
 }
 
 
-/* the following draws HEAVY inspiration from implementation of pandas 
- * roll_variance. 
- * https://github.com/pandas-dev/pandas/blob/master/pandas/_libs/window.pyx
- */
+
+
 static inline double calc_var(double nobs, double ssqdm_x){
 	double result;
 	/* Variance is unchanged if no observation is added or removed
@@ -131,17 +136,21 @@ static inline void remove_var(double val, int *nobs, double *mean_x,
 ///
 /// This algorithm can still be further optimized so that we add
 /// and remove values from the windows in chunks (rather than 1 at a time).
-void rollSigma(int startIndex, int interval, float scaleFactor,
-	       int sigWindowSize, int dataLength, int numWindows,
-	       float *buffer, float *sigmas)
+int rollSigma(int startIndex, int interval, float scaleFactor,
+	      int sigWindowSize, int dataLength, int numWindows,
+	      float *buffer, float *sigmas)
 {
 	int i,j,k,nobs = 0,winStart, winStop, prevStop,prevStart;
 	double mean_x = 0, ssqdm_x = 0;
 	float std;
-	struct windowIndexer* wInd;
+	struct windowIndexer wInd_instance;
+	struct windowIndexer* wInd = &wInd_instance;
 
-	wInd = windowIndexerNew(1, 1, sigWindowSize, 1,
-				startIndex, dataLength);
+	int rv = windowIndexerInit(true, true, sigWindowSize, 1, startIndex,
+				   dataLength, wInd);
+	if (rv != ME_SUCCESS){
+		return rv;
+	}
 	
 	for (i=0;i<numWindows;i++){
 		winStart = wIndGetStart(wInd);
@@ -213,5 +222,5 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 			prevStop = winStop;
 		}
 	}
-	windowIndexerDestroy(wInd);
+	return ME_SUCCESS;
 }

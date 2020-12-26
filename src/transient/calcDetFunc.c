@@ -33,8 +33,12 @@ static int simpleComputePSM(int numChannels, const float * restrict data,
 		}
 
 		/* compute the sigma values */
-		rollSigma(startIndex, interval, scaleFactor, sigWindowSize,
-			  dataLength, numWindows, buffer, sigmas);
+		tmp_rslt = rollSigma(startIndex, interval, scaleFactor,
+				     sigWindowSize, dataLength, numWindows,
+				     buffer, sigmas);
+		if (tmp_rslt != ME_SUCCESS){
+			return tmp_rslt;
+		}
 
 		clock_t precorrentrogram_c = clock();
 		/* compute the pooledSummaryMatrixValues */
