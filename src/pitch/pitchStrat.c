@@ -39,7 +39,7 @@ int HPSDetectionStrategy(float* spectrogram, int size, int dftBlocksize,
 			 int hpsOvr, int fftSize, int samplerate,
 			 float *pitches)
 {
-	return HarmonicProductSpectrum(&spectrogram, size, dftBlocksize, hpsOvr,
+	return HarmonicProductSpectrum(spectrogram, size, dftBlocksize, hpsOvr,
 				       fftSize, samplerate, pitches);
 }
 

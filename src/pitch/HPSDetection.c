@@ -4,51 +4,47 @@
 #include <float.h>
 #include "HPSDetection.h"
 
-int HarmonicProductSpectrum(float** AudioData, int size, int dftBlocksize, int hpsOvr, int fftSize, int samplerate, float*loudestFreq)
+int HarmonicProductSpectrum(const float* AudioData, int size, int dftBlocksize, int hpsOvr, int fftSize, int samplerate, float*loudestFreq)
 {
 	//for now, doesn't attempt to distinguish if a note is or isnt playing.
 	//if no note is playing, the dominant tone will just be from the noise.
-
-	int i,j,limit, numBlocks;
-	float loudestOfBlock;
-	int loudestIndex = -1;
 	assert(size % dftBlocksize == 0);
 
-	// numBlocks is the length of loudestFreq
-	numBlocks = size / dftBlocksize;
-
-
-	//create a copy of AudioData
-	float* AudioDataCopy = malloc( sizeof(float) * dftBlocksize );
+	// create a copy of HPSpectrum, which should be large enough to hold
+	// one of the spectra from AudioData
+	float* HPSpectrum = malloc( sizeof(float) * dftBlocksize );
 	printf("size: %d\n", size);
 	printf("dftblocksize: %d\n", dftBlocksize);
 
 	//do each block at a time.
 	for(int blockstart = 0; blockstart < size; blockstart += dftBlocksize){
 
-		//copy the block
-		for(i = 0; i < dftBlocksize; ++i){
-			AudioDataCopy[i] = (*AudioData)[blockstart + i];
+	       // set all of the values held by HPSpectrum to 1
+		for(int i = 0; i < dftBlocksize; ++i){
+			HPSpectrum[i] = 1.f;
 		}
 
-		for(i = 2; i <= hpsOvr; i++){
-			limit = dftBlocksize/i;
-			for(j = 0; j <= limit; j++){
-				(*AudioData)[blockstart + j] *= AudioDataCopy[j*i];
+		for(int n = 1; n <= hpsOvr; n++){
+			// Compute the bin of the frequency above which the nth
+			// harmonic is not included in the input spectrum
+			int limit = dftBlocksize/n;
+			for (int i = 0; i <= limit; i++){
+				HPSpectrum[i] *= AudioData[blockstart + i*n];
 			}
 		}
 
-		loudestOfBlock = FLT_MIN;
-		for(i = 0; i < dftBlocksize; ++i){
-			if((*AudioData)[blockstart + i] > loudestOfBlock){
-				loudestOfBlock = (*AudioData)[blockstart + i];
+		float loudestOfBlock = -FLT_MAX;
+		int loudestIndex = -1;
+		for(int i = 0; i < dftBlocksize; ++i){
+			if(HPSpectrum[i] > loudestOfBlock){
+				loudestOfBlock = HPSpectrum[i];
 				loudestIndex = i;
 			}
 		}
 		loudestFreq[blockstart/dftBlocksize] = BinToFreq(loudestIndex, fftSize, samplerate);
 	}
 
-	free(AudioDataCopy);
+	free(HPSpectrum);
 
 	return 1;
 }
