@@ -15,7 +15,7 @@
 // NOTE: in all of my code I use window, frame, and block to refer to the same
 //       thing
 
-int BaNa(float **AudioData, int size, int dftBlocksize, int p,
+int BaNa(float *spectrogram, int size, int dftBlocksize, int p,
 	 float f0Min, float f0Max, float xi, int fftSize, int samplerate,
 	 bool first, float *fundamentals)
 {
@@ -41,7 +41,7 @@ int BaNa(float **AudioData, int size, int dftBlocksize, int p,
 	// preprocess each of the frames
 	// In the future, we will try to avoid modifying the input spectrogram
 	// directly.
-	BaNaPreprocessing(*AudioData, size, dftBlocksize, p, f0Min, f0Max,
+	BaNaPreprocessing(spectrogram, size, dftBlocksize, p, f0Min, f0Max,
 			  frequencies);
 
 	int numBlocks = (size / dftBlocksize);
@@ -52,12 +52,18 @@ int BaNa(float **AudioData, int size, int dftBlocksize, int p,
 		return ME_MALLOC_FAILURE;
 	}
 
+	// set smoothwidth to the equivalent of 50 Hz
+	// (not totally sure I should be using fftSize instead of dftBlocksize)
+	float smoothwidth = 50. * ( ((float) fftSize) /
+				    ((float) samplerate) );
+
 	// find the candidates for the fundamentals
-	int rv = BaNaFindCandidates(*AudioData, size, dftBlocksize,
-				    p, f0Min, f0Max, first, xi,
-				    frequencies, fftSize, samplerate,
-				    windowCandidates);
+	int rv = BaNaFindCandidates(spectrogram, size, dftBlocksize,
+				    p, f0Min, f0Max, first, xi, frequencies,
+				    smoothwidth, windowCandidates);
 	if (rv != ME_SUCCESS){
+		free(windowCandidates);
+		free(frequencies);
 		return rv;
 	}
 
@@ -119,8 +125,8 @@ void BaNaPreprocessing(float *spectrogram, int size, int dftBlocksize, int p,
 int BaNaFindCandidates(const float *spectrogram, int size,
 		       int dftBlocksize, int p, float f0Min,
 		       float f0Max, bool first, float xi,
-		       float* frequencies, int fftSize,
-		       int samplerate, distinctList** windowCandidates)
+		       float* frequencies, float smoothwidth,
+		       distinctList** windowCandidates)
 {
 	// this finds all of the f0 candiates
 	// windowCandidates is an array of pointers that point to the list of
@@ -132,19 +138,11 @@ int BaNaFindCandidates(const float *spectrogram, int size,
 		return ME_BANA_TOO_MANY_PEAKS;
 	}
 
-	float * magnitudes = malloc(dftBlocksize * sizeof(float));
-	if(magnitudes == NULL){
-		return ME_MALLOC_FAILURE;
-	}
-
 	// outer loop iterates over blocks
-	for (int blockstart =0; blockstart < size; blockstart += dftBlocksize){
+	for (int win =0; win < size/dftBlocksize; win++ ){
 
-		// for now copy the magnitudes into a buffer. Fix this in the
-		// future
-		for(int i = 0; i < dftBlocksize; i++){
-			magnitudes[i] = spectrogram[blockstart + i];
-		}
+		const float * const magnitudes =
+			&(spectrogram[win*dftBlocksize]);
 
 		// determine slopeThreshold, ampThreshold, smoothwidth
 		// set ampThreshold to 1/15 th of largest magnitude
@@ -157,10 +155,6 @@ int BaNaFindCandidates(const float *spectrogram, int size,
 		}
 		ampThreshold/=15.;
 
-		// set smoothwidth to the equivalent of 50 Hz
-		float smoothwidth = 50. * ( ((float) fftSize) /
-					    ((float) samplerate) );
-
 		// find the harmonic spectra peaks
 		float firstFreqPeak;
 		int numPeaks = findpeaks(frequencies, magnitudes,
@@ -168,36 +162,43 @@ int BaNaFindCandidates(const float *spectrogram, int size,
 					 ampThreshold, smoothwidth, 5, 3, 
 					 p, first, peakFreq, peakMag,
 					 &firstFreqPeak);
-		//printf("Candidates = [%.0lf",firstFreqPeak);
-		//for (int j =1; j<numPeaks;j++){
-		//	printf(", %.0lf",peakFreq[j]);
-		//}
-		//printf("]\n");
 
-		//printf("Done finding peaks\n");
-		// determine the candidates from the peaks
-		struct orderedList candidates = calcCandidates(peakFreq,
-							       numPeaks);
-		//printf("Done finding candidates\n");
+		// Now, identify the candidates
+
+		// Max number of candidates from ratio analysis
+		//      = (numPeaks)*(numPeaks-1)/2
+		// Need additional space to hold:
+		//   - lowest frequency peak
+		//   - cepstral frequency
+		struct orderedList candidates =
+			orderedListCreate( (numPeaks * (numPeaks-1))/2 + 2);
+
+		// determine the candidates from the peak ratios
+		RatioAnalysisCandidates(peakFreq, numPeaks, &candidates);
+
 		// add the lowest frequency peak fundamental candidate
 		orderedListInsert(&candidates, (float)firstFreqPeak);
-		//printf("Inserted lowest frequency candidate\n");
-		// add the cepstrum fundamental candidate
 
+		// add the cepstrum fundamental candidate
+		// (skipping this for now!)
+
+		// Now consolidate the list of all candidates into a
+		// distinctive list.
 		distinctList* t = distinctCandidates(&candidates,
 						     ((numPeaks)*
 						     (numPeaks-1)/2)+2,
 						     xi,(float)f0Min,
 						     (float)f0Max);
-		//distinctListPrintFreq(*t);
-		// determine the distinctive candidates and add them to
-		windowCandidates[blockstart/dftBlocksize] = t;
-		//windowCandidates[i] = distinctCandidates(&candidates,
-		//					 (p-1)*(p-1)+2, xi);
-
 		orderedListDestroy(candidates);
+		if (t == NULL){
+			for(int i=0; i <win; i++){
+				distinctListDestroy(windowCandidates[i]);
+			}
+			return ME_MALLOC_FAILURE;
+		}
 
+		// Finally, add the distinctive candidates to windowCandidates
+		windowCandidates[win] = t;
 	}
-	free(magnitudes);
 	return ME_SUCCESS;
 }

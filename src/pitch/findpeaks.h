@@ -1,3 +1,5 @@
+#include <stddef.h> // size_t
+
 #ifndef FINDPEAKS_H
 #define FINDPEAKS_H
 struct peak {
@@ -13,16 +15,15 @@ struct peakQueue{
 
 #endif /*FINDPEAKS_H*/
 
-int findpeaks(float* x, float* y, long length,float slopeThreshold, 
+int findpeaks(const float* x, const float* y, long length,float slopeThreshold, 
 	      float ampThreshold, float smoothwidth, int peakgroup,
 	      int smoothtype, int N, bool first, float* peakX, float* peakY,
 	      float* firstPeakX);
-void findpeaksHelper(float* x, float* y, long length, int peakgroup, 
-		     float* peakX, float* peakY, long j, int n);
+
 float* quadFit(float* x, float* y, long length, float* mean, float *std);
-float* deriv(float* a, long length);
+float* deriv(const float* a, size_t length);
 float* fastsmooth(float* y, long length, float w, int type);
-float* sa(float* y, long length, float smoothwidth);
+float* sa(const float* y, long length, float smoothwidth);
 
 struct peakQueue peakQueueNew(int max_size);
 void peakQueueDestroy(struct peakQueue peakQ);

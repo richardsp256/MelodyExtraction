@@ -30,6 +30,16 @@ target_link_libraries(check_transient
 add_test(NAME check_transient
   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/check_transient)
 
+# next, define tests that check functionality in the pitch module
+set(PITCH_TEST_SOURCES
+  pitch/check_pitch_main.c
+  pitch/check_findCandidates.c
+  )
+add_executable(check_pitch ${PITCH_TEST_SOURCES})
+target_link_libraries(check_pitch melodyextraction Check::Check)
+add_test(NAME check_pitch
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/check_pitch)
+
 # second, define tests that checks the growable lists
 add_executable(check_lists check_lists.c)
 target_link_libraries(check_lists melodyextraction Check::Check)

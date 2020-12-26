@@ -24,6 +24,11 @@ SOFTWARE.
 #include <stdbool.h>
 #include "findpeaks.h"
 
+// it makes slightly more sense to implement this function after findpeaks
+static void findpeaksHelper(const float* x, const float* y, long length,
+			    int peakgroup, float* peakX, float* peakY, long j,
+			    int n);
+
 static inline int sign(float x)
 {
 	if (x > 0){
@@ -35,9 +40,9 @@ static inline int sign(float x)
 	}
 }
 
-int findpeaks(float* x, float* y, long length,float slopeThreshold, 
-	      float ampThreshold, float smoothwidth, int peakgroup,
-	      int smoothtype, int N, bool first, float* peakX,
+int findpeaks(const float* x, const float* y, long length,
+	      float slopeThreshold, float ampThreshold, float smoothwidth,
+	      int peakgroup, int smoothtype, int N, bool first, float* peakX,
 	      float* peakY, float* firstPeakX)
 {
 	// This function has been transcribed from T. C. O'Haver's findpeaks
@@ -72,9 +77,11 @@ int findpeaks(float* x, float* y, long length,float slopeThreshold,
 
 	smoothwidth = round(smoothwidth);
 	peakgroup = round(peakgroup);
-	float* d=fastsmooth(deriv(y,length),length, smoothwidth, smoothtype);
+	float* deriv_vals = deriv(y,length);
+	float* d=fastsmooth(deriv_vals, length, smoothwidth, smoothtype);
+	free(deriv_vals);
 	int n = (int)round(peakgroup/2 +1);
-		
+
 	long j, temp;
 	float curPeakX,curPeakY;
 
@@ -144,19 +151,17 @@ int findpeaks(float* x, float* y, long length,float slopeThreshold,
 
 
 
-void findpeaksHelper(float* x, float* y, long length, int peakgroup,
+void findpeaksHelper(const float* x, const float* y, long length, int peakgroup,
 		     float* peakX, float* peakY, long j, int n)
 {
 	// Helper Function
-	int k;
-	long groupindex;
 	if (peakgroup<5){
 		*peakY = -1.0;
 		// At a glance the following for loop seems wrong (especiall in
 		// comparison to the matlab code but I think its actually
 		// correct)
-		for (k=1;k<=peakgroup;k++){
-			groupindex = (j+(long)k-(long)n);
+		for (int k=1;k<=peakgroup;k++){
+			long groupindex = (j+(long)k-(long)n);
 			if (groupindex < 0) {
 				groupindex = 0;
 			}
@@ -176,8 +181,8 @@ void findpeaksHelper(float* x, float* y, long length, int peakgroup,
 		// At a glance the following for loop seems wrong (especiall
 		// in comparison to the matlab code), but I think its actually
 		// correct)
-		for (k=1;k<=peakgroup;k++){
-			groupindex = (j+(long)k-(long)n);
+		for (int k=1;k<=peakgroup;k++){
+			long groupindex = (j+(long)k-(long)n);
 			if (groupindex < 0) {
 				groupindex = 0;
 			}
@@ -287,22 +292,20 @@ float* quadFit(float* x, float* y, long length, float* mean, float *std)
 }
 
 
-float* deriv(float* a, long length)
+float* deriv(const float* a, size_t length)
 {
 	// First derivative of vector using 2-point central difference.
 	// Transcribed from matlab code of T. C. O'Haver, 1988.
-	// I am very confident that I transcribed the indices of the 
-	// arrays properly
-	long i;
 	float* d = malloc( sizeof(float) * length);
 	d[0] = a[1]-a[0];
 	d[length-1] = a[length-1]-a[length-2];
-	for(i=1;i<length-1;i++){
+	for(size_t i=1;i<length-1;i++){
 		d[i] = (a[i+1]-a[i-1])/2.;
 	}
 	return d;
 }
 
+// this can be optimized significantly
 float* fastsmooth(float* y, long length, float w, int type)
 {
 	// Transcribed from matlab code of T. C. O'Haver, 1988 Version 2.0, 
@@ -311,26 +314,27 @@ float* fastsmooth(float* y, long length, float w, int type)
 	//  If type=1, rectangular (sliding-average or boxcar)
 	//  If type=2, triangular (2 passes of sliding-average)
 	//  If type=3, pseudo-Gaussian (3 passes of sliding-average)
-	float* smoothY;
-	switch (type){
-	case 1 :
-		smoothY = sa(y,length,w);
-		break;
-	case 2 :
-		smoothY = sa(sa(y,length,w),length,w);
-		break;
-	case 3 :
-		smoothY = sa(sa(sa(y,length,w),length,w),length,w);
-		break;
-	default:
-		smoothY = sa(sa(sa(y,length,w),length,w),length,w);
-		break;
-
+	if (type<1 || type > 3){
+		printf("The type argument was passed an invalid value\n");
+		fflush(stdout);
+		abort();
 	}
-	return smoothY;
+
+	float *cur = NULL;
+	for (int i = 0; i < type; i++){
+		float *in = (i == 0) ? y : cur;
+		cur = sa(in,length,w);
+		if (in != y){
+			free(in);
+		}
+		if (cur == NULL){
+			return NULL;
+		}
+	}
+	return cur;
 }
 
-float* sa(float* y, long length, float smoothwidth)
+float* sa(const float* in, long length, float smoothwidth)
 {
 	// should probably check that smooth width is>=1
 
@@ -349,27 +353,25 @@ float* sa(float* y, long length, float smoothwidth)
 	
 	long w = (long)round(smoothwidth);
 	float sumPoints = 0;
-	long k;
-	for(k=0;k<w;k++){
-		sumPoints += y[k];
+	for(long k = 0; k < w; k++){
+		sumPoints += in[k];
 	}
 
 	// create s which is an array of zeros
 	float* s = malloc(sizeof(float)*length);
-	for(k=0;k<length;k++){
+	for(long k = 0; k < length; k++){
 		s[k]=0;
 	}
 
 	long halfw = (long)round(((float)w)/2.);
-	for(k=0;k<length-w;k++){
+	for(long k = 0; k < length - w; k++){
 		s[k+halfw-1]=sumPoints/((float)w);
-		sumPoints = sumPoints-y[k]+y[k+w];
+		sumPoints = sumPoints-in[k]+in[k+w];
 	}
 
-	k = length - w - 1 + halfw;
-	long i;
-	for (i=(length-w);i<length;i++){
-		s[k] += y[i];
+	long k = length - w - 1 + halfw;
+	for (long i=(length-w);i<length;i++){
+		s[k] += in[i];
 	}
 	s[k]/=((float)w);
 	return s;

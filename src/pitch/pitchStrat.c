@@ -48,7 +48,7 @@ int BaNaDetectionStrategy(float* spectrogram, int size, int dftBlocksize,
 			  int hpsOvr, int fftSize, int samplerate,
 			  float *pitches)
 {
-	return BaNa(&spectrogram, size, dftBlocksize, 5, 50, 600, 10.0,
+	return BaNa(spectrogram, size, dftBlocksize, 5, 50, 600, 10.0,
 		    fftSize, samplerate, true, pitches);
 }
 
@@ -56,6 +56,6 @@ int BaNaMusicDetectionStrategy(float* spectrogram, int size,
 			       int dftBlocksize, int hpsOvr, int fftSize,
 			       int samplerate, float *pitches)
 {
-	return BaNa(&spectrogram, size, dftBlocksize, 5, 50, 3000, 3.0,
+	return BaNa(spectrogram, size, dftBlocksize, 5, 50, 3000, 3.0,
 		    fftSize, samplerate, false, pitches);
 }

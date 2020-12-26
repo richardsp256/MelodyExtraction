@@ -5,7 +5,7 @@
 #include "../lists.h"
 
 // returns 1 on success
-int BaNa(float **AudioData, int size, int dftBlocksize, int p,
+int BaNa(float *spectrogram, int size, int dftBlocksize, int p,
 	 float f0Min, float f0Max, float xi, int fftSize, int samplerate,
 	 bool first, float* fundamentals);
 float* calcFrequencies(int dftBlocksize, int fftSize, int samplerate);
@@ -35,7 +35,7 @@ float* calcFrequencies(int dftBlocksize, int fftSize, int samplerate);
 void BaNaPreprocessing(float *spectrogram, int size, int dftBlocksize, int p,
 		       float f0Min, float f0Max, const float* frequencies);
 
-/// Identifies the candidates for the fundamental frequencies
+/// Identifies candidates for the fundamental frequencies
 ///
 /// @param[in]  spectrogram This should hold `size/dftBlockSize` spectra. There
 ///             are `dftBlockSize` frequency bins in each row, which are
@@ -51,13 +51,15 @@ void BaNaPreprocessing(float *spectrogram, int size, int dftBlocksize, int p,
 /// @param[in]  first When this is true, the lowest magnitude peaks are treated
 ///             as candidates. When False, the highest magnitude peaks are
 ///             treated as candidates.
-/// @param[in]  xi The tolerance around the harmonics that is used for picking
-///             candidates (I think)
+/// @param[in]  xi The consolidation interval. Fundamental frequency candidates
+///             that are separated by less than `xi` Hz can be consolidated
+///             into a single candidate.
 /// @param[in]  frequencies An array holding the central frequency of every
 ///             spectrum bin.
-/// @param[in]  fftSize The number of samples of the input audio used to
-///             compute a single DFT.
-/// @param[in]  samplerate The sampling rate of the audio stream
+/// @param[in]  smoothwidth The width to be used during each pass of the tophat
+///             filter when searching for peaks in the spectrum (the value is
+///             in units of frequency bins). It's recommended for this to
+///             correspond to 50 Hz.
 /// @param[out] windowCandidates This is a list of pointers. This should have
 ///             `(size / dftBlocksize)` entries. Each entry in the list will be
 ///             overwritten with a distinctList holding all all candidates for
@@ -65,5 +67,5 @@ void BaNaPreprocessing(float *spectrogram, int size, int dftBlocksize, int p,
 /// @returns 0 indicates success
 int BaNaFindCandidates(const float *spectrogram, int size, int dftBlocksize,
 		       int p, float f0Min, float f0Max, bool first, float xi,
-		       float* frequencies, int fftSize, int samplerate,
+		       float* frequencies, float smoothwidth,
 		       distinctList** windowCandidates);
