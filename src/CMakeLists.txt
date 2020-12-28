@@ -68,13 +68,15 @@ add_executable(extract main.c)
 target_link_libraries(extract melodyextraction)
 target_compile_options(extract PRIVATE "-Wall")
 
-# specifying the locations where the constructed binary and libraries are to be
-# placed
-# - moving the library is necessary for supporting the python bindings for
-#   out-of-source builds.
-# - in the future, this should be modified located so that the libraries are
-#   installed to appropriate locations
+
 install(TARGETS extract melodyextraction
   RUNTIME DESTINATION ${CMAKE_SOURCE_DIR}/bin
-  LIBRARY DESTINATION ${CMAKE_SOURCE_DIR}/.libs
+)
+
+# In the future, we should ensure proper installation of libmelodyextraction.so
+# As a shorter term workaround, we manually copy the library into a newly
+# created .libs directory.
+add_custom_target(python_dep
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/src/libmelodyextraction.so ${CMAKE_SOURCE_DIR}/.libs/libmelodyextraction.so
+  DEPENDS melodyextraction
 )

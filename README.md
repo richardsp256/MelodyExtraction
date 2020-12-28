@@ -112,11 +112,14 @@ pymelex
 -------
 
 We provide a work-in-progress python package called pymelex to wrap the
-library. This package supports python 3 and requires the numpy package. After
-installation of the library, this package can installed with:
+library. This package supports python 3 and requires the numpy package.  When
+building the library, call the following command from the build directory
 
-	# assuming you are in the root directory
-	cd pymelex
+	make python_dep
+
+Then change directories so that you are in the `pymelex` subdirectory (of the
+repository's root directory). From there, call:
+
 	pip install -e .
 
 

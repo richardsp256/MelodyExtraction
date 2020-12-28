@@ -1,5 +1,3 @@
-
-
 import ctypes
 import os.path
 
@@ -67,24 +65,43 @@ class LibMelex:
             else:
                 return object.__getattribute__(self,name)
 
-
-# relative to this file, the path to the shared object file is at:
-_rel_so_path = "../../.libs/libmelodyextraction.so"
-
-# get the current file directory
-_cur_file_dir = os.path.dirname(os.path.abspath(__file__))
-
 # find the absolute path to the shared object file
-_so_path = os.path.abspath(os.path.join(_cur_file_dir,_rel_so_path))
+_so_path = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), # current file directory
+    "../../.libs/libmelodyextraction.so" # path relative to current file
+    ))
 
 if not os.path.isfile(_so_path):
     raise RuntimeError("Cannot find a file at {}".format(_so_path))
 
 libmelex = LibMelex(_so_path)
 
-import numpy as np
+
+# define an error handling function
+
+_me_strerror = libmelex.me_strerror
+_me_strerror.argtypes = [ctypes.c_int]
+_me_strerror.restype = ctypes.c_char_p
+
+def standard_errcheck(result, func, arguments):
+    if result == 0:
+        return result
+    else:
+        msg = _me_strerror(result)
+    if msg is None:
+        raise RuntimeError("Unknown error code: {}".format(result))
+    else:
+        raise RuntimeError(msg.decode('utf-8'))
+
+def length_errcheck(result, func, arguments):
+    # this is to be used when a c function nominally returns an array length
+    # upon success
+    if result<0:
+        standard_errcheck(result, func, arguments)
+    return result
 
 # register PitchStrategyFunc prototype
+import numpy as np
 _argtypes = [np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
                                     flags=('C_CONTIGUOUS','WRITEABLE')),
              ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
@@ -92,3 +109,4 @@ _argtypes = [np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
              np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
                                     flags=('C_CONTIGUOUS','WRITEABLE'))]
 libmelex.register_CFUNCTYPE("PitchStratFunc_t", ctypes.c_int,*_argtypes)
+
