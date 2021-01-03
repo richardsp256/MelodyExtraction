@@ -165,7 +165,7 @@ class _FixedTypeList(collections.abc.MutableSequence):
     def __setitem__(self, index, val):
         self._check_index(index)
         self._check_val_type(val)
-        return self._struct_ptr.contents.array[index]
+        self._struct_ptr.contents.array[index] = val
 
     def append(self, val):
         self._check_val_type(val)
