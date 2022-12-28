@@ -190,7 +190,7 @@ int ExtractPitch(float* input, float* pitches, audioInfo info,
 		int hpsOvr, int verbose, char* prefix)
 {
 	fftwf_complex* p_fftData = NULL;
-	int p_size = STFT_r2c(&input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
+	int p_size = STFT_r2c(input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
 	if(p_size == -1){
 		return -1;
 	}
@@ -213,7 +213,7 @@ int ExtractPitch(float* input, float* pitches, audioInfo info,
 	}
 
 	//double* output = NULL;
-	//STFTinverse(&p_fftData, info, winSize, p_winInt, &output);
+	//STFTinverse(p_fftData, info, winSize, p_winInt, &output);
 	//if(verbose){
 	//	printf("STFTInverse complete\n");
 	//}
