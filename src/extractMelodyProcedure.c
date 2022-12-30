@@ -154,13 +154,14 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 
 	//get midi note values of pitch in each bin
 	struct Midi* midi = GenerateMIDIFromNotes(melodyMidi, noteRanges,
-				     num_notes, info.samplerate, verbose);
+						  num_notes, info.samplerate,
+						  exit_code);
 
 	free(noteRanges);
 	free(melodyMidi);
 
 	if(midi == NULL){
-		*exit_code = ME_ERROR;
+		if (*exit_code == ME_SUCCESS) { *exit_code = ME_ERROR; }
 		printf("Midi generation failed\n");
 		fflush(NULL);
 		return NULL;

@@ -21,16 +21,9 @@ int FrequencyToNote(double freq);
 float FrequencyToFractionalNote(double freq);
 
 
-struct Track* GenerateTrackFromNotes(int* notePitches, int* noteRanges,
-				     int nP_size, int bpm, int division,
-				     int sample_rate, int verbose);
 struct Midi* GenerateMIDIFromNotes(int* notePitches, int* noteRanges,
 				   int nP_size, int sample_rate,
-				   int verbose);
-int MakeTrackFromNotes(unsigned char** track, int trackCapacity,
-		       int* notePitches, int* noteRanges, int nP_size,
-		       int bpm, int division, int sample_rate,
-		       int verbose);
+				   int *error_code);
 
 /// Write Midi file header to file stream
 /// @param[out] f File stream
@@ -59,7 +52,3 @@ void BigEndianInteger(unsigned char* c, int num);
 /// @param[out] c Array where the output is stored (must have 2 bytes of space)
 /// @param[in]  num 16-bit integer value
 void BigEndianShort(unsigned char* c, short num);
-
-int IntToVLQ(unsigned int num, unsigned char** VLQ);
-unsigned char* MessageNoteOn(int pitch, int velocity);
-unsigned char* MessageNoteOff(int pitch, int velocity);
