@@ -144,7 +144,7 @@ static int buf_append_(unsigned char* item, size_t item_size, growable_buf* b){
 /// @param[in] num the value to encode
 /// @param[in] out_buffer the array where the data will be written. This
 ///     should be pre-allocationed and provide space for MAX_BYTES_VLQ values
-int UIntToVLQ(uint32_t num, unsigned char* out_buffer){
+static int UIntToVLQ(uint32_t num, unsigned char* out_buffer){
 	unsigned char buf[MAX_BYTES_VLQ] = "";
 
 	// convert to base 128
@@ -166,14 +166,6 @@ int UIntToVLQ(uint32_t num, unsigned char* out_buffer){
 	}
 
 	return byte_count;
-}
-
-unsigned char* MessageNoteOn(int pitch, int velocity) {
-	unsigned char* message = malloc(sizeof(unsigned char) * 3);
-	message[0] = (unsigned char)144; //code for NoteOn event on channel 1
-	message[1] = (unsigned char)pitch;
-	message[2] = (unsigned char)velocity;
-	return message;
 }
 
 /// @struct MTrkEventBuffer
@@ -198,7 +190,8 @@ typedef struct{
 } MTrkEventBuffer;
 
 
-MTrkEventBuffer MTrkEventNoteOn(uint32_t delta_time, int pitch, int velocity) {
+static MTrkEventBuffer MTrkEventNoteOn(uint32_t delta_time, int pitch,
+				       int velocity) {
 	MTrkEventBuffer out;
 	int vlq_size = UIntToVLQ(delta_time, out.data);
 	out.data[vlq_size+0] = (unsigned char)144; //NoteOn code for channel 1
@@ -208,7 +201,8 @@ MTrkEventBuffer MTrkEventNoteOn(uint32_t delta_time, int pitch, int velocity) {
 	return out;
 }
 
-MTrkEventBuffer MTrkEventNoteOff(uint32_t delta_time, int pitch, int velocity) {
+static MTrkEventBuffer MTrkEventNoteOff(uint32_t delta_time, int pitch,
+					int velocity) {
 	MTrkEventBuffer out;
 	int vlq_size = UIntToVLQ(delta_time, out.data);
 	out.data[vlq_size+0] = (unsigned char)128; //NoteOff code for channel 1
@@ -218,7 +212,7 @@ MTrkEventBuffer MTrkEventNoteOff(uint32_t delta_time, int pitch, int velocity) {
 	return out;
 }
 
-MTrkEventBuffer MTrkEventEndOfTrack(uint32_t delta_time){
+static MTrkEventBuffer MTrkEventEndOfTrack(uint32_t delta_time){
 	MTrkEventBuffer out;
 	int vlq_size = UIntToVLQ(delta_time, out.data);
 	out.data[vlq_size+0] = (unsigned char)0xFF;
@@ -228,9 +222,9 @@ MTrkEventBuffer MTrkEventEndOfTrack(uint32_t delta_time){
 	return out;
 }
 
-int MakeTrackFromNotes(growable_buf* trackBuf, int* notePitches,
-		       int* noteRanges, int nP_size,
-		       int bpm, int division, int sample_rate){
+static int MakeTrackFromNotes(growable_buf* trackBuf, int* notePitches,
+			      int* noteRanges, int nP_size,
+			      int bpm, int division, int sample_rate){
 
 	const int vel = 80; // default velocity, given to all notes. This roughly
 			    // corresponds to mezzo-forte dynamics (but the
