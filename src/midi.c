@@ -34,11 +34,6 @@ float FrequencyToFractionalNote(double freq){
 	return fractNote;
 }
 
-struct Track{
-  unsigned char* data;
-  int len;
-};
-
 /// Write Midi file header to file stream
 /// @param[out] f File stream
 /// @param[in]  format specifies file format. 0 = single track, 1 = multitrack,
@@ -281,23 +276,25 @@ static int MakeTrackFromNotes(growable_buf* trackBuf, int* notePitches,
 	return buf_append_(entry_buf.data, entry_buf.size, trackBuf);
 }
 
-static struct Track GenerateTrackFromNotes(int* notePitches, int* noteRanges,
-					   int nP_size, int bpm, int division,
-					   int sample_rate, int* error_code){
-	struct Track track = {.len = 0, .data = NULL};
+static int WriteMidiTrackFromNotes(int* notePitches, int* noteRanges,
+				   int nP_size, int bpm, int division,
+				   int sample_rate, FILE* f){
 
 	growable_buf trackBuf = {.buf=NULL, .length=0, .capacity=0};
-	*error_code = MakeTrackFromNotes(&trackBuf, notePitches, noteRanges,
-					 nP_size, bpm, division, sample_rate);
-	if((*error_code) != ME_SUCCESS){
+	int error_code = MakeTrackFromNotes(&trackBuf, notePitches, noteRanges,
+					    nP_size, bpm, division,
+					    sample_rate);
+	if(error_code != ME_SUCCESS){
 		printf("track generation failed\n");
 		if (trackBuf.buf){ free(trackBuf.buf); }
-		return track;
+		return error_code;
 	}
 
-	track.len = trackBuf.length;
-	track.data = trackBuf.buf;
-	return track;
+	error_code = AddTrack(f, trackBuf.buf, trackBuf.length);
+	if (0 != error_code){
+		return ME_ERROR;
+	}
+	return ME_SUCCESS;
 }
 
 int WriteNotesAsMIDI(int* notePitches, int* noteRanges, int nP_size,
@@ -318,16 +315,13 @@ int WriteNotesAsMIDI(int* notePitches, int* noteRanges, int nP_size,
 		fflush(NULL);
 	}
 
-	int error_code;
-	struct Track track = GenerateTrackFromNotes
-		(notePitches, noteRanges, nP_size,
-		 bpm, divisions, sample_rate,
-		 &error_code);
-	if(error_code != ME_SUCCESS){ return error_code; }
-
-	if (0 != AddTrack(f, track.data, track.len)){
-		return ME_ERROR;
-	} else if(verbose){
+	int error_code = WriteMidiTrackFromNotes(notePitches, noteRanges,
+						 nP_size,
+						 bpm, divisions, sample_rate,
+						 f);
+	if (error_code != ME_SUCCESS) {
+		return error_code;
+	} else if (verbose){
 		printf("track added\n");
 		fflush(NULL);
 	}
