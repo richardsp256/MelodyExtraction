@@ -34,48 +34,27 @@ float FrequencyToFractionalNote(double freq){
 	return fractNote;
 }
 
+struct Track{
+  unsigned char* data;
+  int len;
+};
 
-
-void freeMidi(struct Midi* midi){
-	for(int i = 0; i < midi->numTracks; ++i){
-		struct Track* track = &(midi->tracks[i]);
-		free(track->data);
-	}
-	free(midi->tracks);
-	free(midi);
-}
-
-int SaveMIDI(struct Midi* midi, FILE* f, int verbose){
-	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	if(!f) {
-		return ME_ERROR;
-	}
-
-	if (0 != AddHeader(f, midi->format, midi->numTracks, midi->division)){
-		fclose(f);
-		return ME_ERROR;
-	} else if (verbose){
-		printf("header added\n");
-		fflush(NULL);
-	}
- 
-	for(int i = 0; i < midi->numTracks; ++i){
-		struct Track* track = &(midi->tracks[i]);
-		if (0 != AddTrack(f, track->data, track->len)){
-			return ME_ERROR;
-		} else if(verbose){
-			printf("track added\n");
-			fflush(NULL);
-		}
-	}
-	return ME_SUCCESS;
-}
-
-int AddHeader(FILE* f, short format, short numTracks, short division){
+/// Write Midi file header to file stream
+/// @param[out] f File stream
+/// @param[in]  format specifies file format. 0 = single track, 1 = multitrack,
+///     2 = multisong.
+/// @param[in]  n_tracks Number of tracks in the file
+/// @param[in]  division Specifies interpretation of event timings. If
+///     positive, represents units per beat. if negative, in SMPTE compatible
+///     units.
+///
+/// @returns 0 upon success
+static int AddHeader(FILE* f, short format, short numTracks, short division){
 	unsigned char headerBuf[14]; // entries automatically set to 0
 
 	// all midi file headers start fixed length string "MThd"
 	memcpy( &headerBuf[0], "MThd", 4 * sizeof(char) );
+	//MIDI files are big-endian, so reverse byte order of all ints and shorts
 	BigEndianInteger(&headerBuf[4], 6); // length of the rest of the header, always 6
 	BigEndianShort(&headerBuf[8], format);
 	BigEndianShort(&headerBuf[10], numTracks);
@@ -87,10 +66,18 @@ int AddHeader(FILE* f, short format, short numTracks, short division){
 	return 0;
 }
 
-int AddTrack(FILE* f, const unsigned char* track, int len){
+/// Write Midi track to file stream
+/// @param[out] f File stream
+/// @param[in]  track Pointer to the sequence of MIDI events that is to be
+///     written to the file
+/// @param[in]  len The number of bytes in track
+///
+/// @returns 0 upon success
+static int AddTrack(FILE* f, const unsigned char* track, int len){
 	// first, write the track header
 	unsigned char trackHeader[8]; // entries automatically set to 0
 	memcpy( &trackHeader[0], "MTrk", 4 * sizeof(char) );
+	//MIDI files are big-endian, so reverse byte order of all ints and shorts
 	BigEndianInteger(&trackHeader[4], len);
 	if (8 != fwrite(&trackHeader[0], sizeof(char), 8, f)){
 		return -1;
@@ -313,41 +300,38 @@ static struct Track GenerateTrackFromNotes(int* notePitches, int* noteRanges,
 	return track;
 }
 
-struct Midi* GenerateMIDIFromNotes(int* notePitches, int* noteRanges,
-				   int nP_size, int sample_rate,
-				   int* error_code)
+int WriteNotesAsMIDI(int* notePitches, int* noteRanges, int nP_size,
+		     int sample_rate, FILE* f, int verbose)
 {
-	if (error_code == NULL){ return NULL; }
+	if (!f) { return ME_ERROR; }
 
-	struct Track* track_ptr = malloc(sizeof(struct Track));
-	if (track_ptr == NULL){
-		*error_code = ME_MALLOC_FAILURE;
-		return NULL;
-	}
-	int bpm = 120;
-	int divisions = 48;
-	*track_ptr = GenerateTrackFromNotes(notePitches, noteRanges, nP_size,
-					    bpm, divisions, sample_rate,
-					    error_code);
-	if(*error_code != ME_SUCCESS){
-		free(track_ptr);
-		return NULL;
+	const int bpm = 120;
+	const int divisions = 48; //note: in the future dont hardcode
+	const int midi_format = 1;
+	const int num_tracks = 1;
+
+	if (0 != AddHeader(f, midi_format, num_tracks, divisions)){
+		fclose(f);
+		return ME_ERROR;
+	} else if (verbose){
+		printf("header added\n");
+		fflush(NULL);
 	}
 
-	struct Midi* midi;
-	midi = malloc(sizeof(struct Midi));
-	if (!midi){
-		free(track_ptr->data);
-		free(track_ptr);
-		*error_code = ME_MALLOC_FAILURE;
-		return NULL;
-	}
+	int error_code;
+	struct Track track = GenerateTrackFromNotes
+		(notePitches, noteRanges, nP_size,
+		 bpm, divisions, sample_rate,
+		 &error_code);
+	if(error_code != ME_SUCCESS){ return error_code; }
 
-	midi->tracks = track_ptr;
-	midi->format = 1;
-	midi->numTracks = 1; //note: multiple tracks not currently supported
-	midi->division = divisions; //note: in the future dont hardcode
-	return midi;
+	if (0 != AddTrack(f, track.data, track.len)){
+		return ME_ERROR;
+	} else if(verbose){
+		printf("track added\n");
+		fflush(NULL);
+	}
+	return ME_SUCCESS;
 }
 
 void BigEndianInteger(unsigned char* c, int num){
@@ -363,8 +347,3 @@ void BigEndianShort(unsigned char* c, short num){
 	c[0] = (num >> 8) & 0xFF;
 	c[1] = num & 0xFF;
 }
-
-
-
-
-

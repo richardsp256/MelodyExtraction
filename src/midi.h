@@ -21,27 +21,11 @@ int FrequencyToNote(double freq);
 float FrequencyToFractionalNote(double freq);
 
 
-struct Midi* GenerateMIDIFromNotes(int* notePitches, int* noteRanges,
-				   int nP_size, int sample_rate,
-				   int *error_code);
-
-/// Write Midi file header to file stream
-/// @param[out] f File stream
-/// @param[in]  format specifies file format
-/// @param[in]  n_tracks Number of tracks in the file
-/// @param[in]  division Specifies interpretation of event timings
+/// Writes note data to file in midi format
 ///
-/// @returns 0 upon success
-int AddHeader(FILE* f, short format, short numTracks, short division);
-
-/// Write Midi track to file stream
-/// @param[out] f File stream
-/// @param[in]  track Pointer to the sequence of MIDI events that is to be
-///     written to the file
-/// @param[in]  len The number of bytes in track
-///
-/// @returns 0 upon success
-int AddTrack(FILE* f, const unsigned char* track, int len);
+/// @returns 0 upon success.
+int WriteNotesAsMIDI(int* notePitches, int* noteRanges, int nP_size,
+		     int sample_rate, FILE* f, int verbose);
 
 /// Write a 32-bit integer to an array of `unsigned char`
 /// @param[out] c Array where the output is stored (must have 4 bytes of space)

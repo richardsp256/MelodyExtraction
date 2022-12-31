@@ -10,29 +10,6 @@
 #include "pitch/pitchStrat.h"
 #include "silenceStrat.h"
 
-// the following is included so we can handle the basics of midi files
-
-struct Track{
-  unsigned char* data;
-  int len;
-};
-
-struct Midi{
-  struct Track* tracks;
-  int format; //0 = single track, 1 = multitrack, 2 = multisong.
-  int numTracks; //number of tracks
-  int division; //delts time. if positive, represents units per beat. if negative, in SMPTE compatible units. 
-};
-
-void freeMidi(struct Midi* midi);
-
-/// Writes midi data to a file
-/// @param[in] midi pointer to the data that is to be saved
-/// @param[in] f File stream where the midi will be written
-/// @param[in] verbose Whether to run in verbose mode
-///
-/// @returns 0 upon success.
-int SaveMIDI(struct Midi* midi, FILE* f, int verbose);
 
 typedef struct {
 	int64_t frames;

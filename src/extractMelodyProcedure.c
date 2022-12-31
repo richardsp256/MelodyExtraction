@@ -142,27 +142,20 @@ int  ExtractMelody(float** input, audioInfo info,
 
 	// TODO: consolidate all of the following into 1 function!
 	int midi_exit_code;
-	struct Midi* midi = GenerateMIDIFromNotes(melodyMidi, noteRanges,
-						  num_notes, info.samplerate,
-						  &midi_exit_code);
+	midi_exit_code = WriteNotesAsMIDI(melodyMidi, noteRanges,
+					  num_notes, info.samplerate, f,
+					  verbose);
 
 	free(noteRanges);
 	free(melodyMidi);
 
-	if(midi == NULL){
-		if (midi_exit_code == ME_SUCCESS) { midi_exit_code = ME_ERROR; }
+	if (midi_exit_code != ME_SUCCESS) {
 		printf("Midi generation failed\n");
 		fflush(NULL);
 		return midi_exit_code;
 	}
 
-	int save_exit_code = SaveMIDI(midi, f, verbose);
-	freeMidi(midi);
-	if (save_exit_code != ME_SUCCESS){
-		printf("Error writing midi to disk\n");
-	}
-
-	return save_exit_code;
+	return ME_SUCCESS;
 }
 
 // allocates memory for pitches and the computes the value of pitches
