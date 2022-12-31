@@ -34,6 +34,38 @@ float FrequencyToFractionalNote(double freq){
 	return fractNote;
 }
 
+/// Write a 32-bit integer to filestream
+///
+/// @param[in] f filestream where the output is stored
+/// @param[in] num 32-bit integer value
+static int WriteBigEndianInteger(FILE* f, int32_t num){
+	// convert to char[] so thats its Big-Endian
+	unsigned char c[4];
+	c[0] = (num >> 24) & 0xFF;
+	c[1] = (num >> 16) & 0xFF;
+	c[2] = (num >> 8) & 0xFF;
+	c[3] = num & 0xFF;
+	if (4 != fwrite(c, sizeof(unsigned char), 4, f)){
+		return ME_ERROR;
+	}
+	return ME_SUCCESS;
+}
+
+/// Write a 16-bit integer to filestream
+///
+/// @param[in] f filestream where the output is stored
+/// @param[in] num 16-bit integer value
+static int WriteBigEndianShort(FILE* f, int16_t num){
+	// convert to char[] so thats its Big-Endian
+	unsigned char c[2];
+	c[0] = (num >> 8) & 0xFF;
+	c[1] = num & 0xFF;
+	if (2 != fwrite(c, sizeof(unsigned char), 2, f)){
+		return ME_ERROR;
+	}
+	return ME_SUCCESS;
+}
+
 /// Write Midi file header to file stream
 /// @param[out] f File stream
 /// @param[in]  format specifies file format. 0 = single track, 1 = multitrack,
@@ -45,45 +77,27 @@ float FrequencyToFractionalNote(double freq){
 ///
 /// @returns 0 upon success
 static int AddHeader(FILE* f, short format, short numTracks, short division){
-	unsigned char headerBuf[14]; // entries automatically set to 0
-
 	// all midi file headers start fixed length string "MThd"
-	memcpy( &headerBuf[0], "MThd", 4 * sizeof(char) );
-	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	BigEndianInteger(&headerBuf[4], 6); // length of the rest of the header, always 6
-	BigEndianShort(&headerBuf[8], format);
-	BigEndianShort(&headerBuf[10], numTracks);
-	BigEndianShort(&headerBuf[12], division);
-
-	if (14 != fwrite(headerBuf, sizeof(unsigned char), 14, f)){
-		return -1;
+	if (4 != fwrite("MThd", sizeof(char), 4, f)){
+		return ME_ERROR;
 	}
-	return 0;
-}
-
-/// Write Midi track to file stream
-/// @param[out] f File stream
-/// @param[in]  track Pointer to the sequence of MIDI events that is to be
-///     written to the file
-/// @param[in]  len The number of bytes in track
-///
-/// @returns 0 upon success
-static int AddTrack(FILE* f, const unsigned char* track, int len){
-	// first, write the track header
-	unsigned char trackHeader[8]; // entries automatically set to 0
-	memcpy( &trackHeader[0], "MTrk", 4 * sizeof(char) );
-	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	BigEndianInteger(&trackHeader[4], len);
-	if (8 != fwrite(&trackHeader[0], sizeof(char), 8, f)){
-		return -1;
+	//MIDI files are big-endian, so reverse byte order of all ints & shorts
+	int err_code;
+	const int32_t length = 6; // length of the rest of the header, always 6
+	if ((err_code = WriteBigEndianInteger(f, length)) != ME_SUCCESS){
+		return err_code;
+	}
+	if ((err_code = WriteBigEndianShort(f, format)) != ME_SUCCESS){
+		return err_code;
+	}
+	if ((err_code = WriteBigEndianShort(f, numTracks)) != ME_SUCCESS){
+		return err_code;
+	}
+	if ((err_code = WriteBigEndianShort(f, division)) != ME_SUCCESS){
+		return err_code;
 	}
 
-	// second, write the track data
-	if (len != fwrite(track, sizeof(unsigned char), len, f)){
-		return -1;
-	}
-
-	return 0;
+	return ME_SUCCESS;
 }
 
 
@@ -276,6 +290,9 @@ static int MakeTrackFromNotes(growable_buf* trackBuf, int* notePitches,
 	return buf_append_(entry_buf.data, entry_buf.size, trackBuf);
 }
 
+/// Write Midi track to file stream
+///
+/// @returns 0 upon success
 static int WriteMidiTrackFromNotes(int* notePitches, int* noteRanges,
 				   int nP_size, int bpm, int division,
 				   int sample_rate, FILE* f){
@@ -290,10 +307,25 @@ static int WriteMidiTrackFromNotes(int* notePitches, int* noteRanges,
 		return error_code;
 	}
 
-	error_code = AddTrack(f, trackBuf.buf, trackBuf.length);
-	if (0 != error_code){
+	// now let's actually record stuff!
+	// all track chunks start with fixed length string "MTrk"
+	if (4 != fwrite("MTrk", sizeof(char), 4, f)){
 		return ME_ERROR;
 	}
+
+	// second, record the length of the chunk (this needs to be encoded as
+	// a big-endian int)
+	const int32_t length = trackBuf.length;
+	if ((error_code = WriteBigEndianInteger(f, length)) != ME_SUCCESS){
+		return error_code;
+	}
+
+	// third, write the track data
+	if (trackBuf.length != fwrite(trackBuf.buf, sizeof(unsigned char),
+				      trackBuf.length,f)){
+		return -1;
+	}
+	free(trackBuf.buf);
 	return ME_SUCCESS;
 }
 
@@ -328,16 +360,4 @@ int WriteNotesAsMIDI(int* notePitches, int* noteRanges, int nP_size,
 	return ME_SUCCESS;
 }
 
-void BigEndianInteger(unsigned char* c, int num){
-	// convert to char[] so thats its Big-Endian
-	c[0] = (num >> 24) & 0xFF;
-	c[1] = (num >> 16) & 0xFF;
-	c[2] = (num >> 8) & 0xFF;
-	c[3] = num & 0xFF;
-}
 
-void BigEndianShort(unsigned char* c, short num){
-	// convert to char[] so thats its Big-Endian
-	c[0] = (num >> 8) & 0xFF;
-	c[1] = num & 0xFF;
-}

@@ -26,13 +26,3 @@ float FrequencyToFractionalNote(double freq);
 /// @returns 0 upon success.
 int WriteNotesAsMIDI(int* notePitches, int* noteRanges, int nP_size,
 		     int sample_rate, FILE* f, int verbose);
-
-/// Write a 32-bit integer to an array of `unsigned char`
-/// @param[out] c Array where the output is stored (must have 4 bytes of space)
-/// @param[in]  num 32-bit integer value
-void BigEndianInteger(unsigned char* c, int num);
-
-/// Write a 16-bit integer to an array of `unsigned char`
-/// @param[out] c Array where the output is stored (must have 2 bytes of space)
-/// @param[in]  num 16-bit integer value
-void BigEndianShort(unsigned char* c, short num);
