@@ -24,6 +24,15 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 message("${CMAKE_MODULE_PATH}")
 
+# the following is for debugging purposes
+option(USE_SANITIZERS "COMPILE WITH SANITIZERS" OFF)
+if (USE_SANITIZERS)
+  set(SAN_FLAG "-fno-omit-frame-pointer -fsanitize=address,leak,undefined")
+
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SAN_FLAG}")
+  set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} ${SAN_FLAG}")
+endif()
+
 # Add the main source directory. This the following targets:
 # - the melodyextraction library
 # - the extract executable which is linked to melodyextraction
