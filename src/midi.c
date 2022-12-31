@@ -45,16 +45,15 @@ void freeMidi(struct Midi* midi){
 	free(midi);
 }
 
-int SaveMIDI(struct Midi* midi, const char* path, int verbose){
+int SaveMIDI(struct Midi* midi, FILE* f, int verbose){
 	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	FILE* f = fopen(path, "wb+");
 	if(!f) {
-		return -2;
+		return ME_ERROR;
 	}
 
 	if (0 != AddHeader(f, midi->format, midi->numTracks, midi->division)){
 		fclose(f);
-		return -1;
+		return ME_ERROR;
 	} else if (verbose){
 		printf("header added\n");
 		fflush(NULL);
@@ -63,15 +62,13 @@ int SaveMIDI(struct Midi* midi, const char* path, int verbose){
 	for(int i = 0; i < midi->numTracks; ++i){
 		struct Track* track = &(midi->tracks[i]);
 		if (0 != AddTrack(f, track->data, track->len)){
-			fclose(f);
-			return -1;
+			return ME_ERROR;
 		} else if(verbose){
 			printf("track added\n");
 			fflush(NULL);
 		}
 	}
-	fclose(f);
-	return 0;
+	return ME_SUCCESS;
 }
 
 int AddHeader(FILE* f, short format, short numTracks, short division){

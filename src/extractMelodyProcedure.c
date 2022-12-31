@@ -17,22 +17,13 @@
 #include "tuningAdjustment.h"
 #include "errors.h"
 
-static int dummy_exit_code = 0; // no code should depend on this value
 
-struct Midi* ExtractMelody(float** input, audioInfo info,
-		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
-		int s_winSize, int s_winInt, int s_mode, SilenceStrategyFunc silenceStrategy,
-		int hpsOvr, int tuning, int verbose, char* prefix,
-		int *exit_code)
+int  ExtractMelody(float** input, audioInfo info,
+		   int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
+		   int s_winSize, int s_winInt, int s_mode, SilenceStrategyFunc silenceStrategy,
+		   int hpsOvr, int tuning, int verbose, char* prefix,
+		   FILE* f)
 {
-	// if exit code is NULL, set it equal to the local static variable
-	// dummy_exit_code. While this won't actually give the caller any
-	// information, it makes handling this scenario easier.
-	if (exit_code == NULL){
-		exit_code = &dummy_exit_code;
-	}
-	// initialize it to general error, in case we forget to set it
-	*exit_code = ME_ERROR;
 
 	if(verbose){
 		printf("ARGS:\n");
@@ -45,10 +36,9 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	int a_size = ExtractSilence(input, &activityRanges, info, s_winSize,
 				    s_winInt, s_mode, silenceStrategy);
 	if(a_size < 0){
-		*exit_code = a_size;
 		printf("Silence detection failed\n");
 		fflush(NULL);
-		return NULL;
+		return a_size;
 	} else if(verbose){
 		printf("Silence detection complete\n");
 		fflush(NULL);
@@ -60,11 +50,10 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 					       p_winInt, pitchStrategy,
 					       hpsOvr, verbose, prefix);
 	if(freqSize <=0 ){
-		*exit_code = (freqSize < 0) ? freqSize : ME_ERROR;
 		printf("Pitch detection failed\n");
 		fflush(NULL);
 		free(activityRanges);
-		return NULL;
+		return (freqSize < 0) ? freqSize : ME_ERROR;
 	}
 	if(verbose){
 		printf("Pitch detection complete\n");
@@ -81,13 +70,12 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	int t_size = DetectTransientsFromResampled(*input, info.frames,
 						   info.samplerate, transients);
 	if(t_size <= 0){
-		*exit_code = (t_size < 0) ? t_size : ME_ERROR;
 		printf("Onset detection failed\n");
 		fflush(NULL);
 		free(activityRanges);
 		free(freq);
 		intListDestroy(transients);
-		return NULL;
+		return (t_size < 0) ? t_size : ME_ERROR;
 	} else if(verbose){
 		printf("Onset detection complete\n");
 		fflush(NULL);
@@ -105,36 +93,34 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	intListDestroy(transients);
 
 	if(num_notes <= 0){
+		int exit_code = ME_ERROR;
 		if (num_notes == 0){
-			*exit_code = ME_ERROR;
 			printf("No notes detected.\n");
 		} else {
-			*exit_code = num_notes;
 			printf("Construct notes failed!\n");
+			exit_code = num_notes;
 		}
 		fflush(NULL);
-		return NULL;
+		return exit_code;
 	}
 	printf("construct notes\n");
 
 	int* melodyMidi = malloc(sizeof(int) * num_notes);
 	if(melodyMidi == NULL){
-		*exit_code = ME_MALLOC_FAILURE;
 		printf("malloc failed\n");
 		fflush(NULL);
 		free(noteRanges);
 		free(noteFreq);
-		return NULL;
+		return ME_MALLOC_FAILURE;
 	}
 	int tmp = FrequenciesToNotes(noteFreq, num_notes, &melodyMidi, tuning);
 	if(tmp <= 0){
-		*exit_code = (tmp < 0) ? tmp : ME_ERROR;
 		printf("freqToNote failed\n");
 		fflush(NULL);
 		free(noteRanges);
 		free(noteFreq);
 		free(melodyMidi);
-		return NULL;
+		return (tmp < 0) ? tmp : ME_ERROR;
 	}
 
 	if (prefix !=NULL){
@@ -153,22 +139,30 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	free(noteFreq);
 
 	//get midi note values of pitch in each bin
+
+	// TODO: consolidate all of the following into 1 function!
+	int midi_exit_code;
 	struct Midi* midi = GenerateMIDIFromNotes(melodyMidi, noteRanges,
 						  num_notes, info.samplerate,
-						  exit_code);
+						  &midi_exit_code);
 
 	free(noteRanges);
 	free(melodyMidi);
 
 	if(midi == NULL){
-		if (*exit_code == ME_SUCCESS) { *exit_code = ME_ERROR; }
+		if (midi_exit_code == ME_SUCCESS) { midi_exit_code = ME_ERROR; }
 		printf("Midi generation failed\n");
 		fflush(NULL);
-		return NULL;
+		return midi_exit_code;
 	}
 
-	*exit_code = ME_SUCCESS;
-	return midi;
+	int save_exit_code = SaveMIDI(midi, f, verbose);
+	freeMidi(midi);
+	if (save_exit_code != ME_SUCCESS){
+		printf("Error writing midi to disk\n");
+	}
+
+	return save_exit_code;
 }
 
 // allocates memory for pitches and the computes the value of pitches

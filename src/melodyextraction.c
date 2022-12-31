@@ -70,6 +70,7 @@ struct me_data{
 	int hps;
 	int tuning;
 	int verbose;
+	FILE* f;
 };
 
 
@@ -194,6 +195,12 @@ char* me_data_init(struct me_data** inst, struct me_settings* settings, audioInf
 		return "tuning must be 0, 1, or 2";
 	}
 
+	(*inst)->f = settings->f;
+	if ((*inst)->f == NULL){
+		me_data_free((*inst));
+		(*inst) = NULL;
+		return "A valid filestream was not specified";
+	}
 	return "";
 }
 
@@ -242,17 +249,14 @@ void me_settings_free(struct me_settings* inst)
 	free(inst);
 }
 
-struct Midi* me_process(float *input, audioInfo info, struct me_data *inst,
-			int * exit_code)
+int me_process(float *input, audioInfo info, struct me_data *inst)
 {
-	struct Midi* midi = ExtractMelody(
+	return ExtractMelody(
 		&input, info,
 		inst->pitch_window, inst->pitch_padded,
 		inst->pitch_spacing, inst->pitch_strategy,
 		inst->silence_window, inst->silence_spacing,
 		inst->silence_mode, inst->silence_strategy,
 		inst->hps, inst->tuning, inst->verbose, inst->prefix,
-		exit_code);
-
-	return midi;
+		inst->f);
 }

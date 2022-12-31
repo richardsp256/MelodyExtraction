@@ -6,6 +6,7 @@
 
 
 #include <stdint.h> // for int64_t
+#include <stdio.h> // for FILE
 #include "pitch/pitchStrat.h"
 #include "silenceStrat.h"
 
@@ -27,11 +28,11 @@ void freeMidi(struct Midi* midi);
 
 /// Writes midi data to a file
 /// @param[in] midi pointer to the data that is to be saved
-/// @param[in] path Null-terminated string denoting the file path
+/// @param[in] f File stream where the midi will be written
 /// @param[in] verbose Whether to run in verbose mode
 ///
 /// @returns 0 upon success.
-int SaveMIDI(struct Midi* midi, const char* path, int verbose);
+int SaveMIDI(struct Midi* midi, FILE* f, int verbose);
 
 typedef struct {
 	int64_t frames;
@@ -55,6 +56,7 @@ struct me_settings{
 	int hps;
 	int tuning;
 	int verbose;
+	FILE *f;
 };
 
 struct me_data;
@@ -71,7 +73,8 @@ char* me_data_init(struct me_data** inst, struct me_settings* settings, audioInf
 // destroy me_data
 void me_data_free(struct me_data *inst);
 
-/// process the input
+/// process the input and write to the file pointer
+///
 /// @param[in]  input pointer to audio data that should be processed
 /// @param[in]  info Information about the input audio data
 /// @param[in]  me_data Holds settings information
@@ -80,9 +83,8 @@ void me_data_free(struct me_data *inst);
 ///    to retrieve the error message. This function will properly handle this
 ///    argument if it's NULL.
 ///
-/// @returns Returns a heap allocated Midi struct instance
-struct Midi* me_process(float *input, audioInfo info, struct me_data *inst,
-			int * exit_code);
+/// @returns 0 means success.
+int me_process(float *input, audioInfo info, struct me_data *inst);
 
 /// Convert an exit code to an string
 ///

@@ -128,6 +128,13 @@ int main(int argc, char ** argv)
 	if(outFile == NULL){
 		printf("Mandatory Argument -o not set\n");
 		badargs = 1;
+	} else {
+		settings->f = fopen(outFile, "wb+");
+		if (settings->f == NULL){
+			printf("error creating an argument called \"%s\"\n",
+			       outFile);
+			badargs = 1;
+		}
 	}
 
 	if(inFile == NULL){
@@ -164,17 +171,13 @@ int main(int argc, char ** argv)
 		//printf("%d  %d  %d\n", inst->silence_window, inst->silence_mode, inst->silence_spacing);
 		//printf("%d  %d  %d\n", inst->hps, inst->tuning, inst->verbose);
 
-		struct Midi* midi = me_process(input, info, inst, &exit_code);
-
+		exit_code = me_process(input, info, inst);
+		fclose(settings->f);
 		me_settings_free(settings);
 		me_data_free(inst);
 		free(input);
 
-		if ((midi == NULL) || (exit_code != 0)){
-			if (exit_code == 0){
-				printf("Unexpected behavior: exit_code indicates success and output is NULL\n");
-				exit(EXIT_FAILURE);
-			}
+		if (exit_code != 0){
 
 			const char * msg = me_strerror(exit_code);
 			if (msg == NULL){
@@ -183,17 +186,8 @@ int main(int argc, char ** argv)
 				printf("Error Msg: %s\n",msg);
 			}
 
-			if (midi != NULL){
-				printf("Unexpected Behavior: midi data is not NULL\n");
-			}
 			exit(EXIT_FAILURE);
 		}
-
-		if (SaveMIDI(midi, outFile, 1)){
-			printf("Error writing midi to %s\n", outFile);
-			exit(EXIT_FAILURE);
-		}
-		freeMidi(midi);
 	}
 	
 	return 0;

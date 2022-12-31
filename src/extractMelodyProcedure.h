@@ -1,12 +1,13 @@
 #include "melodyextraction.h"
 #include "lists.h"
 
-
-struct Midi* ExtractMelody(float** input, audioInfo info,
-		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
-		int s_winSize, int s_winInt, int s_mode, SilenceStrategyFunc silenceStrategy,
-		int hpsOvr, int tuning, int verbose, char* prefix,
-		int *exit_code);
+/// Extracts melody from audio and writes MIDI to file
+///
+/// @return 0 means success. Negative values indicate failure.
+int ExtractMelody(float** input, audioInfo info,
+		  int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
+		  int s_winSize, int s_winInt, int s_mode, SilenceStrategyFunc silenceStrategy,
+		  int hpsOvr, int tuning, int verbose, char* prefix, FILE* f);
 
 /// Extracts the pitches from audio
 ///
