@@ -69,7 +69,7 @@ class LibMelex:
 
 
 # relative to this file, the path to the shared object file is at:
-_rel_so_path = "../../src/libmelodyextraction.so"
+_rel_so_path = "../../.libs/libmelodyextraction.so"
 
 # get the current file directory
 _cur_file_dir = os.path.dirname(os.path.abspath(__file__))

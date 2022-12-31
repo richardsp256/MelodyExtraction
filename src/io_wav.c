@@ -4,23 +4,18 @@
 #include <limits.h>
 #include "io_wav.h"
 #include "sndfile.h"
-
-char* ERR_INVALID_FILE = "Audio file could not be opened for processing\n";
-char* ERR_FILE_NOT_MONO = "Input file must be Mono."
-                          " Multi-channel audio currently not supported.\n";
+#include "errors.h"
 
 int ReadAudioFile(char* inFile, float** buf, audioInfo* info, int verbose)
 {
 	SF_INFO file_info;
 	SNDFILE * f = sf_open(inFile, SFM_READ, &file_info);
 	if( !f ){
-		printf("%s", ERR_INVALID_FILE);
-		return 0;
+		return ME_INVALID_FILE;
 	}
 	if(file_info.channels != 1){
-		printf("%s", ERR_FILE_NOT_MONO);
 		sf_close( f );
-		return 0;
+		return ME_FILE_NOT_MONO;
 	}
 
 	if (verbose){
@@ -40,7 +35,7 @@ int ReadAudioFile(char* inFile, float** buf, audioInfo* info, int verbose)
 	sf_readf_float( f, (*buf), file_info.frames );
 	sf_close( f );
 
-	return 1;
+	return ME_SUCCESS;
 }
 
 void SaveAsWav(const double* audio, audioInfo info, const char* path) {

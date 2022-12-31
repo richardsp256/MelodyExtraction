@@ -1,32 +1,24 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
+#include <math.h> // log2, round
 #include <string.h>
 #include "midi.h"
 #include "noteCompilation.h"
 
-char* notes[] = {"C ","C#","D ","D#","E ","F ","F#","G ","G#","A ","A#","B "};
-const int tuning = 440;
+static const char notes[12][3] = {"C ","C#","D ","D#","E ","F ","F#","G ","G#","A ","A#","B "};
+static const int tuning = 440;
 
-// converts from MIDI note number to string
-// example: NoteToName(12)='C 1'
-int isMidiNote(int x){
+static int isMidiNote(int x){
 	return (x >= 0 && x <= 127);
 }
 
-void NoteToName(int n, char** name){
-	//note: name should be allocated a length of 5
-	if(!isMidiNote(n)){
-		strcpy((*name), "----");
-		return;
+void NoteToName(int n, char* name){
+	// name is assumed to have a length of 5
+	if(isMidiNote(n)){
+		snprintf(name, 5, "%s%2d", notes[n%12], n/12);
+	}else{
+		strcpy(name, "----");
 	}
-	strcpy((*name), notes[n%12]);
-
-	char* octave = malloc(sizeof(char)*3);
-	sprintf(octave, "%d", n/12);
-	strcat((*name), octave); /* add the extension */
-	free(octave);
-	return;
 }
 
 // converts from frequency to closest MIDI note
@@ -37,228 +29,80 @@ int FrequencyToNote(double freq){
 
 float FrequencyToFractionalNote(double freq){
 	float fractNote = (12*log2(freq/tuning)) + 57;
-	//printf("fractNote: %f\n", fractNote);
 	return fractNote;
 }
 
-double log2(double x){
-	return log(x)/log(2);
-}
 
-struct Track* GenerateTrack(int* noteArr, int size, int verbose){
-	struct Track *track;
-	track = malloc(sizeof(struct Track));
-
-	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	int trackCapacity = 1000;
-	unsigned char* trackData = malloc(sizeof(char) * trackCapacity);
-	int tracklength = MakeTrack(&trackData, trackCapacity, noteArr, size);
-	if(tracklength < 0){
-		printf("track generation failed\n");
-		free(trackData);
-		return NULL;
-	}
-
-	track->len = tracklength;
-	track->data = trackData;
-	return track;
-}
-
-struct Midi* GenerateMIDI(int* noteArr, int size, int verbose){
-	//MIDI files are big-endian, so reverse byte order of all ints and shorts
-	struct Track* track;
-	track = GenerateTrack(noteArr, size, verbose);
-	if(!track){
-		printf("track generation failed\n");
-		return NULL;
-	}
-	else{
-		struct Midi* midi;
-		midi = malloc(sizeof(struct Midi));
-		midi->tracks = malloc(sizeof(struct Track*) * 1);
-		midi->tracks[0] = track;
-		midi->format = 1;
-		midi->numTracks = 1; //note: multiple tracks not currently supported
-		midi->division = 24; //note: in the future dont hardcode
-		return midi;
-	}
-}
 
 void freeMidi(struct Midi* midi){
 	for(int i = 0; i < midi->numTracks; ++i){
-		struct Track* track = midi->tracks[i];
+		struct Track* track = &(midi->tracks[i]);
 		free(track->data);
-		free(track);
 	}
 	free(midi->tracks);
 	free(midi);
 }
 
-void SaveMIDI(struct Midi* midi, char* path, int verbose){
+int SaveMIDI(struct Midi* midi, const char* path, int verbose){
 	//MIDI files are big-endian, so reverse byte order of all ints and shorts
 	FILE* f = fopen(path, "wb+");
+	if(!f) {
+		return -2;
+	}
 
-	AddHeader(&f, midi->format, midi->numTracks, midi->division); //first 
-	if(verbose){
+	if (0 != AddHeader(f, midi->format, midi->numTracks, midi->division)){
+		fclose(f);
+		return -1;
+	} else if (verbose){
 		printf("header added\n");
 		fflush(NULL);
 	}
  
 	for(int i = 0; i < midi->numTracks; ++i){
-		struct Track* track = midi->tracks[i];
-		AddTrack(&f, track->data, track->len);
-		if(verbose){
+		struct Track* track = &(midi->tracks[i]);
+		if (0 != AddTrack(f, track->data, track->len)){
+			fclose(f);
+			return -1;
+		} else if(verbose){
 			printf("track added\n");
 			fflush(NULL);
 		}
 	}
 	fclose(f);
+	return 0;
 }
 
-void AddHeader(FILE** f, short format, short tracks, short division){
-	unsigned char* headerBuf = calloc(14, sizeof(char));
+int AddHeader(FILE* f, short format, short numTracks, short division){
+	unsigned char headerBuf[14]; // entries automatically set to 0
 
-	char* descriptor = "MThd"; //all midi headers start with MThd so it knows its a midi file
-	memcpy( &headerBuf[0], &descriptor[0], 4 * sizeof(char) );
+	// all midi file headers start fixed length string "MThd"
+	memcpy( &headerBuf[0], "MThd", 4 * sizeof(char) );
+	BigEndianInteger(&headerBuf[4], 6); // length of the rest of the header, always 6
+	BigEndianShort(&headerBuf[8], format);
+	BigEndianShort(&headerBuf[10], numTracks);
+	BigEndianShort(&headerBuf[12], division);
 
-	unsigned char* tmp;
-
-	BigEndianInteger(&tmp, 6); //length of the rest of the header, always 6
-	memcpy( &headerBuf[4], &tmp[0], 4 * sizeof(char) );
-	free(tmp);
-
-	BigEndianShort(&tmp, format);
-	memcpy( &headerBuf[8], &tmp[0], 2 * sizeof(char) );
-	free(tmp);
-
-	BigEndianShort(&tmp, tracks);
-	memcpy( &headerBuf[10], &tmp[0], 2 * sizeof(char) );
-	free(tmp);
-
-	BigEndianShort(&tmp, division);
-	memcpy( &headerBuf[12], &tmp[0], 2 * sizeof(char) );
-	free(tmp);
-
-	fwrite(headerBuf, sizeof(char), 14, (*f));
-	free(headerBuf);
+	if (14 != fwrite(headerBuf, sizeof(unsigned char), 14, f)){
+		return -1;
+	}
+	return 0;
 }
 
-void AddTrack(FILE** f, unsigned char* track, int len){
-	unsigned char* buf = calloc(len + 8, sizeof(char));
-
-	char* descriptor = "MTrk";
-	memcpy( &buf[0], &descriptor[0], 4 * sizeof(char) );
-
-	unsigned char* tmp;
-	BigEndianInteger(&tmp, len);
-	memcpy( &buf[4], &tmp[0], 4 * sizeof(char) );
-	free(tmp);
-
-	memcpy( &buf[8], &track[0], len * sizeof(char));
-
-	fwrite(buf, sizeof(unsigned char), len + 8, (*f));
-}
-
-int MakeTrack(unsigned char** track, int trackCapacity, int* noteArr, int size){
-	int dt = 2; //time between events.
-	int timeSinceLast = 0;
-
-	int vel = 80; //default velocity, given to all notes.
-	int last = -1; //the last note that was played
-
-	unsigned char* timer;
-	int timerSize = 0;
-	unsigned char* message;
-
-	int trackLen = 0; 
-
-
-	for(int i = 0; i < size; ++i){
-		timeSinceLast += dt;
-
-		if(last == noteArr[i]  || !isMidiNote(noteArr[i])){
-			continue;
-		}
-
-		if(last != -1){
-			timerSize = IntToVLQ(timeSinceLast, &timer);
-			message = MessageNoteOff(last, vel);
-
-			if(trackLen + timerSize + 3 >= trackCapacity){
-				//allocate more space for track
-				trackCapacity += 1000;
-				unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
-				if(reallocatedTrack){
-					(*track) = reallocatedTrack;
-				}
-				else{ //memory could not be allocated
-					free(timer);
-					free(message);
-					return -1;
-				}
-			}
-
-			memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
-			trackLen += timerSize;
-			free(timer);
-			memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
-			trackLen += 3;
-			free(message);
-			timeSinceLast = 0;
-		}
-
-		timerSize = IntToVLQ(timeSinceLast, &timer);
-		message = MessageNoteOn(noteArr[i], vel);
-
-		if(trackLen + timerSize + 3 >= trackCapacity){
-			//allocate more space for track
-			trackCapacity += 1000;
-			unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
-			if(reallocatedTrack){
-				(*track) = reallocatedTrack;
-			}
-			else{ //memory could not be allocated
-				free(timer);
-				free(message);
-				return -1;
-			}
-		}
-
-		memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
-		trackLen += timerSize;
-		free(timer);
-		memcpy( &(*track)[trackLen], &message[0], 3 * sizeof(char));
-		trackLen += 3;
-		free(message);
-		timeSinceLast = 0;
-		last = noteArr[i];
+int AddTrack(FILE* f, const unsigned char* track, int len){
+	// first, write the track header
+	unsigned char trackHeader[8]; // entries automatically set to 0
+	memcpy( &trackHeader[0], "MTrk", 4 * sizeof(char) );
+	BigEndianInteger(&trackHeader[4], len);
+	if (8 != fwrite(&trackHeader[0], sizeof(char), 8, f)){
+		return -1;
 	}
 
-	timeSinceLast += dt;
-
-	timerSize = IntToVLQ(timeSinceLast, &timer);
-	unsigned char endTrack[3] = {(unsigned char) 255, (unsigned char) 47, (unsigned char) 0}; //end track value defined in MIDI standard
-
-	if(trackLen + timerSize + 3 >= trackCapacity){
-		//allocate more space for track
-		trackCapacity += 1000;
-		unsigned char* reallocatedTrack = realloc((*track), sizeof(char) * trackCapacity);
-		if(reallocatedTrack){
-			(*track) = reallocatedTrack;
-		}
-		else{ //memory could not be allocated
-			free(timer);
-			return -1;
-		}
+	// second, write the track data
+	if (len != fwrite(track, sizeof(unsigned char), len, f)){
+		return -1;
 	}
 
-	memcpy( &(*track)[trackLen], &timer[0], timerSize * sizeof(char));
-	trackLen += timerSize;
-	free(timer);
-	memcpy( &(*track)[trackLen], &endTrack[0], 3 * sizeof(char));
-	trackLen += 3;
-
-	return trackLen;
+	return 0;
 }
 
 struct Track* GenerateTrackFromNotes(int* notePitches, int* noteRanges,
@@ -301,8 +145,7 @@ struct Midi* GenerateMIDIFromNotes(int* notePitches, int* noteRanges,
 	else{
 		struct Midi* midi;
 		midi = malloc(sizeof(struct Midi));
-		midi->tracks = malloc(sizeof(struct Track*) * 1);
-		midi->tracks[0] = track;
+		midi->tracks = track;
 		midi->format = 1;
 		midi->numTracks = 1; //note: multiple tracks not currently supported
 		midi->division = divisions; //note: in the future dont hardcode
@@ -415,20 +258,18 @@ int MakeTrackFromNotes(unsigned char** track, int trackCapacity,
 
 //todo: make single templated swapbytes function
 
-void BigEndianInteger(unsigned char** c, int num){
-	//first convert to char[] so thats its Big-Endian
-	(*c) = calloc(4, sizeof(char));
-	(*c)[0] = (num >> 24) & 0xFF;
-	(*c)[1] = (num >> 16) & 0xFF;
-	(*c)[2] = (num >> 8) & 0xFF;
-	(*c)[3] = num & 0xFF;
+void BigEndianInteger(unsigned char* c, int num){
+	// convert to char[] so thats its Big-Endian
+	c[0] = (num >> 24) & 0xFF;
+	c[1] = (num >> 16) & 0xFF;
+	c[2] = (num >> 8) & 0xFF;
+	c[3] = num & 0xFF;
 }
 
-void BigEndianShort(unsigned char** c, short num){
-	//first convert to char[] so thats its Big-Endian
-	(*c) = calloc(2, sizeof(char));
-	(*c)[0] = (num >> 8) & 0xFF;
-	(*c)[1] = num & 0xFF;
+void BigEndianShort(unsigned char* c, short num){
+	// convert to char[] so thats its Big-Endian
+	c[0] = (num >> 8) & 0xFF;
+	c[1] = num & 0xFF;
 }
 
 
