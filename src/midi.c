@@ -119,8 +119,8 @@ typedef struct{
 ///
 /// the delta-time samplerate is the number of ticks per second in a Midi file
 /// or: (dt_bpm * dt_division / 60 )
-static contextTStampToDeltaT initConverter_(int ts_samplerate,
-					    int dt_bpm, int dt_division){
+static contextTStampToDeltaT newContext_(int ts_samplerate,
+					 int dt_bpm, int dt_division){
 	contextTStampToDeltaT out
 		= {0, (dt_bpm * dt_division)/(ts_samplerate * 60.0)};
 	return out;
@@ -136,32 +136,6 @@ static int DeltaTFromTStamp_(int time_stamp, contextTStampToDeltaT* context){
 	context->last_TStamp = time_stamp;
 
 	return (int)round(delta_time_oldSRate * context->newSRate_div_oldSRate);
-}
-
-typedef struct{unsigned char* buf; size_t length; size_t capacity;} growable_buf;
-
-static int buf_append_(unsigned char* item, size_t item_size, growable_buf* b){
-	const size_t capacity_increment = 100;
-
-	// ok to call realloc with b->buf is NULL, but enforce length & capacity
-	if (b->buf == NULL){
-		b->length = 0;
-		b->capacity = 0;
-	}
-
-	if ((item_size + b->length) > b->capacity){ // allocate more space
-		size_t new_cap = b->capacity + capacity_increment;
-		unsigned char* tmp = realloc(b->buf,
-					     new_cap * sizeof(unsigned char));
-		if (tmp == NULL){ return ME_REALLOC_FAILURE; }
-		b->buf = tmp;
-		b->capacity = new_cap;
-	}
-
-	memcpy(b->buf + b->length, item, item_size);
-	b->length += item_size;
-
-	return ME_SUCCESS;
 }
 
 // This specifies the max number of bytes in a variable length quantity. For
@@ -254,78 +228,102 @@ static MTrkEventBuffer MTrkEventEndOfTrack(uint32_t delta_time){
 	return out;
 }
 
-static int MakeTrackFromNotes(growable_buf* trackBuf, int* notePitches,
-			      int* noteRanges, int nP_size,
-			      int bpm, int division, int sample_rate){
+/// writes the notes to track the track chunk
+///
+/// @returns the number of bytes that were written upon success. Returns a
+///    negative value on failure
+static int WriteNotesToTrackChunk(FILE* f, int* notePitches,
+				  int* noteRanges, int nP_size,
+				  int bpm, int division, int sample_rate){
 
 	const int vel = 80; // default velocity, given to all notes. This roughly
 			    // corresponds to mezzo-forte dynamics (but the
 			    // interpretation varies with software/hardware)
 
+	int total_length = 0;
+
 	// make preparations for converting time-stamps denoting the starts and
 	// stops of notes (stored in noteRanges) to delta-times
 	// - this conversion also converts from the input sample rate to units
 	//   of ticks used in MIDI files (denoted by bpm and division)
-	contextTStampToDeltaT context = initConverter_(sample_rate,
-						       bpm, division);
+	contextTStampToDeltaT context = newContext_(sample_rate, bpm, division);
 
-	for(int i = 0; i < nP_size; ++i){
+	for (int i = 0; i < nP_size; ++i){
 
 		int pitch = notePitches[i];
 		for(int j = 0; j < 2; j++){
 			uint32_t delta_time = DeltaTFromTStamp_
 				(noteRanges[2*i+j], &context);
 
-			MTrkEventBuffer entry_buf = (j == 0) ?
+			MTrkEventBuffer b = (j == 0) ?
 				MTrkEventNoteOn (delta_time, pitch, vel) :
 				MTrkEventNoteOff(delta_time, pitch, vel);
 
-			int rcode = buf_append_(entry_buf.data, entry_buf.size,
-						trackBuf);
-			if (rcode != ME_SUCCESS){ return rcode; }
+			if (b.size != fwrite(b.data, sizeof(char), b.size, f)){
+				return ME_ERROR;
+			}
+			total_length += b.size;
 		}
 	}
 
-	MTrkEventBuffer entry_buf = MTrkEventEndOfTrack(2);
-	return buf_append_(entry_buf.data, entry_buf.size, trackBuf);
+	MTrkEventBuffer b = MTrkEventEndOfTrack(2);
+	if (b.size != fwrite(b.data, sizeof(char), b.size, f)){
+		return ME_ERROR;
+	}
+	return total_length + b.size;
 }
 
 /// Write Midi track to file stream
 ///
-/// @returns 0 upon success
-static int WriteMidiTrackFromNotes(int* notePitches, int* noteRanges,
-				   int nP_size, int bpm, int division,
-				   int sample_rate, FILE* f){
-
-	growable_buf trackBuf = {.buf=NULL, .length=0, .capacity=0};
-	int error_code = MakeTrackFromNotes(&trackBuf, notePitches, noteRanges,
-					    nP_size, bpm, division,
-					    sample_rate);
-	if(error_code != ME_SUCCESS){
-		printf("track generation failed\n");
-		if (trackBuf.buf){ free(trackBuf.buf); }
-		return error_code;
-	}
-
-	// now let's actually record stuff!
+/// @returns 0 upon success. negative values indicate failure
+static int WriteMidiTrack(int* notePitches, int* noteRanges, int nP_size,
+			  int bpm, int division, int sample_rate, FILE* f){
 	// all track chunks start with fixed length string "MTrk"
 	if (4 != fwrite("MTrk", sizeof(char), 4, f)){
 		return ME_ERROR;
 	}
 
-	// second, record the length of the chunk (this needs to be encoded as
-	// a big-endian int)
-	const int32_t length = trackBuf.length;
+	// record current location, where the length of the chunk is recorded
+	long length_loc;
+	if ((length_loc = ftell(f)) == -1L){ return ME_ERROR; }
+
+	// provide a dummy value at current location since we don't know it yet
+	int error_code;
+	if ((error_code = WriteBigEndianInteger(f, 0)) != ME_SUCCESS){
+		return error_code;
+	}
+
+	// write the rest of the track chunk
+	int length = WriteNotesToTrackChunk(f, notePitches, noteRanges, nP_size,
+					    bpm, division, sample_rate);
+	if (length <= 0) {
+		printf("track generation failed\n");
+		return (length < 0) ? length : ME_ERROR;
+	}
+
+	// record current location for later
+	long chunk_end_loc;
+	if ((chunk_end_loc = ftell(f)) == -1L){ return ME_ERROR; }
+
+	// now move file position indicator to record the length
+	if (0 != fseek(f, length_loc, SEEK_SET)){
+		printf("Error occured while shifting file position indicator "
+		       "to fill in information about the track length\n");
+		return ME_ERROR;
+	}
+
+	// actually record the length (this need to be encoded as big-endian)
 	if ((error_code = WriteBigEndianInteger(f, length)) != ME_SUCCESS){
 		return error_code;
 	}
 
-	// third, write the track data
-	if (trackBuf.length != fwrite(trackBuf.buf, sizeof(unsigned char),
-				      trackBuf.length,f)){
-		return -1;
+	// finally move file position indicator back to chunk_end_loc
+	if (0 != fseek(f, chunk_end_loc, SEEK_SET)){
+		printf("Error occured while shifting file position indicator "
+		       "to end of track chunk after chunk length update\n");
+		return ME_ERROR;
 	}
-	free(trackBuf.buf);
+
 	return ME_SUCCESS;
 }
 
@@ -334,6 +332,7 @@ int WriteNotesAsMIDI(int* notePitches, int* noteRanges, int nP_size,
 {
 	if (!f) { return ME_ERROR; }
 
+	// first write the header
 	const int bpm = 120;
 	const int divisions = 48; //note: in the future dont hardcode
 	const int midi_format = 1;
@@ -347,12 +346,11 @@ int WriteNotesAsMIDI(int* notePitches, int* noteRanges, int nP_size,
 		fflush(NULL);
 	}
 
-	int error_code = WriteMidiTrackFromNotes(notePitches, noteRanges,
-						 nP_size,
-						 bpm, divisions, sample_rate,
-						 f);
-	if (error_code != ME_SUCCESS) {
-		return error_code;
+	// next write the track chunk
+	int err_code = WriteMidiTrack(notePitches, noteRanges, nP_size,
+				      bpm, divisions, sample_rate, f);
+	if (err_code != ME_SUCCESS) {
+		return err_code;
 	} else if (verbose){
 		printf("track added\n");
 		fflush(NULL);
