@@ -221,42 +221,6 @@ float medianFreq(int startSample, int stopSample, int winInt, int winSize,
 	return temp_freq;
 }
 
-int* noteRangesEventTiming(int* noteRanges, int nR_size, int sample_rate,
-			   int bpm, int division)
-{
-	// convert samples in noteRanges to midi event timings
-	// noteRanges is an array of the number of samples from the
-	// beginning that dictate when notes start and stop using the
-	// sample rate of the input audio file:
-	// {s_0, s_1, s_2, ..., s_i, ... }
-
-	// the returned eventRanges lists the amount of ticks from the
-	// previous entry. Thus our first step is to determine the sample
-	// from previous entry:
-	// {s_0, s_1-s_0, s_2 - s_1, ..., s_i - s_(i-1), ...}
-
-	// then we convert these entries so that they have units of seconds
-	// (1/sample_rate) * {s_0, s_1-s_0, s_2 - s_1, ..., s_i - s_(i-1), ...}
-
-	// finally, we need to convert into units of ticks. In the midi file
-	// there are (bpm/60)*division ticks per second.
-	// thus, we return:
-	// (bpm*division)/(60*sample_rate) * {s_0, s_1-s_0, ..., s_i-s_(i-1), ...}
-
-	int* eventRanges = malloc(sizeof(int)*nR_size);
-
-	double ticks_per_sample = (bpm * division)/(sample_rate * 60.0);
-
-	for(int i =0; i<nR_size; i++){
-		int delta_samples = noteRanges[i];
-		if(i > 0){
-			delta_samples -= noteRanges[i-1];
-		}
-		eventRanges[i] = (int)round(delta_samples * ticks_per_sample);
-	}
-	return eventRanges;
-}
-
 
 int genNotesFreqOnly(int* midiPitches, int length, int winInt, int winSize,
 		     int numSamples, int** noteRanges, int** notePitches)

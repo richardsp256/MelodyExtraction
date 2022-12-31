@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <math.h> // log2, round
 #include <string.h>
+#include <assert.h>
 #include "midi.h"
 #include "noteCompilation.h"
 #include "errors.h"
@@ -104,6 +105,44 @@ int AddTrack(FILE* f, const unsigned char* track, int len){
 	}
 
 	return 0;
+}
+
+
+/// @struct contextTStampToDeltaT
+/// @brief Context object that is used when converting a sequence of time-stamps
+///   to delta-times
+///
+/// Time-stamps are all measured relative to some absolute time. Delta-times
+/// measures the time between time-stamps.
+///
+/// This supports conversions when the time-stamps are measured at a different
+/// sampling rate from the delta-times.
+typedef struct{
+	uint64_t last_TStamp;
+	double newSRate_div_oldSRate;
+} contextTStampToDeltaT;
+
+/// initialize context object for converting time-stamps to delta-times
+///
+/// the delta-time samplerate is the number of ticks per second in a Midi file
+/// or: (dt_bpm * dt_division / 60 )
+static contextTStampToDeltaT initConverter_(int ts_samplerate,
+					    int dt_bpm, int dt_division){
+	contextTStampToDeltaT out
+		= {0, (dt_bpm * dt_division)/(ts_samplerate * 60.0)};
+	return out;
+}
+
+/// convert the time-stamp to a delta-time
+static int DeltaTFromTStamp_(int time_stamp, contextTStampToDeltaT* context){
+	assert(context->last_TStamp <= (uint64_t)time_stamp);
+
+	// todo: clean this up (this looks a little weird right now to avoid
+	// changing the outputs during refactoring)
+	int delta_time_oldSRate = time_stamp - ((int)context->last_TStamp);
+	context->last_TStamp = time_stamp;
+
+	return (int)round(delta_time_oldSRate * context->newSRate_div_oldSRate);
 }
 
 typedef struct{unsigned char* buf; size_t length; size_t capacity;} growable_buf;
@@ -230,14 +269,19 @@ static int MakeTrackFromNotes(growable_buf* trackBuf, int* notePitches,
 			    // corresponds to mezzo-forte dynamics (but the
 			    // interpretation varies with software/hardware)
 
-	int* eventRanges = noteRangesEventTiming(noteRanges, 2*nP_size,
-						 sample_rate, bpm, division);
-	if (eventRanges == NULL){ return ME_MALLOC_FAILURE; }
+	// make preparations for converting time-stamps denoting the starts and
+	// stops of notes (stored in noteRanges) to delta-times
+	// - this conversion also converts from the input sample rate to units
+	//   of ticks used in MIDI files (denoted by bpm and division)
+	contextTStampToDeltaT context = initConverter_(sample_rate,
+						       bpm, division);
 
 	for(int i = 0; i < nP_size; ++i){
+
+		int pitch = notePitches[i];
 		for(int j = 0; j < 2; j++){
-			uint32_t delta_time = (uint32_t)eventRanges[2*i + j];
-			int pitch = notePitches[i];
+			uint32_t delta_time = DeltaTFromTStamp_
+				(noteRanges[2*i+j], &context);
 
 			MTrkEventBuffer entry_buf = (j == 0) ?
 				MTrkEventNoteOn (delta_time, pitch, vel) :
@@ -245,13 +289,9 @@ static int MakeTrackFromNotes(growable_buf* trackBuf, int* notePitches,
 
 			int rcode = buf_append_(entry_buf.data, entry_buf.size,
 						trackBuf);
-			if (rcode != ME_SUCCESS){
-				free(eventRanges);
-				return rcode;
-			}
+			if (rcode != ME_SUCCESS){ return rcode; }
 		}
 	}
-	free(eventRanges);
 
 	MTrkEventBuffer entry_buf = MTrkEventEndOfTrack(2);
 	return buf_append_(entry_buf.data, entry_buf.size, trackBuf);
