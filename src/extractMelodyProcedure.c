@@ -189,9 +189,21 @@ int ExtractPitch(float* input, float* pitches, audioInfo info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int hpsOvr, int verbose, char* prefix)
 {
+	// todo: rename p_winSize -> p_paddedFFTSize
+	//       rename p_unpaddedSize -> p_unpaddedWinSize
+	//         - in the latter case, p_winSize would probably be even better
+	if ((p_winSize % 2) == 1){
+		// The frequency calculations in the pitch detection algorithms
+		// almost certainly can't handle this case correctly
+		printf("currently not allowed to use an odd paddedFFTSize\n");
+		return -1;
+	}
+
 	fftwf_complex* p_fftData = NULL;
 	int p_size = STFT_r2c(input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
-	if(p_size == -1){
+	if(p_size <= 0){
+		printf("There was a problem with the STFT\n");
+		fflush(NULL);
 		return -1;
 	}
 	int p_numBlocks = NumSTFTBlocks(info, p_unpaddedSize, p_winInt);
