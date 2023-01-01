@@ -38,7 +38,7 @@ typedef struct {
 } intList;
 
 // used by the orderedList struct
-int bisectLeft(float* l, float value, int low, int high);
+int bisectLeft(const float* l, float value, int low, int high);
 
 struct orderedList orderedListCreate(int capacity);
 void orderedListDestroy(struct orderedList list);

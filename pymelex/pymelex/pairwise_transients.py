@@ -4,11 +4,11 @@ from math import ceil
 
 import numpy as np
 
-from .shared_lib import libmelex
+from .shared_lib import libmelex, standard_errcheck, length_errcheck
 from .misc import \
     _check_audio, _check_1D_float_array, _ensure_int, _ensure_pos_int
 
-from .IntList import IntList, intList_Struct
+from .FixedTypeList import IntList, intList_Struct
 
 # currently this file is structured as follows:
 #    1. First we provide wrappers around helper functions to allow for easy
@@ -62,18 +62,20 @@ def central_freq_mapper(num_channels = 64, min_freq = 80., max_freq=4000.):
     return out
 
 # implement sosGammatone
-_argtypes = [np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
-                                    flags='C_CONTIGUOUS'),
-             np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
-                                    flags=('C_CONTIGUOUS', 'WRITEABLE')),
-             ctypes.c_float, ctypes.c_int, ctypes.c_int]
 _sosGammatone = libmelex.sosGammatone
-_sosGammatone.argtypes = _argtypes
-_sosGammatoneFast = libmelex.sosGammatoneFast
-_sosGammatoneFast.argtypes = _argtypes
+_sosGammatone.argtypes  = [
+    np.ctypeslib.ndpointer(dtype=np.single, ndim=1, flags='C_CONTIGUOUS'),
+    np.ctypeslib.ndpointer(dtype=np.double, ndim=1,
+                           flags=('C_CONTIGUOUS', 'WRITEABLE')),
+    ctypes.c_float, ctypes.c_int, ctypes.c_int,
+    np.ctypeslib.ndpointer(dtype=np.double, ndim=1,
+                           flags=('C_CONTIGUOUS', 'WRITEABLE'))
+]
+_sosGammatone.restype = ctypes.c_int
+_sosGammatone.errcheck = standard_errcheck
 
-def sosGammatone(audio_data, sample_rate, central_freq, out = None,
-                 fast_mode = True):
+
+def sosGammatone(audio_data, sample_rate, central_freq, out = None):
     """
     Filters input data with the sosGammatone filter.
 
@@ -123,14 +125,11 @@ def sosGammatone(audio_data, sample_rate, central_freq, out = None,
     else:
         y = np.empty_like(audio_data)
 
-    if fast_mode:
-        func = _sosGammatoneFast
-    else:
-        raise ValueError("This does not currently work outside of fast mode")
-        func = _sosGammatone
+    state = np.zeros((8,),dtype = np.double)
+    func = _sosGammatone
 
     func(audio_data, y, central_freq, sample_rate,
-         audio_data.size)
+         audio_data.size, state)
 
     return y
 
@@ -142,7 +141,8 @@ _rollSigma.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float,
                        np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
                                               flags=('C_CONTIGUOUS',
                                                      'WRITEABLE'))]
-_rollSigma.restype = None
+_rollSigma.restype = ctypes.c_int
+_rollSigma.errcheck = standard_errcheck
 
 def roll_sigma(input_data, start_index, interval, sig_window_size,
                num_windows = None,
@@ -225,92 +225,6 @@ def roll_sigma(input_data, start_index, interval, sig_window_size,
                input_data.size, num_windows, input_data, out)
     return out
 
-_pSMContribution = libmelex.pSMContribution
-_pSMContribution.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int,
-                             np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
-                                                    flags='C_CONTIGUOUS'),
-                             np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
-                                                    flags='C_CONTIGUOUS'),
-                             np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
-                                                    flags=('C_CONTIGUOUS',
-                                                           'WRITEABLE'))]
-_pSMContribution.restypes = None
-
-def psm_contribution(correntropy_win_size, interval, num_windows, input_data,
-                     sigmas, psmatrix=None):
-    """
-    Iterates over each window in input_data and adds the pooled summary matrix
-    contribution (the sum of of correntropy over all lags) of each window to 
-    psmatrix. input from a given channel and computes Pooled Summary
-
-    Parameters
-    ----------
-    correntropy_win_size : int
-        The window size for the calculation of correntropy (specified as a 
-        number of audio frames). The implementation assumes that the maximum 
-        lag value is also given by this value.
-    interval : int
-        The hopsize, h, for computing the detection function, (in units of 
-        audio frames). The paper suggests using 5 ms (sample_rate / 200); this 
-        is used by default. Also acts as the interval between calculations of
-        optimized sigma.
-    num_windows : int
-        The number of times that the pooled summary matrix contribution should 
-        be computed from `input_buffer`. Typically, this is 1 larger what is 
-        returned by `compute_detection_function_length`.
-    input_data : array_like
-        A 1D array of dtype np.single that holds the input (filtered) signal
-        from which the pooled summary matrix calculation is performed. This 
-        should have a length of at least 
-        `(num_windows-1)*interval + 2*correntropy_win_size + 2`
-    sigmas : array_like
-        A 1D array of dtype np.single that holds the sigmas to be used to 
-        compute the pooled summary matrix contribution at each interval. This 
-        should have `num_windows` entries.
-    psmatrix : array_like, optional
-        If provided, the provided computed values are added to the appropriate
-        elements held in this array. A provided array should be a 1D array of
-        dtype np.single and a length of `num_windows`.
-    Returns
-    -------
-    out : ndarray, optional
-        This is only returned if psmatrix is not provided. This has a length of
-        `num_windows`.
-
-    Note
-    ----
-    The idea behind this function was to initialize `psmatrix` ahead of time as
-    an array of zeros and then repeatedly call this function (but passing 
-    different values to `input_data` and `sigmas` that correspond to the
-    different channels).
-    """
-    num_windows = _ensure_pos_int(num_windows,"num_windows")
-    correntropy_win_size = _ensure_pos_int(correntropy_win_size,
-                                           "correntropy_win_size")
-    interval = _ensure_pos_int(interval,"interval")
-
-    _check_1D_float_array(input_data)
-    min_input_len = max(num_windows-1,2)*interval + 2*correntropy_win_size + 2
-    if input_data.size< min_input_len:
-        msg = f"input_data must have a length of at least {min_input_len}"
-        raise ValueError(msg)
-    _check_1D_float_array(sigmas)
-    assert sigmas.size == num_windows
-
-    return_psmatrix = (psmatrix is None)
-    
-    if psmatrix is not None:
-        _check_1D_float_array(psmatrix)
-        assert psmatrix.size == num_windows
-    else:
-        psmatrix = np.zeros((num_windows,),dtype=np.single)
-
-    _pSMContribution(correntropy_win_size, interval, num_windows,
-                     input_data, sigmas, psmatrix)
-
-    if return_psmatrix:
-        return psmatrix
-
 _computeDetFunctionLength = libmelex.computeDetFunctionLength
 _computeDetFunctionLength.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
 
@@ -347,16 +261,16 @@ def compute_detection_function_length(data_length, correntropy_win_size,
 
 
 
-_simpleDetFunctionCalculation = libmelex.simpleDetFunctionCalculation
-_simpleDetFunctionCalculation.argtypes \
-    = [ctypes.c_int, ctypes.c_int,
-       ctypes.c_float, ctypes.c_int,
+_CalcDetFunc = libmelex.CalcDetFunc
+_CalcDetFunc.argtypes \
+    = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_int,
        ctypes.c_int, ctypes.c_float, ctypes.c_float,
        ctypes.c_int, ctypes.c_int,
        np.ctypeslib.ndpointer(dtype=np.single, ndim=1, flags='C_CONTIGUOUS'),
        ctypes.c_int,
        np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
                               flags=('C_CONTIGUOUS', 'WRITEABLE'))]
+_CalcDetFunc.errcheck = standard_errcheck
 
 # need to update the following kwarg description
 def compute_detection_function(audio_data, sample_rate,
@@ -444,23 +358,22 @@ def compute_detection_function(audio_data, sample_rate,
     
     det_func = np.empty((det_func_length,),dtype = np.single)
 
-    result = _simpleDetFunctionCalculation(correntropy_win_size, interval,
-                                           scale_factor, sig_window_size,
-                                           num_channels, min_freq, max_freq,
-                                           sample_rate, audio_data.size,
-                                           audio_data, det_func.size,
-                                           det_func)
-    if result != 1:
+    result = _CalcDetFunc(correntropy_win_size, interval, scale_factor,
+                          sig_window_size, num_channels, min_freq, max_freq,
+                          sample_rate, audio_data.size, audio_data,
+                          det_func.size, det_func)
+    if result != 0:
         raise RuntimeError("Something went wrong")
     return det_func,interval
 
-_detectTransients = libmelex.detectTransients
-_detectTransients.argtypes = [np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
+_SelectTransients = libmelex.SelectTransients
+_SelectTransients.argtypes = [np.ctypeslib.ndpointer(dtype=np.single, ndim=1,
                                                      flags='C_CONTIGUOUS'),
                               ctypes.c_int,
                               ctypes.POINTER(intList_Struct)]
+_SelectTransients.errcheck = length_errcheck
 
-def detect_transients(detection_func):
+def select_transients(detection_func):
     """
     Identifies transients from the values of the detection function
 
@@ -491,10 +404,10 @@ def detect_transients(detection_func):
     detection_func = np.array(detection_func)
     max_capacity = len(detection_func)
     initial_capacity = min(20,max_capacity)
-    transients = IntList(initial_capacity,max_capacity)
+    transients = IntList(initial_capacity)
     print(detection_func)
 
-    result = _detectTransients(detection_func, detection_func.size,
+    result = _SelectTransients(detection_func, detection_func.size,
                                transients._struct_ptr)
     if result < 0:
         print(result)
@@ -540,7 +453,7 @@ def pairwise_transient_detection(audio_data, sample_rate,
     det_func,interval = compute_detection_function(audio_data, sample_rate,
                                                    **det_func_kwargs)
     # identify the transients from det_func
-    transients = detect_transients(det_func)
+    transients = select_transients(det_func)
 
     # the values held in transients correspond to the interval of the detection
     # function where the transient was identified. We really want an estimate
