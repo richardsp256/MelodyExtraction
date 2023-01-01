@@ -59,8 +59,8 @@ set(SOURCES
 
 add_library(melodyextraction SHARED ${SOURCES})
 target_link_libraries(melodyextraction
-  PUBLIC m FFTW3::Float
-  PRIVATE simd_vector SndFile::SndFile Samplerate::Samplerate FVAD::FVAD
+  PUBLIC m
+  PRIVATE simd_vector SndFile::SndFile Samplerate::Samplerate FVAD::FVAD  FFTW3::Float
   )
 target_compile_options(melodyextraction PRIVATE "-Wall")
 

@@ -199,50 +199,30 @@ int ExtractPitch(float* input, float* pitches, audioInfo info,
 		return -1;
 	}
 
-	fftwf_complex* p_fftData = NULL;
-	int p_size = STFT_r2c(input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
-	if(p_size <= 0){
-		printf("There was a problem with the STFT\n");
-		fflush(NULL);
-		return -1;
-	}
 	int p_numBlocks = NumSTFTBlocks(info, p_unpaddedSize, p_winInt);
-	if(verbose){
-		printf("numblcks of pitch FFT: %d\n", p_numBlocks);
+	float* spectra = NULL; // todo: preallocate memory to hold the spectra
+	int p_size = CalcSpectrogram(input, info, p_unpaddedSize, p_winSize,
+				     p_winInt, &spectra);
+	if (p_size <= 0) {
+		printf("There was a problem with computing the spectrogram\n");
 		fflush(NULL);
-	}
-
-	float* spectrum = Magnitude(p_fftData, p_size);
-	if(spectrum == NULL){
-		printf("Magnitude failed\n");
-		fflush(NULL);
-		free(p_fftData);
 		return -1;
-	}
-	if(verbose){
-		printf("Magnitude complete\n");
+	} else if (verbose) {
+		printf("Calculation of spectrogram is complete\n"
+		       "-> it involved %d FFT(s)\n", p_numBlocks);
 		fflush(NULL);
 	}
-
-	//double* output = NULL;
-	//STFTinverse(p_fftData, info, winSize, p_winInt, &output);
-	//if(verbose){
-	//	printf("STFTInverse complete\n");
-	//}
-	free(p_fftData);
-	//SaveAsWav(output, info, stftInverse.wav);
-	//free( output );
 
 	if (prefix !=NULL){
 		// Here we save the original spectra
 		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
 		strcpy(spectraFile,prefix);
 		strcat(spectraFile,"_original.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
+		SaveWeightsTxt(spectraFile, &spectra, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
 		free(spectraFile);
 	}
 
-	int result = pitchStrategy(spectrum, p_size, p_winSize/2, hpsOvr,
+	int result = pitchStrategy(spectra, p_size, p_winSize/2, hpsOvr,
 				   p_winSize, info.samplerate, pitches);
 	if(result <= 0){
 		return result;
@@ -253,7 +233,7 @@ int ExtractPitch(float* input, float* pitches, audioInfo info,
 		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
 		strcpy(spectraFile,prefix);
 		strcat(spectraFile,"_weighted.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
+		SaveWeightsTxt(spectraFile, &spectra, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
 		free(spectraFile);
 	}
 

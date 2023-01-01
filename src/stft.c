@@ -39,17 +39,6 @@ int NumSTFTBlocks(audioInfo info, int unpaddedWinSize, int interval)
 	return numBlocks;
 }
 
-float* Magnitude(const fftwf_complex* arr, int size)
-{
-	float* magArr = malloc( sizeof(float) * size);
-	if (magArr != NULL){
-		for(int i = 0; i < size; i++){
-			magArr[i] = hypot(arr[i][0], arr[i][1]);
-		}
-	}
-	return magArr;
-}
-
 /// helper function that determines the number of coefficients returned by a
 /// real-to-complex fft on an in put containing ``bufLen`` elements
 ///
@@ -81,8 +70,8 @@ float* Magnitude(const fftwf_complex* arr, int size)
 /// (this is not an issue for FFTW3).
 static inline int CalcNumDFTCoef_r2c_(int bufLen) { return bufLen/2 + 1; }
 
-int STFT_r2c(const float* input, audioInfo info, int unpaddedWinSize,
-	     int paddedFFTSize, int interval, fftwf_complex** fft_data)
+int CalcSpectrogram(const float* input, audioInfo info, int unpaddedWinSize,
+		    int paddedFFTSize, int interval, float** spectrogram)
 {
 	if (unpaddedWinSize < 1) { return -1; }
 	if (paddedFFTSize < unpaddedWinSize) { return -1; }
@@ -103,9 +92,9 @@ int STFT_r2c(const float* input, audioInfo info, int unpaddedWinSize,
 	if ((numBlocks * nReturnedCoefsPerDFT) == 0) { return -1; }
 
 	// Now, let's actually allocate the output space
-	(*fft_data) = malloc( sizeof(fftwf_complex) * numBlocks *
-			      nReturnedCoefsPerDFT );
-	if((*fft_data) == NULL){
+	(*spectrogram) = malloc( sizeof(float) * numBlocks *
+				 nReturnedCoefsPerDFT );
+	if((*spectrogram) == NULL){
 		printf("malloc failed\n");
 		return -1;
 	}
@@ -128,7 +117,7 @@ int STFT_r2c(const float* input, audioInfo info, int unpaddedWinSize,
 	if (window == NULL){
 		printf("windowFunc error\n");
 		fflush(NULL);
-		free((*fft_data));
+		free((*spectrogram));
 		fftwf_destroy_plan( plan );
 		fftwf_free( fftw_in );
 		fftwf_free( fftw_out );
@@ -153,8 +142,8 @@ int STFT_r2c(const float* input, audioInfo info, int unpaddedWinSize,
 		fftwf_execute( plan );
 
 		for (int j = 0; j < nReturnedCoefsPerDFT; j++) {
-			(*fft_data)[i*nReturnedCoefsPerDFT + j][0] = fftw_out[j][0];
-			(*fft_data)[i*nReturnedCoefsPerDFT + j][1] = fftw_out[j][1];
+			(*spectrogram)[i*nReturnedCoefsPerDFT + j]
+				= hypot(fftw_out[j][0], fftw_out[j][1]);
 		}
 	}
 
@@ -165,56 +154,4 @@ int STFT_r2c(const float* input, audioInfo info, int unpaddedWinSize,
 	fftwf_free( fftw_out );
 
 	return numBlocks * nReturnedCoefsPerDFT;
-}
-
-int STFTinverse_c2r(fftwf_complex* input, audioInfo info, int winSize, int interval, float** output)
-{
-	//length of input is numBlocks * (winSize/2 + 1)
-
-	fftwf_complex* fftw_in = fftwf_malloc( sizeof( fftwf_complex ) * winSize );
-	float* fftw_out = fftwf_malloc( sizeof( float ) * winSize );
-
-	fftwf_plan plan  = fftwf_plan_dft_c2r_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
-
-	//malloc space for output
-	(*output) = calloc( info.frames, sizeof(float));
-	if((*output) == NULL){
-		printf("malloc failed\n");
-		fftwf_destroy_plan( plan );
-		fftwf_free( fftw_in );
-		fftwf_free( fftw_out );
-		return -1;
-	}
-
-	int numBlocks = (int)ceil((info.frames - winSize) / (float)interval) + 1;
-	if(numBlocks < 1){
-		numBlocks = 1;
-	}
-
-	//run fft on each block
-	for(int i = 0; i < numBlocks; i++){
-
-		// Copy the chunk into our buffer
-		const int inputoffset = i*(winSize/2 + 1);
-		for (int j = 0; j < winSize/2 + 1; j++) {
-			fftw_in[j][0] = input[inputoffset + j][0];
-			fftw_in[j][1] = input[inputoffset + j][1];
-		}
-
-		fftwf_execute( plan );
-
-		const int outputoffset = i*interval;
-
-		for (int j = 0; j < winSize; j++) {
-			if (outputoffset + j < info.frames) {
-				(*output)[outputoffset + j] += fftw_out[j] / (float)((winSize*winSize)/interval);
-			}
-		}
-	}
-
-	fftwf_destroy_plan( plan );
-	fftwf_free( fftw_in );
-	fftwf_free( fftw_out );
-
-	return info.frames;
 }
