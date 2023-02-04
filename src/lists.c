@@ -1,23 +1,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "lists.h"
+#include "errors.h"
 
 // note that these functions are not safe
 // the user is responsible for making sure that the length of the list does
 // not exceed the maximum size
 
-// below is a function generally associated with lists. It is specifically used
-// by orderedList
-
+/// find the index of the leftmost value in `l` greater than or equal to
+/// `value`. It is specifically used by `orderedList`.
+///
+/// This algorithm was taken from cpython's biset_left function. An
+/// implementation can be found here:
+///     https://github.com/python-git/python/blob/master/Lib/bisect.py
+///
+/// Due to poor record keeping, it's not exactly clear which version of CPython
+/// the bisectLeft function was derived from. Based on the commit history it
+/// could have only been derived from versions 2.7 through 3.6 (it was probably
+/// one of the extremes). In any case, the license is the same. A copy of the
+/// license is provided in licenses/PYTHON_LICENSE
 int bisectLeft(float* l, float value, int low, int high){
-	// function to find the index of the leftmost value in l greater
-	// than or equal to value.
-
-	// We just use the algorithm used for python's bisect left function
-	// It is implemented here:
-	// https://github.com/python-git/python/blob/master/Lib/bisect.py
-
-	// This could probably be better optimized
 
 	// for integers >=0 integer division is floor division
 	int mid;
@@ -154,11 +156,11 @@ void orderedListPrint(struct orderedList list)
 		DTYPE * tmp;                                                \
 		tmp = realloc(list->array, (list->length) * sizeof(DTYPE)); \
 		if (tmp == NULL){                                           \
-			return 0;                                           \
+			return ME_REALLOC_FAILURE;                          \
 		}                                                           \
 		list->array = tmp;                                          \
 		list->capacity = list->length;                              \
-		return 1;                                                   \
+		return ME_SUCCESS;                                          \
 	}                                                                   \
 	                                                                    \
 	int ARR_NAME ## Append (ARR_NAME * list, DTYPE val)                 \
@@ -169,13 +171,13 @@ void orderedListPrint(struct orderedList list)
 			tmp = realloc(list->array,                          \
 				     list->capacity * sizeof(DTYPE));       \
 			if (!tmp){                                          \
-				return 0;                                   \
+				return ME_REALLOC_FAILURE;                  \
 			}                                                   \
 			list->array = tmp;                                  \
 		}                                                           \
 		(list->array)[list->length] = val;                          \
 		(list->length)++;                                           \
-		return 1;                                                   \
+		return ME_SUCCESS;                                          \
 	}
 
 	
@@ -206,8 +208,7 @@ void distinctListPrintFreq(distinctList list)
 	if (list.length != 0) {
 		printf("%lf",list.array[0].frequency);
 	}
-	int i;
-	for (i=1; i<list.length; i++){
+	for (int i=1; i<list.length; i++){
 		printf(", %lf",list.array[i].frequency);
 	}
 	printf("]\n");
@@ -219,8 +220,7 @@ void distinctListPrintConfidence(distinctList list)
 	if (list.length != 0){
 		printf("%d",list.array[0].confidence);
 	}
-	int i;
-	for (i=1; i<list.length; i++){
+	for (int i=1; i<list.length; i++){
 		printf(", %d",list.array[i].confidence);
 	}
 	printf("]\n");
@@ -232,8 +232,7 @@ void distinctListPrintCost(distinctList list)
 	if (list.length != 0){
 		printf("%.10f",list.array[0].cost);
 	}
-	int i;
-	for (i=1; i<list.length; i++){
+	for (int i=1; i<list.length; i++){
 		printf(", %.10f",list.array[i].cost);
 	}
 	printf("]\n");
@@ -245,8 +244,7 @@ void distinctListPrintIndexLowestCost(distinctList list)
 	if (list.length != 0){
 		printf("%d",list.array[0].indexLowestCost);
 	}
-	int i;
-	for (i=1; i<list.length; i++){
+	for (int i=1; i<list.length; i++){
 		printf(", %d",list.array[i].indexLowestCost);
 	}
 	printf("]\n");

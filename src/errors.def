@@ -1,0 +1,123 @@
+/// @file     errors.def
+/// @brief    Error code list definition
+///
+/// To simplify the implementation/maintenance of error codes, they are
+/// implemented with X-Macros. This file holds the list definition. The error
+/// codes are used by errors.h
+///
+/// For each error, define: the enumeration-constant name
+///                         the enumeration-constant value
+///                         the associated error message
+///
+/// The way certain functions are currently defined requires error codes to be
+/// negative integers. In the future, it may be more convenient to number them
+/// in increasing order.
+///
+///
+/// We definitely want to reorganize numbering in the future. But in order to
+/// start to start, I'm going to suggest that we start numbering in different
+/// ranges so that there to minimize the chance of collisions.
+/// 
+///       -1 through -100: common codes
+///     -101 through -200: pitch detection
+///     -201 through -300: transient detection
+///     -301 through -400: MIDI file errors
+///     -401 through -450: resample errors
+///     -451 through -500: io related errors
+
+ERROR_ENTRY(ME_SUCCESS, 0, "Success")
+
+// General Errors
+ERROR_ENTRY(ME_ERROR, -1,
+  "General error - this is a placeholder error")
+
+ERROR_ENTRY(ME_MALLOC_FAILURE, -2,
+  "A call to malloc failed.")
+
+// probably want to replace this one with errors specific to our resizable list
+// data structures
+ERROR_ENTRY(ME_REALLOC_FAILURE, -3,
+  "A call to realloc failed.")
+
+
+
+// Onset Detection errors:
+
+ERROR_ENTRY(ME_BAD_ARRAY_ALIGNMENT, -201,
+  "An array in the correntropy calculation isn't aligned 16-byte aligned")
+
+ERROR_ENTRY(ME_BAD_CORRENTROPY_WINSIZE, -202,
+  "correntropy integration window isn't a positive integral multiple of 4")
+
+ERROR_ENTRY(ME_BAD_MAX_LAG, -203,
+  "correntropy integration window isn't a positive integral multiple of 4")
+
+ERROR_ENTRY(ME_BAD_HOPSIZE, -204,
+  "the hopsize between succesive correntropy calculations isn't a positive "
+  "integral multiple of 4")
+
+ERROR_ENTRY(ME_SUMMED_CORRENTROPY_OVERLAPPING_ARRAYS, -205,
+  "the arrays passed to the correntropy calculation can't have overlap")
+
+
+ERROR_ENTRY(ME_BAD_NUM_FILTER_CHANNELS, -211,
+  "The specified number of channels was 0 or larger than expected.")
+
+ERROR_ENTRY(ME_BAD_DETECTION_FUNCTION_LEN, -212,
+  "The length of the detection function buffer is incorrect")
+
+
+ERROR_ENTRY(ME_BAD_KERNEL_FIT, -241,
+  "There was an issue while trying to identify the best-fit kernel.")
+
+ERROR_ENTRY(ME_NO_TRANSIENTS, -242,
+  "No tranisents could be identified.")
+
+ERROR_ENTRY(ME_ALL_NULL_DETFUNC, -243,
+  "All entries in the detection function were zero.")
+
+
+ERROR_ENTRY(ME_SOSFILTER_TOO_MANY_STAGES, -261,
+  "sosFilter is not equipped to handle the specified number of stages")
+
+ERROR_ENTRY(ME_SOSFILTER_ZERO_STAGES, -262,
+  "sosFilter is not equipped to handle a filter with zero stages")
+
+ERROR_ENTRY(ME_SOSFILTER_OVERLAPPING_ARRAYS, -263,
+  "the arrays passed to sosFilter can't overlap")
+
+
+ERROR_ENTRY(ME_NONPOS_ROLLING_WINDOW, -281,
+  "A non-positive window size was specified for the rolling standard "
+  "deviation.")
+
+ERROR_ENTRY(ME_NONPOS_ROLLING_INTERVAL, -282,
+  "A non-positive hopsize was specified for the rolling standard deviation.")
+
+ERROR_ENTRY(ME_NEGATIVE_ROLLING_STARTINDEX, -283,
+  "A negative startIndex was specified for the rolling standard deviation.")
+
+ERROR_ENTRY(ME_NEGATIVE_ROLLING_ARRLEN, -284,
+  "A non-positive array length was specified for the rolling standard "
+  "deviation.")
+
+// Resample Errors:
+
+ERROR_ENTRY(ME_BAD_SAMPLERATIO, -401,
+  "A bad resample ratio was specified.")
+
+ERROR_ENTRY(ME_LIBSAMPLERATE_ERROR, -402,
+  "libsamplerate encountered an internal error.")
+
+ERROR_ENTRY(ME_UNUSED_RESAMPLE_INPUT, -403,
+  "Not all input was used during resampling.")
+
+ERROR_ENTRY(ME_RESAMPLE_OUTPUT_SIZE_ERROR, -404,
+  "An unexpected amount of output was produced while resampling.")
+
+
+// IO Errors:
+ERROR_ENTRY(ME_INVALID_FILE, -451,
+  "Audio file could not be opened for processing.")
+ERROR_ENTRY(ME_FILE_NOT_MONO, -452,
+  "Input file must be Mono. Multi-channel audio currently not supported.")

@@ -1,53 +1,37 @@
-###############################################################################
-# This file is taken and modified from the "money example" of the Check
-# tutorial.
-# Need to figure out the copyright notice to include in this file in order to
-# release the library.
-###############################################################################
-
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../src)
-
-# If pkg-config is not installed on the system, then the
-# CHECK_INSTALL_DIR variable must be set to the install
-# location of Check. For example, on Windows, this may
-# be: C:/Program Files/check
-# set(CHECK_INSTALL_DIR "C:/Program Files/check")
-
 find_package(Check REQUIRED)
-find_package(Threads REQUIRED)
-include_directories(
-  ${CHECK_INCLUDE_DIRS}
-  ${CMAKE_CURRENT_SOURCE_DIR}/../libsamplerate-0.1.9/src
+
+# testtools helper library defines utilities that assist with testing
+add_library(testtools STATIC
+  testtools/doubleArrayTesting.c
+  testtools/genSignal.c
   )
-link_directories(
-  ${CHECK_LIBRARY_DIRS}
-  ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+target_include_directories(testtools
+  PUBLIC ${CMAKE_CURRENT_LIST_DIR}/testtools
+  )
+target_compile_definitions(testtools
+  PRIVATE -DROOT_DIR_PATH=${CMAKE_SOURCE_DIR}
+  )
+target_link_libraries(testtools PRIVATE m Check::Check)
 
-#set(TEST_SOURCES
-#  ../src/gammatoneFilter.c
-#)
 
-set(ARRAY_TEST_SOURCES
-  doubleArrayTesting.c
-)
+# Now we define the actual tests
 
-set(GAMMATONE_TEST_SOURCES
-  check_gammatone.c
-)
+# first, define the tests that check functionality in the transient module
+set(TRANSIENT_TEST_SOURCES
+  transient/check_transient_main.c
+  transient/check_calcSummedLagCorrentrograms.c
+  transient/check_gammatone.c
+  transient/check_rollSigma.c
+  transient/check_vector.c
+  )
+add_executable(check_transient ${TRANSIENT_TEST_SOURCES})
+target_link_libraries(check_transient
+  melodyextraction simd_vector Check::Check m testtools)
+add_test(NAME check_transient
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/check_transient)
 
-set(DETFUNCTION_TEST_SOURCES
-  check_detFunction.c
-)
-
-set(LISTS_TEST_SOURCES
-  check_lists.c
-)
-
-add_executable(check_gammatone ${GAMMATONE_TEST_SOURCES} ${ARRAY_TEST_SOURCES})
-add_executable(check_detFunction ${DETFUNCTION_TEST_SOURCES}
-  ${ARRAY_TEST_SOURCES})
-add_executable(check_lists ${LISTS_TEST_SOURCES})
-
-target_link_libraries(check_gammatone m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
-target_link_libraries(check_detFunction m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
-target_link_libraries(check_lists m melodyextraction_static ${CHECK_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} fftw3f sndfile samplerate fvad)
+# second, define tests that checks the growable lists
+add_executable(check_lists check_lists.c)
+target_link_libraries(check_lists melodyextraction Check::Check)
+add_test(NAME check_lists
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/check_lists)
