@@ -54,12 +54,29 @@ the project folder, you will need to follow the instructions in the CMake file
 to specify the paths to where the libraries can be found.
 
 
-CMake 3.x is used to build the project. Earlier versions of CMake are untested. Build the executable and archived library with 
+CMake 3.x is used to build the project. Earlier versions of CMake are untested. From the repository's root directory, build the executable and archived library with
 	
-	cmake .
+	mkdir build # could be named something else
+	cd build
+	cmake ..
 	make
 
-in the project directory.
+This will build the `extract` executable (and the libraries) in `build/src`.
+Calling
+
+	make install
+
+from within the `build` directory will copy `extract` into the repository's root directory and will copy the libraries into `.libs`, which is also placed in the root directory (handling of the libraries may change going forward).
+
+By default, the project is built in `RELEASE` mode.
+To build the project in `DEBUG` mode (i.e. the executable and library include debuggin symbols and are compiled without optimizations) replace the `cmake ..` command with `cmake -DCMAKE_BUILD_TYPE=DEBUG ..`.
+To cleanup from a build, you can simply delete the build directory.
+
+The pairwise transient detection algorithm provides a specialized implementation that leverages SSE intrinsics.
+This implementation requires that the target cpu supports the `ssse3` (not a typo) instruction set extensions.
+This feature can be enabled via the `MELEX_VECTOR_BACKEND` environment variable; cpecify `MELEX_VECTOR_BACKEND=sse` before executing the `cmake..` command.
+**NOTE:** This specialized implementation is *not* guaranteed to be faster than the implementation provided by auto-vectorization (especially when more recent vector instruction sets are available).
+
 
 Unit Testing
 ------------

@@ -23,13 +23,40 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required (VERSION 3.0)
+cmake_minimum_required (VERSION 3.0) # this has not been rigorously tested
 project (MelodyExtraction)
+
+###############################################################################
+# Build type
+###############################################################################
+
+if (NOT CMAKE_BUILD_TYPE)
+  MESSAGE(STATUS "No build-type was detecting. Defaulting to Release")
+  set(CMAKE_BUILD_TYPE Release)
+endif()
 
 ###############################################################################
 # C compiler flags
 ###############################################################################
-SET(CMAKE_C_FLAGS, "-Wall -Wextra -O3 -g")
+
+if(DEFINED ENV{MELEX_VECTOR_BACKEND})
+  if($ENV{MELEX_VECTOR_BACKEND} MATCHES "sse")
+    MESSAGE(STATUS "detected MELEX_VECTOR_BACKEND=sse")
+    add_definitions(-DUSE_SSE_INTRINSICS)
+  elseif($ENV{MELEX_VECTOR_BACKEND} MATCHES "scalar")
+    MESSAGE(STATUS "detected MELEX_VECTOR_BACKEND=scalar")
+  else()
+    MESSAGE(FATAL_ERROR "MELEX_VECTOR_BACKEND was set to an unknown value: " $ENV{MELEX_VECTOR_BACKEND})
+  endif()
+else()
+  MESSAGE(WARNING "MELEX_VECTOR_BACKEND environment variable not detected. Defaulting to scalar backend")
+endif()
+
+
+SET(CMAKE_C_FLAGS, "${CMAKE_C_FLAGS} -Wall -Wextra -fno-trapping-math -fno-math-errno -fno-signed-zeros")
+# this is included to facillitate any level of vectorization
+# May want to further restrict this in the future
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 
 
 ###############################################################################
@@ -83,10 +110,6 @@ SET(CMAKE_C_FLAGS, "-Wall -Wextra -O3 -g")
 # release the library.
 ###############################################################################
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
-###############################################################################
-# Set build features
-set(CMAKE_BUILD_TYPE Release)
 
 ###############################################################################
 include(CheckCSourceCompiles)
@@ -269,3 +292,4 @@ enable_testing()
 add_test(NAME check_gammatone COMMAND check_gammatone)
 add_test(NAME check_detFunction COMMAND check_detFunction)
 add_test(NAME check_lists COMMAND check_lists)
+add_test(NAME check_vector COMMAND check_vector)

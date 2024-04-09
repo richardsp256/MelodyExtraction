@@ -4,8 +4,9 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <string.h>
-#include <limits.h>
-#include <math.h>
+#include <limits.h> // FLT_MAX
+#include <math.h> // fabs
+#include <stdbool.h>
 #include <float.h>
 
 #include "pairTransientDetection.h"
@@ -201,17 +202,37 @@ int detectTransients(float* detection_func, int len, intList* transients){
 	return transients->length;
 }
 
+static int coercePosMultipleOf4_(int arg, bool round_up){
+	if ((arg <=0) || (arg % 4) == 0){
+		return arg;
+	} else if (arg < 4) {
+		return 4;
+	} else if (round_up) {
+		return 4*((arg/4) + 1);
+	} else {
+		return 4*(arg/4);
+	}
+}
+
 int pairwiseTransientDetection(float *audioData, int size, int samplerate,
 			       intList* transients){
 
 	// use parameters suggested by paper
 	int numChannels = 64;
 	float minFreq = 80.f; // 80 Hz
-	float maxFreq = 4000.f; // 4000 Hz 
+	float maxFreq = 4000.f; // 4000 Hz
 	int correntropyWinSize = samplerate/80; // assumes minFreq=80
+	if ((samplerate % 80) == 0) {
+		correntropyWinSize++;
+	}
 	int interval = samplerate/200; // 5ms
 	float scaleFactor = powf(4./3.,0.2); // magic, grants three wishes
+	                                     // (Silverman's rule of thumb)
 	int sigWindowSize = (samplerate*7); // 7s
+
+	// implementation requirement for correntropyWinSize & interval:
+	correntropyWinSize = coercePosMultipleOf4_(correntropyWinSize, true);
+	interval = coercePosMultipleOf4_(interval, false);
 
 	// allocate the detectionFunction
 	int detectionFunctionLength =
@@ -220,12 +241,13 @@ int pairwiseTransientDetection(float *audioData, int size, int samplerate,
 					  detectionFunctionLength);
 
 	// compute the detectionFunction
-	if (1 != simpleDetFunctionCalculation(correntropyWinSize, interval,
-					      scaleFactor, sigWindowSize,
-					      numChannels, minFreq, maxFreq,
-					      samplerate, size, audioData,
-					      detectionFunctionLength,
-					      detectionFunction)){
+	int rslt = simpleDetFunctionCalculation(correntropyWinSize, interval,
+						scaleFactor, sigWindowSize,
+						numChannels, minFreq, maxFreq,
+						samplerate, size, audioData,
+						detectionFunctionLength,
+						detectionFunction);
+	if (0 != rslt){
 		free(detectionFunction);
 		return -1;
 	}

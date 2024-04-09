@@ -3,6 +3,7 @@
 #include <check.h>
 #include "../src/onset/simpleDetFunc.h"
 #include "doubleArrayTesting.h"
+#include "../src/utils.h" // IsLittleEndian
 
 void float_to_double_array(float* array, int length, double** dblarray){
 	(*dblarray) = malloc(sizeof(double)*length);
@@ -38,7 +39,7 @@ int rollSigmaTestTemplate(int *intInput, int intInputLen, double *dblInput,
 	int input_length;
 	double *original_input;
 
-	int little_endian = isLittleEndian();
+	int little_endian = IsLittleEndian();
 
 	input_length = readDoubleArray(strInput, little_endian,
 				       &original_input);
@@ -113,7 +114,7 @@ Suite *detFunction_suite()
 	Suite *s = suite_create("detFunction");
 	TCase *tc_rollSigma = tcase_create("rollSigma");
 
-	if (isLittleEndian() == 1){
+	if (IsLittleEndian() == 1){
 		tcase_add_loop_test(tc_rollSigma,check_roll_sigma_table,0,1);
 	} else {
 		printf("Cannot add rollSigma tests because the tests are not \n"

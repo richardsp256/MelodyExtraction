@@ -4,15 +4,52 @@
 #include <stddef.h>
 #include <check.h>
 #include <math.h>
+
 #include "doubleArrayTesting.h"
+#include "../src/utils.h" // isLittleEndian
 
 
-int isLittleEndian()
-{
-	// From https://stackoverflow.com/a/3877387
-	short int number = 0x1;
-	char *numPtr = (char*)&number;
-	return (numPtr[0] == 1);
+// ROOT_DIR_PATH should be specified to the compiler and should indicate the
+// path to the root directory of the repository
+#ifndef ROOT_DIR_PATH
+#error "The ROOT_DIR_PATH macro must be defined by the build system"
+#endif
+
+#define MAKE_STR_HELPER(x) #x
+#define MAKE_STR(x) MAKE_STR_HELPER(x)
+const char * const root_dir_path = MAKE_STR(ROOT_DIR_PATH);
+
+#define FILE_BUFFER_LEN 512
+
+// this opens a path that was given relative to the base file path
+FILE * openTestFile(const char* path, const char* mode){
+	char full_path[FILE_BUFFER_LEN];
+
+	size_t root_dir_len = strlen(root_dir_path);
+	// TODO: it would be safer to handle the case where base_section is not
+	//       null-terminated
+	size_t base_section_len = strlen(path);
+
+	// add an extra byte for an extra '/' character
+	// add an extra byte for null terminating character
+	size_t combined_length = root_dir_len + base_section_len + 2;
+	if (combined_length > FILE_BUFFER_LEN){
+		printf(("The full path to the file requires %zd bytes. This "
+			"exceeds the max default buffer size of %d bytes\n"),
+		       combined_length, FILE_BUFFER_LEN);
+		abort();
+	}
+
+	strcpy(full_path,root_dir_path);
+	full_path[root_dir_len] = '/';
+	strcpy(full_path+(root_dir_len+1),path);
+
+	// finally, read the file!
+	FILE *fp = fopen(full_path,mode);
+	if (fp == NULL){
+		printf("Could not find file %s\n", full_path);
+	}
+	return fp;
 }
 
 int getArrayLength(FILE *fp, int object_size){
@@ -50,13 +87,8 @@ int readDoubleArray(char *fileName, int system_little_endian, double **array){
 	 */
 
 	FILE *fp;
-	
 
-	fp = fopen(fileName,"rb");
-	if (fp == NULL){
-		printf("Could not find file %s\n", fileName);
-		return -1;
-	}
+	fp = openTestFile(fileName, "rb");
 
 	int length = getArrayLength(fp, sizeof(double));
 	if (length < 0){
@@ -146,7 +178,7 @@ int process_double_array_test(struct dblArrayTestEntry entry, double tol,
 	double *ref = NULL;
 	int ref_len;
 
-	if (isLittleEndian() != 1){
+	if (IsLittleEndian() != 1){
 		ck_abort_msg(("Currently unable to run test on Big Endian "
 			      "machine.\n"));
 	}

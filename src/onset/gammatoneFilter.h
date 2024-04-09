@@ -1,6 +1,6 @@
-void biquadFilter(double *coef, double *x, double *y, int length);
+void biquadFilter(double *coef, const double *x, double *y, int length);
 
-void cascadeBiquad(int num_stages, double *coef, double *x, double *y,
+void cascadeBiquad(int num_stages, double *coef, const double *x, double *y,
 		   int length);
 
 /// The sosGammatone is an IIR approximation for the gammatone filter.
@@ -57,9 +57,9 @@ void cascadeBiquad(int num_stages, double *coef, double *x, double *y,
 /// Lyon (1996) also discuses how the One-Zero Gammatone Filter (OZGF) which is
 /// slightly modified from the APGF and is supposed to be a slightly better
 /// approximation for a gammatone.
-void sosGammatone(float* data, float* output, float centralFreq,
+void sosGammatone(const float* data, float* output, float centralFreq,
 		  int samplerate, int datalen);
-void sosGammatoneHelper(double* data, double* output, float centralFreq,
+void sosGammatoneHelper(const double* data, double* output, float centralFreq,
 			int samplerate, int datalen);
 
 void sosCoef(float centralFreq, int samplerate, double *coef);
@@ -68,5 +68,5 @@ void sosCoef(float centralFreq, int samplerate, double *coef);
 /// A faster implementation of sosGammatone that performs all operations with
 /// floats and does not resample. See the documentation for sosGammatone for
 /// additional information.
-void sosGammatoneFast(float* data, float* output, float centralFreq,
+void sosGammatoneFast(const float* data, float* output, float centralFreq,
 		      int samplerate, int datalen);
