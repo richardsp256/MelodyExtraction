@@ -450,7 +450,7 @@ def compute_detection_function(audio_data, sample_rate,
                                            sample_rate, audio_data.size,
                                            audio_data, det_func.size,
                                            det_func)
-    if result != 1:
+    if result != 0:
         raise RuntimeError("Something went wrong")
     return det_func,interval
 
