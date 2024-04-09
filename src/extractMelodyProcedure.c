@@ -8,25 +8,35 @@
 
 #include "extractMelodyProcedure.h"
 #include "pitch/pitchStrat.h"
-#include "onset/onsetStrat.h"
+#include "transient/transient.h"
 #include "stft.h"
 #include "midi.h"
 #include "silenceStrat.h"
 #include "winSampleConv.h"
 #include "noteCompilation.h"
 #include "tuningAdjustment.h"
+#include "errors.h"
+
+static int dummy_exit_code = 0; // no code should depend on this value
 
 struct Midi* ExtractMelody(float** input, audioInfo info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
-		int o_unpaddedSize, int o_winSize, int o_winInt, OnsetStrategyFunc onsetStrategy,
 		int s_winSize, int s_winInt, int s_mode, SilenceStrategyFunc silenceStrategy,
-		int hpsOvr, int tuning, int verbose, char* prefix)
+		int hpsOvr, int tuning, int verbose, char* prefix,
+		int *exit_code)
 {
+	// if exit code is NULL, set it equal to the local static variable
+	// dummy_exit_code. While this won't actually give the caller any
+	// information, it makes handling this scenario easier.
+	if (exit_code == NULL){
+		exit_code = &dummy_exit_code;
+	}
+	// initialize it to general error, in case we forget to set it
+	*exit_code = ME_ERROR;
 
 	if(verbose){
 		printf("ARGS:\n");
 		printf("p_unpad %d,  p_win %d,  p_int %d\n", p_unpaddedSize, p_winSize, p_winInt);
-		printf("o_unpad %d,  o_win %d,  o_int %d\n", o_unpaddedSize, o_winSize, o_winInt);
 		printf("s_win %d,  s_int %d,  s_mode %d\n", s_winSize, s_winInt, s_mode);
 		printf("hps %d,  tuning %d,  verbose %d,  prefix %s\n", hpsOvr, tuning, verbose, prefix);
 	}
@@ -34,12 +44,12 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	int *activityRanges = NULL;
 	int a_size = ExtractSilence(input, &activityRanges, info, s_winSize,
 				    s_winInt, s_mode, silenceStrategy);
-	if(a_size == -1){
+	if(a_size < 0){
+		*exit_code = a_size;
 		printf("Silence detection failed\n");
 		fflush(NULL);
 		return NULL;
-	}
-	if(verbose){
+	} else if(verbose){
 		printf("Silence detection complete\n");
 		fflush(NULL);
 	}
@@ -50,6 +60,7 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 					       p_winInt, pitchStrategy,
 					       hpsOvr, verbose, prefix);
 	if(freqSize <=0 ){
+		*exit_code = (freqSize < 0) ? freqSize : ME_ERROR;
 		printf("Pitch detection failed\n");
 		fflush(NULL);
 		free(activityRanges);
@@ -65,30 +76,19 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 
 	// Make onsets an intList
 	//    - initial size is 20 (might want something different
-	intList* onsets = intListCreate(20);
+	intList* transients = intListCreate(20);
 
-
-	// Commenting the following out was part of a quick and dirty solution
-	// to call the TransientDetectionStrategy. To call this strategy, more
-	// correctly (via ExtractOnset), will require some refactoring of the
-	// ExtractOnset function. We need to make the onsetStrategy take it's
-	// own Short Time Fourier Transform, if necessary. Also the
-	// onsetStrategy should probably indicate whether or not offsets are in
-	// the output
-	//int o_size = ExtractOnset(input, &onsets, info, o_unpaddedSize, o_winSize, o_winInt, 
-	//             onsetStrategy, verbose);
-
-	int o_size = TransientDetectionStrategy(input, info.frames, 0,
-						info.samplerate, onsets);
-	if(o_size == -1){
+	int t_size = DetectTransientsFromResampled(*input, info.frames,
+						   info.samplerate, transients);
+	if(t_size <= 0){
+		*exit_code = (t_size < 0) ? t_size : ME_ERROR;
 		printf("Onset detection failed\n");
 		fflush(NULL);
 		free(activityRanges);
 		free(freq);
-		intListDestroy(onsets);
+		intListDestroy(transients);
 		return NULL;
-	}
-	if(verbose){
+	} else if(verbose){
 		printf("Onset detection complete\n");
 		fflush(NULL);
 	}
@@ -97,20 +97,21 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	int *noteRanges = NULL;
 	float *noteFreq = NULL;
 	int num_notes = ConstructNotes(&noteRanges, &noteFreq, freq,
-				     freqSize, onsets, o_size, activityRanges,
+				     freqSize, transients, t_size, activityRanges,
 				     a_size, info, p_unpaddedSize, p_winInt);
 
 	free(activityRanges);
 	free(freq);
-	intListDestroy(onsets);
+	intListDestroy(transients);
 
-	if(num_notes == -1){
-		printf("Construct notes failed!\n");
-		fflush(NULL);
-		return NULL;
-	}
-	else if(num_notes == 0){
-		printf("No notes detected.\n");
+	if(num_notes <= 0){
+		if (num_notes == 0){
+			*exit_code = ME_ERROR;
+			printf("No notes detected.\n");
+		} else {
+			*exit_code = num_notes;
+			printf("Construct notes failed!\n");
+		}
 		fflush(NULL);
 		return NULL;
 	}
@@ -118,6 +119,7 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 
 	int* melodyMidi = malloc(sizeof(int) * num_notes);
 	if(melodyMidi == NULL){
+		*exit_code = ME_MALLOC_FAILURE;
 		printf("malloc failed\n");
 		fflush(NULL);
 		free(noteRanges);
@@ -125,7 +127,8 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 		return NULL;
 	}
 	int tmp = FrequenciesToNotes(noteFreq, num_notes, &melodyMidi, tuning);
-	if(tmp == -1){
+	if(tmp <= 0){
+		*exit_code = (tmp < 0) ? tmp : ME_ERROR;
 		printf("freqToNote failed\n");
 		fflush(NULL);
 		free(noteRanges);
@@ -144,28 +147,12 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 		free(noteFile);
 	}
 
-	char* noteName = calloc(5, sizeof(char));
-	printf("Detected %d Notes:\n", num_notes);
-	for(int i =0; i<num_notes; i++){
-		NoteToName(melodyMidi[i], &noteName);
-		printf("%d - %d,   ", noteRanges[2*i], noteRanges[2*i+1]);
-		printf("%d ms - %d ms,   ", 
-			(int)(noteRanges[2*i] * (1000.0/info.samplerate)),
-		    (int)(noteRanges[2*i+1] * (1000.0/info.samplerate)));
-		printf("%.2f hz,   ", noteFreq[i]);
-		printf("%.2f,   ", FrequencyToFractionalNote(noteFreq[i]));
-		printf("%d,   ", melodyMidi[i]);
-		printf("%s\n", noteName);
-	}
+	PrintDetectionSummary(info, noteRanges, noteFreq, melodyMidi,
+			      num_notes);
 
-	free(noteName);
 	free(noteFreq);
-	
+
 	//get midi note values of pitch in each bin
-
-	printf("printout complete\n");
-	fflush(NULL);
-
 	struct Midi* midi = GenerateMIDIFromNotes(melodyMidi, noteRanges,
 				     num_notes, info.samplerate, verbose);
 
@@ -173,11 +160,13 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 	free(melodyMidi);
 
 	if(midi == NULL){
+		*exit_code = ME_ERROR;
 		printf("Midi generation failed\n");
 		fflush(NULL);
 		return NULL;
 	}
 
+	*exit_code = ME_SUCCESS;
 	return midi;
 }
 
@@ -200,48 +189,40 @@ int ExtractPitch(float* input, float* pitches, audioInfo info,
 		int p_unpaddedSize, int p_winSize, int p_winInt, PitchStrategyFunc pitchStrategy,
 		int hpsOvr, int verbose, char* prefix)
 {
-	fftwf_complex* p_fftData = NULL;
-	int p_size = STFT_r2c(&input, info, p_unpaddedSize, p_winSize, p_winInt, &p_fftData);
-	if(p_size == -1){
+	// todo: rename p_winSize -> p_paddedFFTSize
+	//       rename p_unpaddedSize -> p_unpaddedWinSize
+	//         - in the latter case, p_winSize would probably be even better
+	if ((p_winSize % 2) == 1){
+		// The frequency calculations in the pitch detection algorithms
+		// almost certainly can't handle this case correctly
+		printf("currently not allowed to use an odd paddedFFTSize\n");
 		return -1;
 	}
+
 	int p_numBlocks = NumSTFTBlocks(info, p_unpaddedSize, p_winInt);
-	if(verbose){
-		printf("numblcks of pitch FFT: %d\n", p_numBlocks);
+	float* spectra = NULL; // todo: preallocate memory to hold the spectra
+	int p_size = CalcSpectrogram(input, info, p_unpaddedSize, p_winSize,
+				     p_winInt, &spectra);
+	if (p_size <= 0) {
+		printf("There was a problem with computing the spectrogram\n");
 		fflush(NULL);
-	}
-
-	float* spectrum = Magnitude(p_fftData, p_size);
-	if(spectrum == NULL){
-		printf("Magnitude failed\n");
-		fflush(NULL);
-		free(p_fftData);
 		return -1;
-	}
-	if(verbose){
-		printf("Magnitude complete\n");
+	} else if (verbose) {
+		printf("Calculation of spectrogram is complete\n"
+		       "-> it involved %d FFT(s)\n", p_numBlocks);
 		fflush(NULL);
 	}
-
-	//double* output = NULL;
-	//STFTinverse(&p_fftData, info, winSize, p_winInt, &output);
-	//if(verbose){
-	//	printf("STFTInverse complete\n");
-	//}
-	free(p_fftData);
-	//SaveAsWav(output, info, stftInverse.wav);
-	//free( output );
 
 	if (prefix !=NULL){
 		// Here we save the original spectra
 		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
 		strcpy(spectraFile,prefix);
 		strcat(spectraFile,"_original.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
+		SaveWeightsTxt(spectraFile, &spectra, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
 		free(spectraFile);
 	}
 
-	int result = pitchStrategy(spectrum, p_size, p_winSize/2, hpsOvr,
+	int result = pitchStrategy(spectra, p_size, p_winSize/2, hpsOvr,
 				   p_winSize, info.samplerate, pitches);
 	if(result <= 0){
 		return result;
@@ -252,7 +233,7 @@ int ExtractPitch(float* input, float* pitches, audioInfo info,
 		char *spectraFile = malloc(sizeof(char) * (strlen(prefix)+14));
 		strcpy(spectraFile,prefix);
 		strcat(spectraFile,"_weighted.txt");
-		SaveWeightsTxt(spectraFile, &spectrum, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
+		SaveWeightsTxt(spectraFile, &spectra, p_size, p_winSize/2, info.samplerate, p_unpaddedSize, p_winSize);
 		free(spectraFile);
 	}
 
@@ -278,50 +259,6 @@ int ExtractSilence(float** input, int** activityRanges, audioInfo info,
 	}
 
 	return a_size;
-}
-
-int ExtractOnset(float** input, intList* onsets, audioInfo info,
-		 int o_unpaddedSize, int o_winSize, int o_winInt,
-		 OnsetStrategyFunc onsetStrategy, int verbose)
-{
-	fftwf_complex* o_fftData = NULL;
-	int o_fftData_size = STFT_r2c(input, info, o_unpaddedSize, o_winSize,
-				      o_winInt, &o_fftData);
-	if(o_fftData_size == -1){
-		return -1;
-	}
-	int o_numBlocks = o_fftData_size/(o_winSize/2);
-	if(verbose){
-		printf("numblcks of onset FFT: %d\n", o_numBlocks);
-		fflush(NULL);
-	}
-	float* o_fftData_float = (float*)o_fftData;
-	// because we convert from complex* to float*, o_fftData has twice as
-	// many elements
-	o_fftData_size *= 2; 
-
-	int o_size = onsetStrategy(&o_fftData_float, o_fftData_size,
-				   o_winSize, info.samplerate, onsets);
-	//printf("o_strat return size: %d\n", o_size);
-	free(o_fftData);
-
-	if(o_size == -1){
-		return -1;
-	}
-
-	// convert onsets so that the value is not which block of o_fftData it
-	// occurred, but which sample of the original audio it occurred
-	int* o_arr = onsets->array;
-	for (int i = 0; i < onsets->length; i++){
-		o_arr[i] = winStartRepSampleIndex(o_winInt, o_unpaddedSize,
-						  info.frames, o_arr[i]);
-		printf("onset at sample: %d, time: %d, and block: %d\n",
-		       o_arr[i], (int)(o_arr[i] * (1000.0/info.samplerate)),
-		       repWinIndex(o_winInt, o_unpaddedSize, info.frames,
-				   o_arr[i]));
-	}
-
-	return o_size;
 }
 
 int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
@@ -427,6 +364,43 @@ int FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi, int tuning)
 	}
 
 	return num_notes;
+}
+
+void PrintDetectionSummary(audioInfo info, const int * noteRanges,
+			   const float * noteFreq, const int * melodyMidi,
+			   int num_notes)
+{
+	printf("Detected %d Notes. Printing Summary:\n", num_notes);
+	// It would be better if this were somewhat adaptive
+
+	const char * hdr[6][2] = { {"Start - Stop ", "(samples) "},
+				   {"Start - Stop ", "(nearest ms) "},
+				   {"Frequency", "(Hz)"},
+				   {"Raw MIDI", "Pitch"},
+				   {"Final", "Pitch"},
+				   {"Pitch", "Name"} };
+	const char* hdr_template = "%18s|%17s|%9s|%8s|%5s|%5s\n";
+	printf(hdr_template, hdr[0][0], hdr[1][0], hdr[2][0], hdr[3][0],
+	       hdr[4][0], hdr[5][0]);
+	printf(hdr_template, hdr[0][1], hdr[1][1], hdr[2][1], hdr[3][1],
+	       hdr[4][1], hdr[5][1]);
+	printf("==================+=================+=========+========+=====+=====\n");
+
+	for(int i =0; i<num_notes; i++){
+		printf("%7d - %7d | ", noteRanges[2*i], noteRanges[2*i+1]);
+		int start_ms = (int)(noteRanges[2*i] *
+				     (1000.0/info.samplerate) + 0.5);
+		int stop_ms = (int)(noteRanges[2*i+1] *
+				    (1000.0/info.samplerate) + 0.5);
+		printf("%6d - %6d | ", start_ms, stop_ms);
+		printf("%7.2f | ", noteFreq[i]);
+		printf("%6.2f | ", FrequencyToFractionalNote(noteFreq[i]));
+		printf("%3d | ", melodyMidi[i]);
+		char noteName[5];
+		NoteToName(melodyMidi[i], noteName);
+		printf("%s\n", noteName);
+	}
+
 }
 
 void SaveWeightsTxt(char* fileName, float** AudioData, int size, int dftBlocksize, int samplerate, int unpaddedSize, int winSize){
