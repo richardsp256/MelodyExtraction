@@ -144,28 +144,12 @@ struct Midi* ExtractMelody(float** input, audioInfo info,
 		free(noteFile);
 	}
 
-	char* noteName = calloc(5, sizeof(char));
-	printf("Detected %d Notes:\n", num_notes);
-	for(int i =0; i<num_notes; i++){
-		NoteToName(melodyMidi[i], &noteName);
-		printf("%d - %d,   ", noteRanges[2*i], noteRanges[2*i+1]);
-		printf("%d ms - %d ms,   ", 
-			(int)(noteRanges[2*i] * (1000.0/info.samplerate)),
-		    (int)(noteRanges[2*i+1] * (1000.0/info.samplerate)));
-		printf("%.2f hz,   ", noteFreq[i]);
-		printf("%.2f,   ", FrequencyToFractionalNote(noteFreq[i]));
-		printf("%d,   ", melodyMidi[i]);
-		printf("%s\n", noteName);
-	}
+	PrintDetectionSummary(info, noteRanges, noteFreq, melodyMidi,
+			      num_notes);
 
-	free(noteName);
 	free(noteFreq);
-	
+
 	//get midi note values of pitch in each bin
-
-	printf("printout complete\n");
-	fflush(NULL);
-
 	struct Midi* midi = GenerateMIDIFromNotes(melodyMidi, noteRanges,
 				     num_notes, info.samplerate, verbose);
 
@@ -427,6 +411,43 @@ int FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi, int tuning)
 	}
 
 	return num_notes;
+}
+
+void PrintDetectionSummary(audioInfo info, const int * noteRanges,
+			   const float * noteFreq, const int * melodyMidi,
+			   int num_notes)
+{
+	printf("Detected %d Notes. Printing Summary:\n", num_notes);
+	// It would be better if this were somewhat adaptive
+
+	const char * hdr[6][2] = { {"Start - Stop ", "(samples) "},
+				   {"Start - Stop ", "(nearest ms) "},
+				   {"Frequency", "(Hz)"},
+				   {"Raw MIDI", "Pitch"},
+				   {"Final", "Pitch"},
+				   {"Pitch", "Name"} };
+	const char* hdr_template = "%18s|%17s|%9s|%8s|%5s|%5s\n";
+	printf(hdr_template, hdr[0][0], hdr[1][0], hdr[2][0], hdr[3][0],
+	       hdr[4][0], hdr[5][0]);
+	printf(hdr_template, hdr[0][1], hdr[1][1], hdr[2][1], hdr[3][1],
+	       hdr[4][1], hdr[5][1]);
+	printf("==================+=================+=========+========+=====+=====\n");
+
+	for(int i =0; i<num_notes; i++){
+		printf("%7d - %7d | ", noteRanges[2*i], noteRanges[2*i+1]);
+		int start_ms = (int)(noteRanges[2*i] *
+				     (1000.0/info.samplerate) + 0.5);
+		int stop_ms = (int)(noteRanges[2*i+1] *
+				    (1000.0/info.samplerate) + 0.5);
+		printf("%6d - %6d | ", start_ms, stop_ms);
+		printf("%7.2f | ", noteFreq[i]);
+		printf("%6.2f | ", FrequencyToFractionalNote(noteFreq[i]));
+		printf("%3d | ", melodyMidi[i]);
+		char noteName[5];
+		NoteToName(melodyMidi[i], noteName);
+		printf("%s\n", noteName);
+	}
+
 }
 
 void SaveWeightsTxt(char* fileName, float** AudioData, int size, int dftBlocksize, int samplerate, int unpaddedSize, int winSize){

@@ -76,6 +76,10 @@ int ConstructNotes(int** noteRanges, float** noteFreq, float* pitches,
 		   int* activityRanges, int aR_size, audioInfo info,
 		   int p_unpaddedSize, int p_winInt);
 int FrequenciesToNotes(float* freq, int num_notes, int**melodyMidi, int tuning);
+
+void PrintDetectionSummary(audioInfo info, const int * noteRanges,
+			   const float * noteFreq, const int * melodyMidi,
+			   int num_notes);
 void SaveWeightsTxt(char* fileName, float** AudioData, int size, int dftBlocksize, int samplerate, int unpaddedSize, int winSize);
 void SaveNotesTxt(char* fileName, int* noteRanges, int* notePitches,
 		  int nP_size, int samplerate);
