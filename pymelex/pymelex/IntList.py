@@ -103,7 +103,7 @@ class IntList(collections.abc.MutableSequence):
     def append(self, val):
         self._check_val_type(val)
         temp = intListAppend(self._struct_ptr,val)
-        if temp == 0:
+        if temp != 0:
             raise MemoryError()
 
     # Need these methods to make this into a Mutable Sequence

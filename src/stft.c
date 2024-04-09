@@ -25,7 +25,7 @@ int NumSTFTBlocks(audioInfo info, int unpaddedSize, int interval)
 	return numBlocks;
 }
 
-float* Magnitude(fftwf_complex* arr, int size)
+float* Magnitude(const fftwf_complex* arr, int size)
 {
 	int i;
 	float* magArr = malloc( sizeof(float) * size);
@@ -38,68 +38,66 @@ float* Magnitude(fftwf_complex* arr, int size)
 }
 
 //reads in .wav, returns FFT by reference through fft_data, returns size of fft_data
-int STFT_r2c(float** input, audioInfo info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data)
+int STFT_r2c(const float* input, audioInfo info, int unpaddedSize, int winSize, int interval, fftwf_complex** fft_data)
 {
 	//printf("\n\ninput size %ld\nsamplerate %d\nunpadded %d\npadded %d\ninterval %d\n", info.frames, info.samplerate, unpaddedSize, winSize, interval);
 	//fflush(NULL);
-    int i;
-    int j;
 
-    //malloc space for result fft_data
-	int numBlocks = NumSTFTBlocks(info, unpaddedSize, interval);
+	//malloc space for result fft_data
+	const int numBlocks = NumSTFTBlocks(info, unpaddedSize, interval);
 	//printf("numblocks %d\n", numBlocks);
 	//fflush(NULL);
 
 	//allocate winSize/2 for each block, taking the real component 
 	//and dropping the symetrical component and nyquist frequency.
-	int realWinSize = winSize/2;
+	const int realWinSize = winSize/2;
 
-    (*fft_data) = malloc( sizeof(fftwf_complex) * numBlocks * realWinSize );
-    if((*fft_data) == NULL){
-    	printf("malloc failed\n");
+	(*fft_data) = malloc( sizeof(fftwf_complex) * numBlocks * realWinSize );
+	if((*fft_data) == NULL){
+		printf("malloc failed\n");
 		return -1;
-    }
+	}
 
-    //set up fftw plan
-    float* fftw_in = fftwf_malloc( sizeof( float ) * winSize);
-    fftwf_complex* fftw_out = fftwf_malloc( sizeof( fftwf_complex ) * winSize );
-    fftwf_plan plan  = fftwf_plan_dft_r2c_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
+	//set up fftw plan
+	float* fftw_in = fftwf_malloc( sizeof( float ) * winSize);
+	fftwf_complex* fftw_out = fftwf_malloc( sizeof( fftwf_complex ) * winSize );
+	fftwf_plan plan  = fftwf_plan_dft_r2c_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
 
-    float* window = WindowFunction(winSize);
-    if(window == NULL){
-    	printf("windowFunc error\n");
-    	fflush(NULL);
-    	free((*fft_data));
-    	fftwf_destroy_plan( plan );
+	float* window = WindowFunction(winSize);
+	if (window == NULL){
+		printf("windowFunc error\n");
+		fflush(NULL);
+		free((*fft_data));
+		fftwf_destroy_plan( plan );
 		fftwf_free( fftw_in );
 		fftwf_free( fftw_out );
 		return -1;
-    }
+	}
 
  	//printf("resultsize %ld\nresultWinSize %d\n", sizeof(fftwf_complex) * numBlocks * realWinSize, realWinSize);
 	//fflush(NULL);
-	int blockoffset;
-    //run fft on each block
-    for(i = 0; i < numBlocks; i++){
-		// Copy the chunk into our buffer
-		blockoffset = i*interval;
-		for(j = 0; j < winSize; j++) {
 
-			if(j < unpaddedSize && blockoffset + j < info.frames) {
-				fftw_in[j] = (*input)[blockoffset + j] * window[j]; 
+	//run fft on each block
+	for(int i = 0; i < numBlocks; i++){
+		// Copy the chunk into our buffer
+		int blockoffset = i*interval;
+		for(int j = 0; j < winSize; j++) {
+
+			if (j < unpaddedSize && blockoffset + j < info.frames) {
+				fftw_in[j] = input[blockoffset + j] * window[j];
 			} else {
 				//reached end of non-padded input
 				//Pad the rest with 0
-				fftw_in[j] = 0.0; 
+				fftw_in[j] = 0.0;
 			}
 		}
 
 		fftwf_execute( plan );
 
-		for (j = 0; j < realWinSize; j++) {
+		for (int j = 0; j < realWinSize; j++) {
 			(*fft_data)[i*realWinSize + j][0] = fftw_out[j][0];
 			(*fft_data)[i*realWinSize + j][1] = fftw_out[j][1];
-		}	
+		}
 	}
 
 
@@ -111,56 +109,49 @@ int STFT_r2c(float** input, audioInfo info, int unpaddedSize, int winSize, int i
 	return numBlocks * realWinSize;
 }
 
-int STFTinverse_c2r(fftwf_complex** input, audioInfo info, int winSize, int interval, float** output)
+int STFTinverse_c2r(const fftwf_complex* input, audioInfo info, int winSize, int interval, float** output)
 {
 	//length of input is numBlocks * (winSize/2 + 1)
-    int i;
-    int j;
-	int inputoffset;
-	int outputoffset;
 
-    fftwf_complex* fftw_in = fftwf_malloc( sizeof( fftwf_complex ) * winSize );
+	fftwf_complex* fftw_in = fftwf_malloc( sizeof( fftwf_complex ) * winSize );
 	float* fftw_out = fftwf_malloc( sizeof( float ) * winSize );
 
-    fftwf_plan plan  = fftwf_plan_dft_c2r_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
+	fftwf_plan plan  = fftwf_plan_dft_c2r_1d( winSize, fftw_in, fftw_out, FFTW_MEASURE );
 
-    //float* window = WindowFunction(winSize+1);
-
- 	//malloc space for output
-    (*output) = calloc( info.frames, sizeof(float));
-        if((*output) == NULL){
-    	printf("malloc failed\n");
-    	//free(window);
+	//malloc space for output
+	(*output) = calloc( info.frames, sizeof(float));
+	if((*output) == NULL){
+		printf("malloc failed\n");
 		fftwf_destroy_plan( plan );
 		fftwf_free( fftw_in );
 		fftwf_free( fftw_out );
 		return -1;
-    }
+	}
 
 	int numBlocks = (int)ceil((info.frames - winSize) / (float)interval) + 1;
 	if(numBlocks < 1){
 		numBlocks = 1;
 	}
 
-    //run fft on each block
-    for(i = 0; i < numBlocks; i++){
+	//run fft on each block
+	for(int i = 0; i < numBlocks; i++){
 
 		// Copy the chunk into our buffer
-		inputoffset = i*(winSize/2 + 1);
-		for(j = 0; j < winSize/2 + 1; j++) {
-			fftw_in[j][0] = (*input)[inputoffset + j][0]; 
-			fftw_in[j][1] = (*input)[inputoffset + j][1]; 
+		const int inputoffset = i*(winSize/2 + 1);
+		for (int j = 0; j < winSize/2 + 1; j++) {
+			fftw_in[j][0] = input[inputoffset + j][0];
+			fftw_in[j][1] = input[inputoffset + j][1];
 		}
 
 		fftwf_execute( plan );
 
-		outputoffset = i*interval;
+		const int outputoffset = i*interval;
 
-		for (j = 0; j < winSize; j++) {
-			if(outputoffset + j < info.frames) {
+		for (int j = 0; j < winSize; j++) {
+			if (outputoffset + j < info.frames) {
 				(*output)[outputoffset + j] += fftw_out[j] / (float)((winSize*winSize)/interval);
 			}
-		}	
+		}
 	}
 
 	fftwf_destroy_plan( plan );
