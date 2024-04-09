@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <check.h>
-#include "../src/simpleDetFunc.h"
+#include "../src/onset/simpleDetFunc.h"
 #include "doubleArrayTesting.h"
 
 void float_to_double_array(float* array, int length, double** dblarray){

@@ -6,9 +6,9 @@
 #include <math.h>
 #include <float.h>
 #include "onsetsds.h"
-#include "resample.h"
+#include "../resample.h"
 #include "onsetStrat.h"
-#include "testOnset.h"
+#include "pairTransientDetection.h"
 #include "simpleDetFunc.h"
 
 OnsetStrategyFunc chooseOnsetStrategy(char* name){

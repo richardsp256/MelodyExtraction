@@ -5,9 +5,9 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "comparison.h"
-#include "pitchStrat.h"
-#include "onsetStrat.h"
+#include "extractMelodyProcedure.h"
+#include "pitch/pitchStrat.h"
+#include "onset/onsetStrat.h"
 #include "silenceStrat.h"
 
 

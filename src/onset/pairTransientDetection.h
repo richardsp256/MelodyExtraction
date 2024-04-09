@@ -1,4 +1,4 @@
-#include "lists.h"
+#include "../lists.h"
 
 //might make sense to rename the file
 

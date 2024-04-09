@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <check.h>
-#include "../src/gammatoneFilter.h"
+#include "../src/onset/gammatoneFilter.h"
 #include "doubleArrayTesting.h"
 
 

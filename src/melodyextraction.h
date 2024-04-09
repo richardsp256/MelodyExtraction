@@ -6,8 +6,8 @@
 
 
 #include <stdint.h> // for int64_t
-#include "pitchStrat.h"
-#include "onsetStrat.h"
+#include "pitch/pitchStrat.h"
+#include "onset/onsetStrat.h"
 #include "silenceStrat.h"
 
 // the following is included so we can handle the basics of midi files

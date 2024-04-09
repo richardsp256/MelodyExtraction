@@ -6,11 +6,11 @@
 #include <assert.h>
 #include <string.h>
 
-#include "comparison.h"
+#include "extractMelodyProcedure.h"
+#include "pitch/pitchStrat.h"
+#include "onset/onsetStrat.h"
 #include "stft.h"
 #include "midi.h"
-#include "pitchStrat.h"
-#include "onsetStrat.h"
 #include "silenceStrat.h"
 #include "winSampleConv.h"
 #include "noteCompilation.h"

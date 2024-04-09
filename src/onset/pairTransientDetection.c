@@ -8,7 +8,7 @@
 #include <math.h>
 #include <float.h>
 
-#include "testOnset.h"
+#include "pairTransientDetection.h"
 #include "simpleDetFunc.h"
 
 //wmin set to 4 (20ms)

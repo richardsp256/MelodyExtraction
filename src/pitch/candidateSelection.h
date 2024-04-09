@@ -1,4 +1,4 @@
-#include "lists.h"
+#include "../lists.h"
 
 float costFunction(struct distinctCandidate cand1,
 		   struct distinctCandidate cand2);

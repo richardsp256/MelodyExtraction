@@ -3,7 +3,7 @@
 #include <math.h>
 #include <time.h>
 #include <assert.h>
-#include "resample.h"
+#include "../resample.h"
 
 
 

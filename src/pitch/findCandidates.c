@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include "lists.h"
+#include "../lists.h"
 #include "findCandidates.h"
 
 // https://stackoverflow.com/questions/6514651/declare-large-global-array
