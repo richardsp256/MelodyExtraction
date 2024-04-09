@@ -31,7 +31,7 @@ int msToFrames(int ms, int samplerate){
 int numParser(char* buf, int* num){
 	// returns 1 if buffer is in units of ms. Otherwise returns 0
 	char* endptr;
-	    *num = 0;
+	*num = 0;
 	long longnum = strtol(buf, &endptr, 10);
 	if (endptr == buf){
 		return 0;
@@ -306,19 +306,19 @@ void me_settings_free(struct me_settings* inst)
 	free(inst);
 }
 
-struct Midi* me_process(float **input, audioInfo info, struct me_data *inst)
+struct Midi* me_process(float *input, audioInfo info, struct me_data *inst,
+			int * exit_code)
 {
-	struct Midi* midi = NULL;
-	
-	midi = ExtractMelody(input, info, 
-			inst->pitch_window, inst->pitch_padded, 
-			inst->pitch_spacing, inst->pitch_strategy,
-			inst->onset_window, inst->onset_padded, 
-			inst->onset_spacing, inst->onset_strategy,
-			inst->silence_window, inst->silence_spacing, 
-			inst->silence_mode, inst->silence_strategy,
-			inst->hps, inst->tuning, 
-			inst->verbose, inst->prefix);
+	struct Midi* midi = ExtractMelody(
+		&input, info,
+		inst->pitch_window, inst->pitch_padded,
+		inst->pitch_spacing, inst->pitch_strategy,
+		inst->onset_window, inst->onset_padded,
+		inst->onset_spacing, inst->onset_strategy,
+		inst->silence_window, inst->silence_spacing,
+		inst->silence_mode, inst->silence_strategy,
+		inst->hps, inst->tuning, inst->verbose, inst->prefix,
+		exit_code);
 
 	return midi;
 }

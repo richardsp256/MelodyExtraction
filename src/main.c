@@ -164,19 +164,23 @@ int main(int argc, char ** argv)
 		audioInfo info;
 
 		float* input;
-		if (!ReadAudioFile(inFile, &input, &info, settings->verbose)){
-			return 0;
+		int exit_code = ReadAudioFile(inFile, &input, &info,
+					      settings->verbose);
+		if (exit_code != 0){
+			printf("Error while reading audio from %s\n",
+			       inFile);
+			printf("Error msg: %s\n", me_strerror(exit_code));
+			exit(EXIT_FAILURE);
 		}
 
 		struct me_data *inst;
 		char* err = me_data_init(&inst, settings, info);
-		//printf("is ther error?: %s\n", err);
 		//printf("val of inst: %d  %d  %d\n", inst, &inst, *inst);
 		if(inst == NULL){
 			printf("error initializing me_data: %s\n", err);
 			me_settings_free(settings);
 			free(input);
-			return 0;
+			exit(EXIT_FAILURE);
 		}
 
 		//printf("%d  %d  %d\n", inst->pitch_window, inst->pitch_padded, inst->pitch_spacing);
@@ -184,18 +188,35 @@ int main(int argc, char ** argv)
 		//printf("%d  %d  %d\n", inst->silence_window, inst->silence_mode, inst->silence_spacing);
 		//printf("%d  %d  %d\n", inst->hps, inst->tuning, inst->verbose);
 
-		struct Midi* midi  = me_process(&input, info, inst);
+		struct Midi* midi = me_process(input, info, inst, &exit_code);
 
 		me_settings_free(settings);
 		me_data_free(inst);
-
 		free(input);
 
-		if(midi == NULL){ //extractMelody error, or no notes found.
-			return 0;
+		if ((midi == NULL) || (exit_code != 0)){
+			if (exit_code == 0){
+				printf("Unexpected behavior: exit_code indicates success and output is NULL\n");
+				exit(EXIT_FAILURE);
+			}
+
+			const char * msg = me_strerror(exit_code);
+			if (msg == NULL){
+				printf("Unexpected exit code: %d\n", exit_code);
+			} else {
+				printf("Error Msg: %s\n",msg);
+			}
+
+			if (midi != NULL){
+				printf("Unexpected Behavior: midi data is not NULL\n");
+			}
+			exit(EXIT_FAILURE);
 		}
 
-		SaveMIDI(midi, outFile, 1);
+		if (SaveMIDI(midi, outFile, 1)){
+			printf("Error writing midi to %s\n", outFile);
+			exit(EXIT_FAILURE);
+		}
 		freeMidi(midi);
 	}
 	

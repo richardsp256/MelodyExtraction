@@ -4,6 +4,7 @@
 #include <time.h>
 #include <assert.h>
 #include "../resample.h"
+#include "../errors.h"
 
 
 
@@ -33,7 +34,7 @@
  * Probably need to be check for overflows and underflows - since this is 
  * recursive it could screw up a lot.
  */
-void biquadFilter(double *coef, double *x, double *y, int length)
+void biquadFilter(double *coef, const double *x, double *y, int length)
 {
 	double d1, d2, cur_x, cur_y, a0,a1,a2,b0,b1,b2;
 	int n;
@@ -87,7 +88,7 @@ void biquadFilter(double *coef, double *x, double *y, int length)
  * again, if processing audio in chunks, we will need to keep track of the 
  * state variables between function calls.
  */
-void cascadeBiquad(int num_stages, double *coef, double *x, double *y,
+void cascadeBiquad(int num_stages, double *coef, const double *x, double *y,
 		   int length)
 {
 	/* run the filter the first time to produce y */
@@ -181,8 +182,8 @@ void sosCoef(float centralFreq, int samplerate, double *coef)
  * It is maintained separately for testing. It does not upsample, downsample, 
  * or convert two and from floats 
  */
-void sosGammatoneHelper(double* data, double* output, float centralFreq,
-			    int samplerate, int datalen)
+void sosGammatoneHelper(const double* data, double* output, float centralFreq,
+			int samplerate, int datalen)
 {
 	double coef[24];
 	sosCoef(centralFreq, samplerate, coef);
@@ -190,23 +191,29 @@ void sosGammatoneHelper(double* data, double* output, float centralFreq,
 }
 
 
-void sosGammatone(float* data, float* output, float centralFreq,
-		  int samplerate, int datalen)
+int sosGammatone(const float* data, float* output, float centralFreq,
+		 int samplerate, int datalen)
 {
 	double *ddoubled, *dresult;
 	float *fdoubled, *fresult;
 	int doubled_length,result_length,i;
 	// first we do data doubling - to avoid aliasing
 	fdoubled = NULL;
-	doubled_length = ResampleAndAlloc(&data, datalen, 2, &fdoubled);
-	if (doubled_length == (2*datalen-1)){
+	doubled_length = ResampleAndAlloc(data, datalen, 2, &fdoubled);
+	if (doubled_length <0){ // negative values encode errors
+		return doubled_length;
+	} else if (doubled_length != (2*datalen)){
+		assert(doubled_length == (2*datalen-1));
 		fdoubled[doubled_length] = 0;
 		doubled_length++;
 	}
-	assert((doubled_length == (2*datalen)));
 
 	// next we allocate memory
 	ddoubled = malloc(sizeof(double)*doubled_length);
+	if (ddoubled == NULL){
+		free(fdoubled);
+		return ME_MALLOC_FAILURE;
+	}
 
 	// convert from array of floats to array of doubles
 	for (i = 0; i < doubled_length; i++){
@@ -217,6 +224,10 @@ void sosGammatone(float* data, float* output, float centralFreq,
 
 	// allocate memory for dresult
 	dresult = malloc(sizeof(double)*doubled_length);
+	if (dresult == NULL){
+		free(ddoubled);
+		return ME_MALLOC_FAILURE;
+	}
 
 	// perform filtering
 	sosGammatoneHelper(ddoubled, dresult, centralFreq,
@@ -226,24 +237,28 @@ void sosGammatone(float* data, float* output, float centralFreq,
 
 	// allocate memory for fresult
 	fresult = malloc(sizeof(float)*doubled_length);
+	if (fresult == NULL){
+		free(dresult);
+		return ME_MALLOC_FAILURE;
+	}
 
 	// convert the array of results from doubles to floats
 	for (i = 0; i < doubled_length; i++){
 		fresult[i] = (float)dresult[i];
 	}
-
-	// no longer need dresult
 	free(dresult);
 
-	/* finally we downsample back down to the starting frequency */
-	result_length = ResampleAndAlloc(&fresult, doubled_length, 0.5,
-					 &output);
-	if (result_length == (datalen-1)){
+	// finally we downsample back down to the starting frequency
+	result_length = Resample(fresult, doubled_length, 0.5, output);
+	free(fresult);
+	if (result_length <0){ // negative values encode errors
+		return result_length;
+	} else if (result_length != datalen){
+		assert((result_length == datalen - 1));
 		output[result_length]=0;
 		result_length++;
 	}
-	assert((result_length == datalen));
-	free(fresult);
+	return ME_SUCCESS;
 }
 
 
@@ -253,7 +268,7 @@ void sosGammatone(float* data, float* output, float centralFreq,
 
 
 //float version of biquadFilter
-void biquadFilterf(float *coef, float *x, float *y, int length)
+void biquadFilterf(float *coef, const float *x, float *y, int length)
 {
 	float d1, d2, cur_x, cur_y, a0,a1,a2,b0,b1,b2;
 	int n;
@@ -288,8 +303,8 @@ void biquadFilterf(float *coef, float *x, float *y, int length)
 }
 
 //float version of cascadeBiquad
-void cascadeBiquadf(int num_stages, float *coef, float *x, float *y,
-		   int length)
+void cascadeBiquadf(int num_stages, float *coef, const float *x, float *y,
+		    int length)
 {
 	/* run the filter the first time to produce y */
 	biquadFilterf(coef, x, y, length);
@@ -367,12 +382,13 @@ void sosCoeff(float centralFreq, int samplerate, float* coef)
 	}
 }
 
-void sosGammatoneFast(float* data, float* output, float centralFreq,
-		      int samplerate, int datalen)
+int sosGammatoneFast(const float* data, float* output, float centralFreq,
+		     int samplerate, int datalen)
 {
 	//modified sosGammatone that does not double the samplerate and uses floats instead of doubles.
 	//If the loss in accuracy is negligible, we should switch to this as it is significantly faster
 	float coef[24];
 	sosCoeff(centralFreq, samplerate, coef);
 	cascadeBiquadf(4, coef, data, output, datalen);
+	return ME_SUCCESS;
 }

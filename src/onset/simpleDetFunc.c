@@ -3,6 +3,10 @@
 #include <math.h>
 #include <time.h>
 #include "filterBank.h"
+#include "calcSummedLagCorrentrograms.h"
+#include "../utils.h" // AlignedAlloc
+
+#define MAX_CHANNELS 128
 
 /* Concept is taken from python Pandas package*/
 
@@ -129,13 +133,11 @@ static inline void remove_var(double val, int *nobs, double *mean_x,
 	}
 }
 
-/* Basically we compute the rolling variance following the algorithm from 
- * python pandas. This algorithm can still be further optimized so that we add
- * and remove values from the windows in chunks (rather than 1 at a time). 
- * Additionally, if we store wInd on the stack, we might get better 
- * optimizations.
- */
-
+/// Compute the rolling variance following the algorithm from the pandas python
+/// package.
+///
+/// This algorithm can still be further optimized so that we add
+/// and remove values from the windows in chunks (rather than 1 at a time).
 void rollSigma(int startIndex, int interval, float scaleFactor,
 	       int sigWindowSize, int dataLength, int numWindows,
 	       float *buffer, float *sigmas)
@@ -222,134 +224,54 @@ void rollSigma(int startIndex, int interval, float scaleFactor,
 	windowIndexerDestroy(wInd);
 }
 
-
-/**
-Below function attempts to be optimized for speed AS MUCH AS POSSIBLE.
-The overwhelming majority (> 90%) of the programs runtime is within this function.
-We approximate e^x based off this method for doubles: https://nic.schraudolph.org/pubs/Schraudolph99.pdf
-A variation for floats taken from https://stackoverflow.com/questions/9652549/self-made-pow-c
-Below is a simplified, much slower version of what below function does, for clarity:
-
-static inline float calcPSMEntryContrib(float* x, int window_size, float sigma)
+int simpleComputePSM(int numChannels, const float * restrict data,
+		     float * restrict buffer,
+		     const float * restrict centralFreq,
+		     int sampleRate, int dataLength, int startIndex,
+		     int interval, float scaleFactor, int sigWindowSize,
+		     int numWindows, float * restrict sigmas,
+		     int correntropyWinSize,
+		     float * restrict pooledSummaryMatrix)
 {
-	float out = 0;
-	for (int i=0; i<window_size; i++){
-		for (int j=1; j<=window_size; j++){
-			float temp = x[i] - x[i+j];
-			out += expf(-1 * temp * temp);
-		}
-	}
-	return out / (sigma * sqrt(2* M_PI));
-}
-**/
-#define EXP_A 184
-#define EXP_C 16249 
-#define M_1_SQRT2PI 0.3989422804f
-#define EXP_UPPER_BOUND 9.345f
-static inline float calcPSMEntryContrib(float* x, int window_size, float sigma)
-{
-	//union allows us to treat the same 4 bytes of memory as both a float and 2 shorts
-	union {
-		float f;
-		struct {
-			short j, i; //if on big-endian architecture, j, i must be flipped to i, j
-		} s;
-	} res;
-	int i, j;
-	float out, temp;
-	res.s.j = 0;
-	out = 0;
-	for (i = 0; i < window_size; i++) {
-		for (j = 1; j <= window_size; j++) {
-			temp = x[i] - x[i+j];
-			//for values of temp greater in magnitude than 9.345, e^(-(temp^2)) is smaller than FLT_MIN
-			//expf() would return 0.0f for results smaller than FLT_MIN, but EXP_APPROX will return NaN,-NaN for most (not all, some underflow)
-			//by only computing values in valid range, ones outside are treated as 0.
-			if(fabsf(temp) < EXP_UPPER_BOUND){
-				res.s.i = EXP_A*(-1.0f * temp * temp) + (EXP_C);
-				out += res.f;
-			}
-		}
-	}
-	out *= M_1_SQRT2PI / sigma;
-	return out;
-}
-
-void pSMContribution(int correntropyWinSize, int interval, int numWindows,
-		     float *buffer, float *sigmas, float *pSMatrix)
-{
-	int i,start,j,calcBufferLength;
-	float *calcBuffer, denom;
-	start = 0;
-
-	calcBufferLength = 2*correntropyWinSize +1;
-	calcBuffer = malloc(sizeof(float)*calcBufferLength);
-
-	for (i=0;i<numWindows;i++){
-		// not sure if the following function will work correctly:
-		denom = M_SQRT1_2/sigmas[i];
-
-		/* The fact that that the first entry in a window is not 
-		 * being placed in the calculation buffer for the correntropy 
-		 * calculation. Per the paper, the correntropy calculation uses 
-		 * the 2*correntropyWinSize elements immediately following the 
-		 * first entry in the window
-		 */
-		for (j=1;j<=calcBufferLength;j++){
-			calcBuffer[j] = (buffer[start+j]) * denom;
-		}
-		pSMatrix[i] += calcPSMEntryContrib(calcBuffer,
-						   correntropyWinSize,
-						   sigmas[i]);
-		//if (i>=1400){
-		//	printf("Current pSMatrix[%d] value: %f\n",
-		//	       i,(*pSMatrix)[i]);
-		//}
-		start+=interval;
-	}
-	free(calcBuffer);
-}
-
-void simpleComputePSM(int numChannels, float* data, float **buffer,
-		      float *centralFreq, int sampleRate, int dataLength,
-		      int startIndex, int interval, float scaleFactor,
-		      int sigWindowSize, int numWindows, float *sigmas,
-		      int correntropyWinSize, float **pooledSummaryMatrix)
-{
-	float averageTime = 0.0f;
+	float loop_time = 0.0f;
+	float correntropy_time = 0.0f;
 	for (int i = 0;i<numChannels;i++){
-		clock_t c1 = clock();
+		clock_t entry_c = clock();
 
-		//printf("compute channel %d...\n", i);
-		//sosGammatone(data, *buffer, centralFreq[i], sampleRate,
-		//	       dataLength);
-		sosGammatoneFast(data, *buffer, centralFreq[i], sampleRate,
-			       dataLength);
+		int tmp_rslt;
 
-		clock_t c2 = clock();
+		//tmp_rslt = sosGammatone(data, buffer, centralFreq[i],
+		//			sampleRate, dataLength);
+		tmp_rslt = sosGammatoneFast(data, buffer, centralFreq[i],
+					    sampleRate, dataLength);
+		if (tmp_rslt){
+			return tmp_rslt;
+		}
 
-		//printf("   gammatone %d...\n", i);
 		/* compute the sigma values */
 		rollSigma(startIndex, interval, scaleFactor, sigWindowSize,
-			  dataLength, numWindows, *buffer, sigmas);
-		//printf("   sigma %d...\n", i);
+			  dataLength, numWindows, buffer, sigmas);
 
-		clock_t c3 = clock();
-
+		clock_t precorrentrogram_c = clock();
 		/* compute the pooledSummaryMatrixValues */
-		pSMContribution(correntropyWinSize, interval, numWindows,
-				*buffer, sigmas, *pooledSummaryMatrix);
-		//printf("   matrix %d...\n", i);
-		
-		clock_t c4 = clock();
-		float elapsed = ((float)(c4-c1))/CLOCKS_PER_SEC;
-		float elapsed1 = ((float)(c2-c1))/CLOCKS_PER_SEC;
-		float elapsed2 = ((float)(c3-c2))/CLOCKS_PER_SEC;
-		float elapsed3 = ((float)(c4-c3))/CLOCKS_PER_SEC;
-		printf("  %d\telapsed = %0.5f,  (%0.5f,  %0.5f,  %0.5f)\n", i, elapsed*1000, elapsed1*1000, elapsed2*1000, elapsed3*1000);
-		averageTime += elapsed;
+		tmp_rslt = CalcSummedLagCorrentrograms(
+			buffer, sigmas, (size_t) correntropyWinSize,
+			(size_t) correntropyWinSize, (size_t) interval,
+			(size_t) numWindows, pooledSummaryMatrix);
+		if (tmp_rslt){
+			return tmp_rslt;
+		}
+
+		clock_t exit_c = clock();
+		loop_time += ((float)(exit_c-entry_c))/CLOCKS_PER_SEC;
+		correntropy_time +=
+			((float)(exit_c-precorrentrogram_c))/CLOCKS_PER_SEC;
 	}
-	printf("  average time: %f\n", (averageTime*1000) / numChannels);
+	printf("  average correntropy time (seconds): %e\n",
+	       correntropy_time / numChannels);
+	printf("  average total loop time (seconds):  %e\n",
+	       loop_time / numChannels);
+	return 0;
 }
 
 int computeNumWindows(int dataLength, int correntropyWinSize, int interval)
@@ -372,58 +294,70 @@ int simpleDetFunctionCalculation(int correntropyWinSize, int interval,
 				 int detFunctionLength, float* detFunction)
 {
 
-	int dFLength,numWindows,bufferLength,i,startIndex;
-	float *pooledSummaryMatrix, *sigmas, *centralFreq, *buffer;
+	// TODO change the type of all length/index variables to size_t
+	// TODO Refactor so that this function doesn't allocate memory from the
+	//      heap (i.e. use a fixed buffer allocated on the stack)
+	// TODO Add meaningful error codes
 
-	numWindows = computeNumWindows(dataLength, correntropyWinSize,
-				       interval);
+	if (numChannels > MAX_CHANNELS) {
+		return -1;
+	}
+	float centralFreq[MAX_CHANNELS];
+	centralFreqMapper(numChannels, minFreq, maxFreq, centralFreq);
+
+	// check correntrogram properties. Doing this now ensures that we
+	// compute a buffer size that is an integral multiple of 4
+	int arg_check = CheckCorrentrogramsProp((size_t) correntropyWinSize,
+						(size_t) correntropyWinSize,
+						(size_t) interval);
+	if (arg_check != 0){
+		return arg_check;
+	}
+
+	int numWindows = computeNumWindows(dataLength, correntropyWinSize,
+					   interval);
 	printf("datalen: %d, numWindows: %d\n", dataLength, numWindows);
 	if (detFunctionLength != (numWindows-1)){
 		return -1;
 	}
 
-	// The pSMContribution function requires assumes that the filtered data
-	// has the following number of entries:
-	//   (numWindows-1)*interval + 2*correntropyWinSize + 2
-	// For performance reasons, it does not specifically check for and
-	// handle alternative lengths, and therefore we need to make sure that
-	// the filtered data is stored in a buffer of this length. For
-	// simplicity, we just set all elements with indices >= dataLength to
-	// zero.
-	// (This is something of a legacy solution. It would be more correct to
-	// fill in the values for indices >= dataLength assuming that the input
-	// signal has values of 0 at these locations).
-	bufferLength = (numWindows-1)*interval + 2*correntropyWinSize + 2;
+	// For performance reasons, CalcSummedLagCorrentrograms doesn't process
+	// filterred data with arbitrary lengths. It requires that the buffer
+	// holds the following number of entries:
+	int bufferLength = (numWindows-1)*interval + 2*correntropyWinSize;
 	printf("bufferLength: %d\n",bufferLength);
-	buffer = malloc(sizeof(float)*bufferLength);
-	for (i = dataLength; i<bufferLength;i++){
+	float * buffer = AlignedAlloc(16, sizeof(float)*bufferLength);
+	// We accomodate this by simply setting all elements with indices >=
+	// dataLength to zero.
+	// TODO: Improve handling of alternative lengths. It would be more
+	//       correct to pad the end of the input signal with 0s
+	for (int i = dataLength; i < bufferLength; i++){
 		buffer[i] = 0;
 	}
 
-	pooledSummaryMatrix = malloc(sizeof(float)*numWindows);
-	for (i=0;i<numWindows;i++){
+	// Prepare buffer for pooledSummaryMatrix
+	float * pooledSummaryMatrix = malloc(sizeof(float)*numWindows);
+	for (int i = 0; i < numWindows; i++){
 		pooledSummaryMatrix[i] = 0;
 	}
-	sigmas = malloc(sizeof(float)*numWindows);
 
-	centralFreq = malloc(sizeof(float)*numChannels);
-	centralFreqMapper(numChannels, minFreq, maxFreq, centralFreq);
+	float * sigmas = malloc(sizeof(float)*numWindows);
+	int startIndex = correntropyWinSize/2;
 
-	startIndex = correntropyWinSize/2;
-
-	simpleComputePSM(numChannels, data, &buffer, centralFreq, sampleRate, 
-			 dataLength, startIndex, interval, scaleFactor, 
-			 sigWindowSize, numWindows, sigmas,
-			 correntropyWinSize, 
-			 &pooledSummaryMatrix);
+	int result = simpleComputePSM(numChannels, data, buffer, centralFreq,
+				      sampleRate, dataLength, startIndex,
+				      interval, scaleFactor, sigWindowSize,
+				      numWindows, sigmas, correntropyWinSize,
+				      pooledSummaryMatrix);
+	if (result == 0){
+		for (int i = 0; i < detFunctionLength; i++){
+			detFunction[i] = (pooledSummaryMatrix[i+1]
+					  - pooledSummaryMatrix[i]);
+		}
+	}
 
 	free(sigmas);
 	free(buffer);
-	for (i = 0; i<detFunctionLength; i++){
-		detFunction[i] = (pooledSummaryMatrix[i+1]
-				  - pooledSummaryMatrix[i]);
-	}
 	free(pooledSummaryMatrix);
-	free(centralFreq);
-	return 1;
+	return result;
 }

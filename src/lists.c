@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "lists.h"
+#include "errors.h"
 
 // note that these functions are not safe
 // the user is responsible for making sure that the length of the list does
@@ -154,11 +155,11 @@ void orderedListPrint(struct orderedList list)
 		DTYPE * tmp;                                                \
 		tmp = realloc(list->array, (list->length) * sizeof(DTYPE)); \
 		if (tmp == NULL){                                           \
-			return 0;                                           \
+			return ME_REALLOC_FAILURE;                          \
 		}                                                           \
 		list->array = tmp;                                          \
 		list->capacity = list->length;                              \
-		return 1;                                                   \
+		return ME_SUCCESS;                                          \
 	}                                                                   \
 	                                                                    \
 	int ARR_NAME ## Append (ARR_NAME * list, DTYPE val)                 \
@@ -169,13 +170,13 @@ void orderedListPrint(struct orderedList list)
 			tmp = realloc(list->array,                          \
 				     list->capacity * sizeof(DTYPE));       \
 			if (!tmp){                                          \
-				return 0;                                   \
+				return ME_REALLOC_FAILURE;                  \
 			}                                                   \
 			list->array = tmp;                                  \
 		}                                                           \
 		(list->array)[list->length] = val;                          \
 		(list->length)++;                                           \
-		return 1;                                                   \
+		return ME_SUCCESS;                                          \
 	}
 
 	
@@ -206,8 +207,7 @@ void distinctListPrintFreq(distinctList list)
 	if (list.length != 0) {
 		printf("%lf",list.array[0].frequency);
 	}
-	int i;
-	for (i=1; i<list.length; i++){
+	for (int i=1; i<list.length; i++){
 		printf(", %lf",list.array[i].frequency);
 	}
 	printf("]\n");
@@ -219,8 +219,7 @@ void distinctListPrintConfidence(distinctList list)
 	if (list.length != 0){
 		printf("%d",list.array[0].confidence);
 	}
-	int i;
-	for (i=1; i<list.length; i++){
+	for (int i=1; i<list.length; i++){
 		printf(", %d",list.array[i].confidence);
 	}
 	printf("]\n");
@@ -232,8 +231,7 @@ void distinctListPrintCost(distinctList list)
 	if (list.length != 0){
 		printf("%.10f",list.array[0].cost);
 	}
-	int i;
-	for (i=1; i<list.length; i++){
+	for (int i=1; i<list.length; i++){
 		printf(", %.10f",list.array[i].cost);
 	}
 	printf("]\n");
@@ -245,8 +243,7 @@ void distinctListPrintIndexLowestCost(distinctList list)
 	if (list.length != 0){
 		printf("%d",list.array[0].indexLowestCost);
 	}
-	int i;
-	for (i=1; i<list.length; i++){
+	for (int i=1; i<list.length; i++){
 		printf(", %d",list.array[i].indexLowestCost);
 	}
 	printf("]\n");

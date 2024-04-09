@@ -7,6 +7,7 @@
 #include <float.h>
 #include "onsetsds.h"
 #include "../resample.h"
+#include "../errors.h"
 #include "onsetStrat.h"
 #include "pairTransientDetection.h"
 #include "simpleDetFunc.h"
@@ -62,11 +63,12 @@ int OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, int
 		
 		if(onsetsds_process(&ods, block)){
 			//printf("new onset\n");
-			if(intListAppend(onsets,i) != 1){//resize failed
+			int tmp_rslt = intListAppend(onsets,i);
+			if(tmp_rslt != ME_SUCCESS){ //resize failed
 				printf("Resizing onsets failed. Exitting.\n");
 				free(block);
 				free(ods.data);
-				return -1;
+				return tmp_rslt;
 			}
 		}
 	}
@@ -77,11 +79,12 @@ int OnsetsDSDetectionStrategy(float** AudioData, int size, int dftBlocksize, int
 	if(onsets->length == 0){ //if no onsets found, do not realloc here. Unable to realloc array to size 0
 		return 0;
 	}
-	printf("realloc to size %ld\n", onsets->length*sizeof(int));
-	if (intListShrink(onsets)!=1){
+	printf("shrink capacity to size %ld\n", onsets->length*sizeof(int));
+	int tmp_rslt = intListShrink(onsets);
+	if (tmp_rslt != ME_SUCCESS){
 		printf("Resizing onsets failed. Exitting.\n");
 		// intList was preallocated, we intentionally won't free it
-		return -1;
+		return tmp_rslt;
 	}
 
 	return onsets->length;
@@ -101,9 +104,9 @@ int TransientDetectionStrategy(float** AudioData, int size, int dftBlocksize,
 	samplerate = 11025;
 	float* ResampledAudio = NULL;
 	float sampleRatio = samplerate/((float)samplerateOld);
-	int RALength = ResampleAndAlloc(AudioData, size, sampleRatio, &ResampledAudio);
-	if(RALength == -1){
-		return -1;
+	int RALength = ResampleAndAlloc(*AudioData, size, sampleRatio, &ResampledAudio);
+	if(RALength < 0){ // negative values encode errors
+		return RALength;
 	}
 
 	printf("resample complete\n");

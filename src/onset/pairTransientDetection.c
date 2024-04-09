@@ -4,12 +4,14 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <string.h>
-#include <limits.h>
-#include <math.h>
+#include <limits.h> // FLT_MAX
+#include <math.h> // fabs
+#include <stdbool.h>
 #include <float.h>
 
 #include "pairTransientDetection.h"
 #include "simpleDetFunc.h"
+#include "../errors.h"
 
 //wmin set to 4 (20ms)
 //wmax set to 500 (2.5s)
@@ -151,10 +153,11 @@ int detectTransients(float* detection_func, int len, intList* transients){
 		}
 
 		//printf("    ONSET   FITNESS:  %f  AT INDEX:  %d   AT TIME:  %f\n", bestFitness, bestInd, detect_index/200.0f);
-		if(intListAppend(transients, detect_index) != 1){
+		int tmp_rslt = intListAppend(transients, detect_index);
+		if(tmp_rslt != ME_SUCCESS){
 			printf("Resizing transients failed. Exitting.\n");
 			freeKernels(Kernels, numKernels);
-			return -1;
+			return tmp_rslt;
 		}
 
 		bestFitness = FLT_MAX;
@@ -170,10 +173,11 @@ int detectTransients(float* detection_func, int len, intList* transients){
 		detect_index += bestInd;
 
 		//printf("    OFFSET   FITNESS:  %f  AT INDEX:  %d   AT TIME:  %f\n", bestFitness, bestInd, detect_index/200.0f);
-		if(intListAppend(transients, detect_index) != 1){
+		tmp_rslt = intListAppend(transients, detect_index);
+		if(tmp_rslt != ME_SUCCESS){
 			printf("Resizing transients failed. Exitting.\n");
 			freeKernels(Kernels, numKernels);
-			return -1;
+			return tmp_rslt;
 		}
 		// if at end of activity range, jump detect_index forward to
 		// start of next range
@@ -189,16 +193,28 @@ int detectTransients(float* detection_func, int len, intList* transients){
 		transients->length = 0;
 		// no transients found, do not attempt to shrink here. Unable
 		// to realloc array to size 0
-		return 0;
+		return ME_SUCCESS;
 	}
-
-	if (intListShrink(transients)!=1){
+	int tmp_rslt = intListShrink(transients);
+	if (tmp_rslt != ME_SUCCESS){
 		printf("Resizing onsets failed. Exitting.\n");
 		// intList was preallocated, we intentionally won't free it
-		return -1;
+		return tmp_rslt;
 	}
 
 	return transients->length;
+}
+
+static int coercePosMultipleOf4_(int arg, bool round_up){
+	if ((arg <=0) || (arg % 4) == 0){
+		return arg;
+	} else if (arg < 4) {
+		return 4;
+	} else if (round_up) {
+		return 4*((arg/4) + 1);
+	} else {
+		return 4*(arg/4);
+	}
 }
 
 int pairwiseTransientDetection(float *audioData, int size, int samplerate,
@@ -207,11 +223,19 @@ int pairwiseTransientDetection(float *audioData, int size, int samplerate,
 	// use parameters suggested by paper
 	int numChannels = 64;
 	float minFreq = 80.f; // 80 Hz
-	float maxFreq = 4000.f; // 4000 Hz 
+	float maxFreq = 4000.f; // 4000 Hz
 	int correntropyWinSize = samplerate/80; // assumes minFreq=80
+	if ((samplerate % 80) == 0) {
+		correntropyWinSize++;
+	}
 	int interval = samplerate/200; // 5ms
 	float scaleFactor = powf(4./3.,0.2); // magic, grants three wishes
+	                                     // (Silverman's rule of thumb)
 	int sigWindowSize = (samplerate*7); // 7s
+
+	// implementation requirement for correntropyWinSize & interval:
+	correntropyWinSize = coercePosMultipleOf4_(correntropyWinSize, true);
+	interval = coercePosMultipleOf4_(interval, false);
 
 	// allocate the detectionFunction
 	int detectionFunctionLength =
@@ -220,14 +244,15 @@ int pairwiseTransientDetection(float *audioData, int size, int samplerate,
 					  detectionFunctionLength);
 
 	// compute the detectionFunction
-	if (1 != simpleDetFunctionCalculation(correntropyWinSize, interval,
-					      scaleFactor, sigWindowSize,
-					      numChannels, minFreq, maxFreq,
-					      samplerate, size, audioData,
-					      detectionFunctionLength,
-					      detectionFunction)){
+	int rslt = simpleDetFunctionCalculation(correntropyWinSize, interval,
+						scaleFactor, sigWindowSize,
+						numChannels, minFreq, maxFreq,
+						samplerate, size, audioData,
+						detectionFunctionLength,
+						detectionFunction);
+	if (ME_SUCCESS != rslt){
 		free(detectionFunction);
-		return -1;
+		return rslt;
 	}
 
 	printf("detect func computed\n");
