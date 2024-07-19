@@ -7,7 +7,6 @@
 
 #include <stdint.h> // for int64_t
 #include "pitch/pitchStrat.h"
-#include "onset/onsetStrat.h"
 #include "silenceStrat.h"
 
 // the following is included so we can handle the basics of midi files
@@ -18,16 +17,21 @@ struct Track{
 };
 
 struct Midi{
-  struct Track** tracks;
+  struct Track* tracks;
   int format; //0 = single track, 1 = multitrack, 2 = multisong.
   int numTracks; //number of tracks
   int division; //delts time. if positive, represents units per beat. if negative, in SMPTE compatible units. 
 };
 
-struct Track* GenerateTrack(int* noteArr, int size, int verbose);
-struct Midi* GenerateMIDI(int* noteArr, int size, int verbose);
 void freeMidi(struct Midi* midi);
-void SaveMIDI(struct Midi* midi, char* path, int verbose);
+
+/// Writes midi data to a file
+/// @param[in] midi pointer to the data that is to be saved
+/// @param[in] path Null-terminated string denoting the file path
+/// @param[in] verbose Whether to run in verbose mode
+///
+/// @returns 0 upon success.
+int SaveMIDI(struct Midi* midi, const char* path, int verbose);
 
 typedef struct {
 	int64_t frames;
@@ -38,17 +42,12 @@ typedef struct {
 // use to actually execute the library
 // we may want to make this opaque
 
-//struct me_settings;
 struct me_settings{
 	char * prefix;
 	char * pitch_window;
 	char * pitch_padded;
 	char * pitch_spacing;
 	char * pitch_strategy;
-	char * onset_window;
-	char * onset_padded;
-	char * onset_spacing;
-	char * onset_strategy;
 	char * silence_window;
 	char * silence_spacing;
 	char * silence_strategy;
@@ -72,6 +71,23 @@ char* me_data_init(struct me_data** inst, struct me_settings* settings, audioInf
 // destroy me_data
 void me_data_free(struct me_data *inst);
 
-struct Midi* me_process(float **input, audioInfo info, struct me_data *inst);
+/// process the input
+/// @param[in]  input pointer to audio data that should be processed
+/// @param[in]  info Information about the input audio data
+/// @param[in]  me_data Holds settings information
+/// @param[out] Optional pointer to an int where the exit code will be
+///    recorded. A value of 0 indicates success. Pass the value to me_strerror
+///    to retrieve the error message. This function will properly handle this
+///    argument if it's NULL.
+///
+/// @returns Returns a heap allocated Midi struct instance
+struct Midi* me_process(float *input, audioInfo info, struct me_data *inst,
+			int * exit_code);
+
+/// Convert an exit code to an string
+///
+/// @param error_code An error code returned from the
+/// @returns This returns a string literal if the error code is recognzed
+const char* me_strerror(int err_code);
 
 #endif	/* MELODYEXTRACTION_H */

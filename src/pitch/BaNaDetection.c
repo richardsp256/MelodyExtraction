@@ -1,21 +1,23 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "findpeaks.h"
 #include "findCandidates.h"
 #include "candidateSelection.h"
 #include "../lists.h"
+#include "../errors.h"
 #include "BaNaDetection.h"
 
+// MAX_P defines the maximum number of harmonic peaks. 10 is definitely overkill
+#define MAX_P 10
 
 // here we define the actual BaNa Fundamental pitch detection algorithm
 // NOTE: in all of my code I use window, frame, and block to refer to the same
 //       thing
 
-// NOTE: modify use of doubles to represent frequency to floats for consistency
-
-int BaNa(float **AudioData, int size, int dftBlocksize, int p,
+int BaNa(float *spectrogram, int size, int dftBlocksize, int p,
 	 float f0Min, float f0Max, float xi, int fftSize, int samplerate,
-	 int first, float *fundamentals)
+	 bool first, float *fundamentals)
 {
 	// Implements the BaNa fundamental pitch detection algorithm
 	// This algorithm is split into 3 parts:
@@ -30,39 +32,52 @@ int BaNa(float **AudioData, int size, int dftBlocksize, int p,
 	//    d. Add harmonic peak with lowest frequency to F0 candidates
 	// 3. Post-Processing. Selection of F0 from candidates
 
-
-	distinctList **windowCandidates;
-	int numBlocks = size / dftBlocksize;
-	long i;
-
 	float *frequencies = calcFrequencies(dftBlocksize, fftSize,
 					      samplerate);
 	if(frequencies == NULL){
-		printf("malloc error\n");
-		fflush(NULL);
-		return 0;
+		return ME_MALLOC_FAILURE;
 	}
 
 	// preprocess each of the frames
-	BaNaPreprocessing(AudioData, size, dftBlocksize, p, f0Min, f0Max,
+	// In the future, we will try to avoid modifying the input spectrogram
+	// directly.
+	BaNaPreprocessing(spectrogram, size, dftBlocksize, p, f0Min, f0Max,
 			  frequencies);
 
+	int numBlocks = (size / dftBlocksize);
+	distinctList **windowCandidates =
+		malloc(sizeof(distinctList*) * numBlocks);
+	if(windowCandidates == NULL){
+		free(frequencies);
+		return ME_MALLOC_FAILURE;
+	}
+
+	// set smoothwidth to the equivalent of 50 Hz
+	// (not totally sure I should be using fftSize instead of dftBlocksize)
+	float smoothwidth = 50. * ( ((float) fftSize) /
+				    ((float) samplerate) );
+
 	// find the candidates for the fundamentals
-	windowCandidates = BaNaFindCandidates(AudioData, size, dftBlocksize,
-					      p, f0Min, f0Max, first, xi,
-					      frequencies, fftSize, samplerate);
+	int rv = BaNaFindCandidates(spectrogram, size, dftBlocksize,
+				    p, f0Min, f0Max, first, xi, frequencies,
+				    smoothwidth, windowCandidates);
+	if (rv != ME_SUCCESS){
+		free(windowCandidates);
+		free(frequencies);
+		return rv;
+	}
 
 	// determine which candidate is the fundamental
 	candidateSelection(windowCandidates, numBlocks, fundamentals);
 
 	// clean up
-	for (i=0;i<numBlocks;i++){
+	for (size_t i=0;i<numBlocks;i++){
 		distinctListDestroy(windowCandidates[i]);
 	}
 	free(windowCandidates);
 	free(frequencies);
 
-	return 1;
+	return ME_SUCCESS;
 }
 
 float* calcFrequencies(int dftBlocksize, int fftSize, int samplerate)
@@ -80,11 +95,10 @@ float* calcFrequencies(int dftBlocksize, int fftSize, int samplerate)
 	return frequencies;
 }
 
-void BaNaPreprocessing(float **AudioData, int size, int dftBlocksize, int p,
-		       float f0Min, float f0Max, float* frequencies)
+void BaNaPreprocessing(float *spectrogram, int size, int dftBlocksize, int p,
+		       float f0Min, float f0Max, const float* frequencies)
 {
 	// set all frequencies outside of [f0Min, p * f0Max] to zero
-	int blockstart, i;
 	float maxFreq = (((float)p)*f0Max);
 	// determine the index of the leftmost frequency value >= f0Min
 	int goodFreqStart = bisectLeft(frequencies, f0Min, 0, dftBlocksize);
@@ -98,137 +112,93 @@ void BaNaPreprocessing(float **AudioData, int size, int dftBlocksize, int p,
 	}
 
 	// set magnitudes for frequencies outside of [f0Min,maxFreq] to 0
-	for (blockstart = 0; blockstart < size; blockstart += dftBlocksize){
-		for (i=0; i<goodFreqStart; i++){
-			(*AudioData)[blockstart + i] = 0;
+	for (int blockstart=0; blockstart < size; blockstart += dftBlocksize){
+		for (int i=0; i<goodFreqStart; i++){
+			spectrogram[blockstart + i] = 0;
 		}
-		for (i=goodFreqStop; i<dftBlocksize; i++){
-			(*AudioData)[blockstart + i] = 0;
+		for (int i=goodFreqStop; i<dftBlocksize; i++){
+			spectrogram[blockstart + i] = 0;
 		}
 	}
 }
 
-distinctList** BaNaFindCandidates(float **AudioData, int size,
-				  int dftBlocksize, int p, float f0Min,
-				  float f0Max, int first, float xi,
-				  float* frequencies, int fftSize,
-				  int samplerate)
+int BaNaFindCandidates(const float *spectrogram, int size,
+		       int dftBlocksize, int p, float f0Min,
+		       float f0Max, bool first, float xi,
+		       float* frequencies, float smoothwidth,
+		       distinctList** windowCandidates)
 {
 	// this finds all of the f0 candiates
 	// windowCandidates is an array of pointers that point to the list of
 	// candidates for each window
 
-	int i;
-	int numBlocks = size / dftBlocksize;
-	int blockstart;
-	int numPeaks;
-	float temp, firstFreqPeak, ampThreshold, smoothwidth;
-	float *peakFreq, *peakMag;
-	float *magnitudes;
-	struct orderedList candidates;
-	distinctList **windowCandidates;
-
-	magnitudes = malloc(dftBlocksize * sizeof(float));
-	if(magnitudes == NULL){
-		printf("malloc error\n");
-		fflush(NULL);
-		return NULL;
-	}
-	peakFreq = malloc(p * sizeof(float));
-	if(peakFreq == NULL){
-		printf("malloc error\n");
-		fflush(NULL);
-		free(magnitudes);
-		return NULL;
-	}
-	peakMag = malloc(p * sizeof(float));
-	if(peakMag == NULL){
-		printf("malloc error\n");
-		fflush(NULL);
-		free(magnitudes);
-		free(peakFreq);
-		return NULL;
-	}
-	windowCandidates = malloc(sizeof(distinctList*) * numBlocks);
-	if(windowCandidates == NULL){
-		printf("malloc error\n");
-		fflush(NULL);
-		free(magnitudes);
-		free(peakFreq);
-		free(peakMag);
-		return NULL;
+	float peakFreq[MAX_P];
+	float peakMag[MAX_P];
+	if (p > MAX_P){
+		return ME_BANA_TOO_MANY_PEAKS;
 	}
 
 	// outer loop iterates over blocks
-	for (blockstart = 0; blockstart < size; blockstart += dftBlocksize){
+	for (int win =0; win < size/dftBlocksize; win++ ){
 
-		// for now copy the magnitudes into a buffer. Fix this in the
-		// future
-		for(i = 0; i < dftBlocksize; i++){
-			magnitudes[i] = (*AudioData)[blockstart + i];
-		}
+		const float * const magnitudes =
+			&(spectrogram[win*dftBlocksize]);
 
 		// determine slopeThreshold, ampThreshold, smoothwidth
 		// set ampThreshold to 1/15 th of largest magnitude
-		ampThreshold = magnitudes[0];
-		for (i=1; i < dftBlocksize; i++){
-			temp = magnitudes[i];
+		float ampThreshold = magnitudes[0];
+		for (int i=1; i < dftBlocksize; i++){
+			float temp = magnitudes[i];
 			if (temp>ampThreshold) {
 				ampThreshold = temp;
 			}
 		}
 		ampThreshold/=15.;
 
-		// set smoothwidth to the equivalent of 50 Hz
-		smoothwidth = 50. * ((float) fftSize) / ((float) samplerate);
-
 		// find the harmonic spectra peaks
-		numPeaks = findpeaks(frequencies, magnitudes,
-				     (long)dftBlocksize, 0.0,
-				     ampThreshold, smoothwidth, 5, 3, 
-				     p, first, peakFreq, peakMag,
-				     &firstFreqPeak);
-		//printf("Candidates = [%.0lf",firstFreqPeak);
-		//for (int j =1; j<numPeaks;j++){
-		//	printf(", %.0lf",peakFreq[j]);
-		//}
-		//printf("]\n");
-		
-		//printf("Done finding peaks\n");
-		// determine the candidates from the peaks
-		candidates = calcCandidates(peakFreq, numPeaks);
-		//printf("Done finding candidates\n");
+		float firstFreqPeak;
+		int numPeaks = findpeaks(frequencies, magnitudes,
+					 (long)dftBlocksize, 0.0,
+					 ampThreshold, smoothwidth, 5, 3, 
+					 p, first, peakFreq, peakMag,
+					 &firstFreqPeak);
+
+		// Now, identify the candidates
+
+		// Max number of candidates from ratio analysis
+		//      = (numPeaks)*(numPeaks-1)/2
+		// Need additional space to hold:
+		//   - lowest frequency peak
+		//   - cepstral frequency
+		struct orderedList candidates =
+			orderedListCreate( (numPeaks * (numPeaks-1))/2 + 2);
+
+		// determine the candidates from the peak ratios
+		RatioAnalysisCandidates(peakFreq, numPeaks, &candidates);
+
 		// add the lowest frequency peak fundamental candidate
 		orderedListInsert(&candidates, (float)firstFreqPeak);
-		//printf("Inserted lowest frequency candidate\n");
-		// add the cepstrum fundamental candidate
 
+		// add the cepstrum fundamental candidate
+		// (skipping this for now!)
+
+		// Now consolidate the list of all candidates into a
+		// distinctive list.
 		distinctList* t = distinctCandidates(&candidates,
 						     ((numPeaks)*
 						     (numPeaks-1)/2)+2,
 						     xi,(float)f0Min,
 						     (float)f0Max);
-		//distinctListPrintFreq(*t);
-		// determine the distinctive candidates and add them to
-		windowCandidates[blockstart/dftBlocksize] = t;
-		//windowCandidates[i] = distinctCandidates(&candidates,
-		//					 (p-1)*(p-1)+2, xi);
-
 		orderedListDestroy(candidates);
+		if (t == NULL){
+			for(int i=0; i <win; i++){
+				distinctListDestroy(windowCandidates[i]);
+			}
+			return ME_MALLOC_FAILURE;
+		}
 
-		 
+		// Finally, add the distinctive candidates to windowCandidates
+		windowCandidates[win] = t;
 	}
-	free(peakFreq);
-	free(peakMag);
-	free(magnitudes);
-	return windowCandidates;
+	return ME_SUCCESS;
 }
-
-
-/*
-int main(int argc, char*argv[])
-{
-	// only including this for testing purposes
-	return 0;
-}
-*/

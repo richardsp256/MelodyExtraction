@@ -28,7 +28,7 @@
 ///             that will be filled with the frequencies of the identified
 ///             pitches
 ///
-/// @return A value of 1 indicates success.
+/// @return A value of 0 indicates success.
 ///
 /// @par Note:
 /// `fftSize` and `samplerate` are used to compute the frequency associated

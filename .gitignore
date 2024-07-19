@@ -49,6 +49,7 @@ master.zip
 *.h~
 *.py~
 *.txt~
+*.def~
 .dir-locals.el
 
 # pymelex related files
@@ -60,10 +61,6 @@ pymelex/pymelex/__pycache__/*
 CMakeFiles/*
 src/CMakeFiles/*
 tests/CMakeFiles/*
-cmake_install.cmake
-config.h
-CTestTestfile.cmake
-install_manifest.txt
 Makefile
 Testing/*
 
